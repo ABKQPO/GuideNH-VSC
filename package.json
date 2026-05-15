@@ -11,12 +11,13 @@
     "Programming Languages",
     "Other"
   ],
-  "activationEvents": [
-    "onLanguage:markdown",
-    "onLanguage:guidenh-md",
-    "onCommand:guide-vsc.generateSchema",
-    "onCommand:guide-vsc.connectRuntimeBridge",
-    "onCommand:guide-vsc.disconnectRuntimeBridge"
+    "activationEvents": [
+      "onLanguage:markdown",
+      "onLanguage:guidenh-md",
+      "onCommand:guide-vsc.generateSchema",
+      "onCommand:guide-vsc.connectRuntimeBridge",
+      "onCommand:guide-vsc.disconnectRuntimeBridge",
+      "onCommand:guide-vsc.validateRuntimeDocument"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -70,6 +71,10 @@
       {
         "command": "guide-vsc.disconnectRuntimeBridge",
         "title": "GuideNH: Disconnect Runtime Bridge"
+      },
+      {
+        "command": "guide-vsc.validateRuntimeDocument",
+        "title": "GuideNH: Validate Current Document With Runtime"
       }
     ]
   },

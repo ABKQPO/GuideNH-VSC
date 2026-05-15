@@ -3,6 +3,8 @@ export type BridgeMessageType = 'request' | 'response' | 'event' | 'error';
 export const RuntimeBridgeConnectNotification = 'guide-vsc/runtimeBridge/connect';
 export const RuntimeBridgeDisconnectNotification = 'guide-vsc/runtimeBridge/disconnect';
 export const RuntimeBridgeStatusNotification = 'guide-vsc/runtimeBridge/status';
+export const RuntimeDocumentValidateNotification = 'guide-vsc/runtimeDocument/validate';
+export const MaxRuntimeDocumentBytes = 262144;
 
 export interface BridgeEnvelope<TPayload = unknown> {
 	id?: string;
@@ -22,6 +24,12 @@ export interface RuntimeBridgeConnectParams {
 	host: string;
 	port: number;
 	token: string;
+}
+
+export interface RuntimeDocumentValidateParams {
+	uri: string;
+	languageId: string;
+	text: string;
 }
 
 export type RuntimeBridgeStatusState = 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -58,6 +66,12 @@ export interface SemanticQueryResultPayload {
 	nextCursor?: string | null;
 }
 
+export interface RuntimeDocumentValidationPayload {
+	uri: string;
+	languageId: string;
+	text: string;
+}
+
 export function createHelloMessage(token: string): BridgeEnvelope<HelloPayload> {
 	return {
 		id: 'hello',
@@ -89,6 +103,23 @@ export function createSemanticQueryMessage(
 			limit,
 			prefix: '',
 			filters: {}
+		}
+	};
+}
+
+export function createRuntimeDocumentValidateMessage(
+	id: string,
+	document: RuntimeDocumentValidateParams
+): BridgeEnvelope<RuntimeDocumentValidationPayload> {
+	return {
+		id,
+		type: 'request',
+		method: 'document.validate',
+		protocol: 1,
+		payload: {
+			uri: document.uri,
+			languageId: document.languageId,
+			text: document.text
 		}
 	};
 }

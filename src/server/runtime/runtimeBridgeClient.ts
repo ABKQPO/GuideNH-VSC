@@ -1,10 +1,13 @@
 import WebSocket from 'ws';
 import {
 	BridgeEnvelope,
+	createRuntimeDocumentValidateMessage,
 	createHelloMessage,
 	createSemanticQueryMessage,
+	MaxRuntimeDocumentBytes,
 	SemanticEntry,
 	SemanticQueryResultPayload,
+	RuntimeDocumentValidateParams,
 	RuntimeBridgeStatusParams,
 	RuntimeBridgeStatusState
 } from '../../common/protocol';
@@ -60,6 +63,14 @@ export class RuntimeBridgeClient {
 		this.closeSocket();
 		this.cache.markStale();
 		this.publishStatus({ state: 'disconnected' });
+	}
+
+	validateDocument(document: RuntimeDocumentValidateParams): void {
+		const byteLength = Buffer.byteLength(document.text, 'utf8');
+		if (byteLength > MaxRuntimeDocumentBytes) {
+			throw new Error(`Runtime document validation payload is too large: ${byteLength} bytes`);
+		}
+		this.send(createRuntimeDocumentValidateMessage(`document.validate.${Date.now()}`, document));
 	}
 
 	private send(message: BridgeEnvelope): void {

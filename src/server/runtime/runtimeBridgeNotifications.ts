@@ -3,12 +3,15 @@ import {
 	RuntimeBridgeConnectParams,
 	RuntimeBridgeDisconnectNotification,
 	RuntimeBridgeStatusNotification,
-	RuntimeBridgeStatusParams
+	RuntimeBridgeStatusParams,
+	RuntimeDocumentValidateNotification,
+	RuntimeDocumentValidateParams
 } from '../../common/protocol';
 
 export interface RuntimeBridgeConnectionController {
 	connect(options: RuntimeBridgeConnectParams): void;
 	disconnect(): void;
+	validateDocument(document: RuntimeDocumentValidateParams): void;
 }
 
 export type RuntimeBridgeNotificationHandler = (payload?: unknown) => void;
@@ -26,6 +29,9 @@ export function createRuntimeBridgeNotificationHandlers(
 		},
 		[RuntimeBridgeDisconnectNotification]: () => {
 			controller.disconnect();
+		},
+		[RuntimeDocumentValidateNotification]: (payload) => {
+			controller.validateDocument(payload as RuntimeDocumentValidateParams);
 		}
 	};
 }

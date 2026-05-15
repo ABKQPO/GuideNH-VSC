@@ -3,7 +3,8 @@ import {
 	RuntimeBridgeConnectNotification,
 	RuntimeBridgeConnectParams,
 	RuntimeBridgeDisconnectNotification,
-	RuntimeBridgeStatusNotification
+	RuntimeBridgeStatusNotification,
+	RuntimeDocumentValidateNotification
 } from '../common/protocol';
 import {
 	createRuntimeBridgeNotificationHandlers,
@@ -19,7 +20,8 @@ suite('GuideNH runtime bridge server notifications', () => {
 			connect: (options) => {
 				calls.push(options);
 			},
-			disconnect: () => undefined
+			disconnect: () => undefined,
+			validateDocument: () => undefined
 		};
 		const handlers = createRuntimeBridgeNotificationHandlers(controller);
 
@@ -34,13 +36,30 @@ suite('GuideNH runtime bridge server notifications', () => {
 			connect: () => undefined,
 			disconnect: () => {
 				disconnects++;
-			}
+			},
+			validateDocument: () => undefined
 		};
 		const handlers = createRuntimeBridgeNotificationHandlers(controller);
 
 		handlers[RuntimeBridgeDisconnectNotification]();
 
 		assert.strictEqual(disconnects, 1);
+	});
+
+	test('forwards manual runtime document validation requests', () => {
+		const documents: unknown[] = [];
+		const controller: RuntimeBridgeConnectionController = {
+			connect: () => undefined,
+			disconnect: () => undefined,
+			validateDocument: (document) => {
+				documents.push(document);
+			}
+		};
+		const handlers = createRuntimeBridgeNotificationHandlers(controller);
+
+		handlers[RuntimeDocumentValidateNotification]({ uri: 'file:///repo/page.md', languageId: 'markdown', text: '# Page' });
+
+		assert.deepStrictEqual(documents, [{ uri: 'file:///repo/page.md', languageId: 'markdown', text: '# Page' }]);
 	});
 
 	test('sends runtime bridge status to the language client', () => {

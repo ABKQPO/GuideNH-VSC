@@ -134,6 +134,43 @@ suite('GuideNH runtime bridge client', () => {
 		assert.ok(statuses.find((status) => status.state === 'error')?.message);
 		client.disconnect();
 	});
+
+	test('sends manual document validation without oversized payloads', async () => {
+		const server = new WebSocketServer({ port: 0 });
+		const port = await listenPort(server);
+		const cache = new SemanticCache();
+		const client = new RuntimeBridgeClient(cache);
+		const validationRequests: unknown[] = [];
+
+		server.on('connection', (socket) => {
+			socket.on('message', (data) => {
+				const message = JSON.parse(data.toString()) as { id: string; method: string; payload?: unknown };
+				if (message.method === 'hello') {
+					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
+					return;
+				}
+				if (message.method === 'document.validate') {
+					validationRequests.push(message.payload);
+					socket.send(JSON.stringify(response(message.id, 'document.validate', { diagnostics: [] })));
+				}
+			});
+		});
+
+		try {
+			client.connect({ host: '127.0.0.1', port, token: 'secret' });
+			await waitFor(() => cache.getVersion('items') === 0 && validationRequests.length === 0);
+			client.validateDocument({ uri: 'file:///repo/page.md', languageId: 'markdown', text: '# Page' });
+			await waitFor(() => validationRequests.length === 1);
+			assert.deepStrictEqual(validationRequests, [{ uri: 'file:///repo/page.md', languageId: 'markdown', text: '# Page' }]);
+			assert.throws(
+				() => client.validateDocument({ uri: 'file:///repo/large.md', languageId: 'markdown', text: 'x'.repeat(262145) }),
+				/too large/
+			);
+		} finally {
+			client.disconnect();
+			await closeServer(server);
+		}
+	});
 });
 
 function response(id: string, method: string, payload: unknown): object {
