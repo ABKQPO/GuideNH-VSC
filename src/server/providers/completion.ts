@@ -23,6 +23,19 @@ interface FrontmatterValueContext {
 	prefix: string;
 }
 
+interface FrontmatterValueSource {
+	path: string;
+	capability?: string;
+	indexDetail?: string;
+}
+
+const FrontmatterValueSources: FrontmatterValueSource[] = [
+	{ path: 'item_ids', capability: 'items', indexDetail: 'Indexed item id' },
+	{ path: 'ore_ids', capability: 'ores', indexDetail: 'Indexed ore id' },
+	{ path: 'categories', capability: 'categories', indexDetail: 'Indexed category' },
+	{ path: 'navigation.required_mods', capability: 'mods', indexDetail: 'Indexed required mod' }
+];
+
 export function createGuideNhCompletions(
 	text: string,
 	offset: number,
@@ -34,7 +47,11 @@ export function createGuideNhCompletions(
 	const frontmatter = extractFrontmatter(text);
 	if (frontmatter && offset <= frontmatter.end) {
 		const pageCompletions = createFrontmatterPageValueCompletions(text, offset, frontmatter, index);
-		return pageCompletions.length > 0 ? pageCompletions : createFrontmatterCompletions(text, offset, frontmatter, schema);
+		if (pageCompletions.length > 0) {
+			return pageCompletions;
+		}
+		const valueCompletions = createFrontmatterValueCompletions(text, offset, frontmatter, cache, index);
+		return valueCompletions.length > 0 ? valueCompletions : createFrontmatterCompletions(text, offset, frontmatter, schema);
 	}
 
 	const fencedBlockCompletions = createFencedBlockCompletions(text, offset, schema);
@@ -163,14 +180,25 @@ function createFrontmatterPageValueCompletions(
 
 function findFrontmatterValueContext(before: string): FrontmatterValueContext | undefined {
 	const line = getCurrentLine(before);
-	const valueMatch = line.match(/^(\s*)([A-Za-z_][\w.-]*)\s*:\s*([^\s]*)$/);
-	if (!valueMatch) {
+	const scalarValueMatch = line.match(/^(\s*)([A-Za-z_][\w.-]*)\s*:\s*([^\s]*)$/);
+	if (scalarValueMatch) {
+		const parentPath = findFrontmatterParentPath(before, scalarValueMatch[1].length);
+		return {
+			path: [...parentPath, scalarValueMatch[2]],
+			prefix: scalarValueMatch[3]
+		};
+	}
+	const listValueMatch = line.match(/^(\s*)-\s+([^\s]*)$/);
+	if (!listValueMatch) {
 		return undefined;
 	}
-	const parentPath = findFrontmatterParentPath(before, valueMatch[1].length);
+	const parentPath = findFrontmatterParentPath(before, listValueMatch[1].length + 1);
+	if (parentPath.length === 0) {
+		return undefined;
+	}
 	return {
-		path: [...parentPath, valueMatch[2]],
-		prefix: valueMatch[3]
+		path: parentPath,
+		prefix: listValueMatch[2]
 	};
 }
 
@@ -188,6 +216,75 @@ function createPageValueCompletions(prefix: string, index: GuideNhWorkspaceIndex
 			detail: 'GuideNH page',
 			documentation: page.uri
 		}));
+}
+
+function createFrontmatterValueCompletions(
+	text: string,
+	offset: number,
+	frontmatter: FrontmatterBlock,
+	cache: SemanticCache | undefined,
+	index: GuideNhWorkspaceIndex | undefined
+): CompletionItem[] {
+	const context = findFrontmatterValueContext(text.slice(frontmatter.start, offset));
+	if (!context) {
+		return [];
+	}
+	const path = context.path.join('.');
+	const source = FrontmatterValueSources.find((candidate) => candidate.path === path);
+	if (!source) {
+		return [];
+	}
+	return mergeCompletionItems([
+		...createIndexedFrontmatterValueCompletions(source, context.prefix, index),
+		...createRuntimeFrontmatterValueCompletions(source, context.prefix, cache)
+	]);
+}
+
+function createIndexedFrontmatterValueCompletions(
+	source: FrontmatterValueSource,
+	prefix: string,
+	index: GuideNhWorkspaceIndex | undefined
+): CompletionItem[] {
+	if (!index) {
+		return [];
+	}
+	return index
+		.listFrontmatterValues(source.path)
+		.filter((value) => value.startsWith(prefix))
+		.map((value) => ({
+			label: value,
+			kind: CompletionItemKind.Value,
+			detail: source.indexDetail
+		}));
+}
+
+function createRuntimeFrontmatterValueCompletions(
+	source: FrontmatterValueSource,
+	prefix: string,
+	cache: SemanticCache | undefined
+): CompletionItem[] {
+	if (!cache || !source.capability) {
+		return [];
+	}
+	return cache.queryPrefix(source.capability, prefix).map((entry) => ({
+		label: entry.id,
+		kind: CompletionItemKind.Value,
+		detail: entry.label,
+		documentation: entry.detail
+	}));
+}
+
+function mergeCompletionItems(items: CompletionItem[]): CompletionItem[] {
+	const seen = new Set<string>();
+	const merged: CompletionItem[] = [];
+	for (const item of items) {
+		if (seen.has(item.label)) {
+			continue;
+		}
+		seen.add(item.label);
+		merged.push(item);
+	}
+	return merged;
 }
 
 function createTagNameCompletions(schema: GuideNhSchemaBundle, allowed: string[] | undefined): CompletionItem[] {

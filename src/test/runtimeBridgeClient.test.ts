@@ -9,10 +9,11 @@ suite('GuideNH runtime bridge client', () => {
 		const port = await listenPort(server);
 		const cache = new SemanticCache();
 		const client = new RuntimeBridgeClient(cache);
+		const queriedCapabilities = new Set<string>();
 
 		server.on('connection', (socket) => {
 			socket.on('message', (data) => {
-				const message = JSON.parse(data.toString()) as { id: string; method: string };
+				const message = JSON.parse(data.toString()) as { id: string; method: string; payload?: { capability?: string } };
 				if (message.method === 'hello') {
 					socket.send(JSON.stringify({
 						id: message.id,
@@ -28,13 +29,15 @@ suite('GuideNH runtime bridge client', () => {
 					return;
 				}
 				if (message.method === 'semantic.query') {
+					assert.ok(message.payload?.capability);
+					queriedCapabilities.add(message.payload.capability);
 					socket.send(JSON.stringify({
 						id: message.id,
 						type: 'response',
 						method: 'semantic.query',
 						protocol: 1,
 						payload: {
-							capability: 'items',
+							capability: message.payload.capability,
 							version: 7,
 							entries: [{ id: 'minecraft:stone', label: 'Stone' }],
 							nextCursor: null
@@ -46,8 +49,9 @@ suite('GuideNH runtime bridge client', () => {
 
 		try {
 			client.connect({ host: '127.0.0.1', port, token: 'secret' });
-			await waitFor(() => cache.getVersion('items') === 7);
+			await waitFor(() => cache.getVersion('items') === 7 && cache.getVersion('mods') === 7);
 			assert.strictEqual(cache.queryPrefix('items', 'minecraft:s')[0]?.label, 'Stone');
+			assert.deepStrictEqual(Array.from(queriedCapabilities).sort(), ['categories', 'items', 'mods', 'ores']);
 		} finally {
 			client.disconnect();
 			await closeServer(server);

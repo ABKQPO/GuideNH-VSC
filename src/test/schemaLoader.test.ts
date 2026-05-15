@@ -9,6 +9,8 @@ suite('GuideNH schema loader', () => {
 		assert.ok(schema.frontmatter.keys.navigation);
 		assert.ok(schema.markdownExtensions.inlineMarkers.highlight);
 		assert.strictEqual(schema.protocol.protocolVersion, 1);
+		assert.ok(schema.protocol.capabilities.includes('categories'));
+		assert.ok(schema.protocol.capabilities.includes('mods'));
 	});
 
 	test('exposes GameScene child tags', async () => {

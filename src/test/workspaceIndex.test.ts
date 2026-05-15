@@ -15,6 +15,36 @@ navigation:
 		assert.strictEqual(index.findItemReference('minecraft:stone')?.uri, 'file:///repo/assets/guidenh/guidenh/_zh_cn/index.md');
 	});
 
+	test('indexes reusable frontmatter list values', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/index.md', `---
+item_ids:
+  - minecraft:stone
+ore_ids:
+  - oreIron
+categories:
+  - intro
+navigation:
+  required_mods:
+    - gregtech
+---
+`);
+		assert.deepStrictEqual(index.listFrontmatterValues('item_ids'), ['minecraft:stone']);
+		assert.deepStrictEqual(index.listFrontmatterValues('ore_ids'), ['oreIron']);
+		assert.deepStrictEqual(index.listFrontmatterValues('categories'), ['intro']);
+		assert.deepStrictEqual(index.listFrontmatterValues('navigation.required_mods'), ['gregtech']);
+	});
+
+	test('ignores reusable list examples outside frontmatter', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/index.md', `# Example
+
+categories:
+  - body-only
+`);
+		assert.deepStrictEqual(index.listFrontmatterValues('categories'), []);
+	});
+
 	test('indexes nested GuideNH page paths relative to the locale root', () => {
 		const index = new GuideNhWorkspaceIndex();
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/aae_intro/aae_intro-index.md', '# AAE');

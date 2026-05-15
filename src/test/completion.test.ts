@@ -3,6 +3,7 @@ import * as path from 'path';
 import { CompletionItem, CompletionItemKind, InsertTextFormat } from 'vscode-languageserver/node';
 import { GuideNhWorkspaceIndex } from '../server/index/workspaceIndex';
 import { createGuideNhCompletions, GuideNhCompletionTriggerCharacters } from '../server/providers/completion';
+import { SemanticCache } from '../server/runtime/semanticCache';
 import { loadGuideNhSchema } from '../server/schema/schemaLoader';
 
 suite('GuideNH completion provider', () => {
@@ -96,6 +97,42 @@ suite('GuideNH completion provider', () => {
 			items.map((item: CompletionItem) => item.label),
 			['crafting.md']
 		);
+	});
+
+	test('completes frontmatter item ids from indexed pages', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/stone.md', '---\nitem_ids:\n  - minecraft:stone\n---\n');
+		const text = '---\nitem_ids:\n  - minecraft:s\n---\n';
+		const items = createGuideNhCompletions(text, text.indexOf('minecraft:s') + 'minecraft:s'.length, schema, undefined, undefined, index);
+		assert.deepStrictEqual(
+			items.map((item: CompletionItem) => item.label),
+			['minecraft:stone']
+		);
+		assert.strictEqual(items[0].kind, CompletionItemKind.Value);
+		assert.strictEqual(items[0].detail, 'Indexed item id');
+	});
+
+	test('completes frontmatter values from runtime semantic cache', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const cache = new SemanticCache();
+		cache.replace('ores', 1, [{ id: 'oreIron', label: 'Iron Ore' }]);
+		cache.replace('categories', 1, [{ id: 'intro', label: 'Intro Category' }]);
+		cache.replace('mods', 1, [{ id: 'gregtech', label: 'GregTech' }]);
+
+		const oreText = '---\nore_ids:\n  - oreI\n---\n';
+		const categoryText = '---\ncategories:\n  - in\n---\n';
+		const modText = '---\nnavigation:\n  required_mods:\n    - greg\n---\n';
+
+		const oreItems = createGuideNhCompletions(oreText, oreText.indexOf('oreI') + 4, schema, undefined, cache);
+		const categoryItems = createGuideNhCompletions(categoryText, categoryText.indexOf('in') + 2, schema, undefined, cache);
+		const modItems = createGuideNhCompletions(modText, modText.indexOf('greg') + 4, schema, undefined, cache);
+
+		assert.deepStrictEqual(oreItems.map((item: CompletionItem) => item.label), ['oreIron']);
+		assert.deepStrictEqual(categoryItems.map((item: CompletionItem) => item.label), ['intro']);
+		assert.deepStrictEqual(modItems.map((item: CompletionItem) => item.label), ['gregtech']);
+		assert.strictEqual(oreItems[0].detail, 'Iron Ore');
+		assert.strictEqual(modItems[0].detail, 'GregTech');
 	});
 
 	test('completes linksTo values from indexed pages', async () => {
