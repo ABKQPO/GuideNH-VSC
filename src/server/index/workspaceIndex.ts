@@ -44,6 +44,10 @@ export class GuideNhWorkspaceIndex {
 		return Array.from(this.pages.values()).find((page) => page.itemIds.includes(itemId));
 	}
 
+	listPages(): GuideNhIndexedPage[] {
+		return Array.from(this.pages.values()).sort((left, right) => left.relativePath.localeCompare(right.relativePath));
+	}
+
 	findReferencesToPage(relativePath: string): GuideNhIndexedPage[] {
 		const normalized = relativePath.replace(/^\.\//, '');
 		return Array.from(this.sourceUrisByLinkedPage.get(normalized) ?? [])

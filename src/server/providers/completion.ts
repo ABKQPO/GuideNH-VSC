@@ -1,5 +1,6 @@
 import { CompletionItem, CompletionItemKind, InsertTextFormat } from 'vscode-languageserver/node';
 import { GuideNhAttributeSchema, GuideNhFrontmatterKey, GuideNhSchemaBundle, GuideNhTagSchema } from '../../common/schema';
+import { GuideNhWorkspaceIndex } from '../index/workspaceIndex';
 import { extractFrontmatter, FrontmatterBlock } from '../parser/frontmatter';
 import { SemanticCache } from '../runtime/semanticCache';
 
@@ -17,16 +18,23 @@ interface AttributeValueContext {
 	prefix: string;
 }
 
+interface FrontmatterValueContext {
+	path: string[];
+	prefix: string;
+}
+
 export function createGuideNhCompletions(
 	text: string,
 	offset: number,
 	schema: GuideNhSchemaBundle,
 	parentTag: string | undefined,
-	cache?: SemanticCache
+	cache?: SemanticCache,
+	index?: GuideNhWorkspaceIndex
 ): CompletionItem[] {
 	const frontmatter = extractFrontmatter(text);
 	if (frontmatter && offset <= frontmatter.end) {
-		return createFrontmatterCompletions(text, offset, frontmatter, schema);
+		const pageCompletions = createFrontmatterPageValueCompletions(text, offset, frontmatter, index);
+		return pageCompletions.length > 0 ? pageCompletions : createFrontmatterCompletions(text, offset, frontmatter, schema);
 	}
 
 	const fencedBlockCompletions = createFencedBlockCompletions(text, offset, schema);
@@ -41,6 +49,10 @@ export function createGuideNhCompletions(
 
 	const attributeValueContext = findAttributeValueContext(text, offset);
 	if (attributeValueContext) {
+		const pageCompletions = createAttributePageValueCompletions(attributeValueContext, schema, index);
+		if (pageCompletions.length > 0) {
+			return pageCompletions;
+		}
 		const staticCompletions = createAttributeValueCompletions(attributeValueContext, schema);
 		if (staticCompletions.length > 0) {
 			return staticCompletions;
@@ -122,6 +134,60 @@ function resolveStaticAttributeValues(attribute: GuideNhAttributeSchema): string
 		return attribute.values ?? [];
 	}
 	return [];
+}
+
+function createAttributePageValueCompletions(
+	context: AttributeValueContext,
+	schema: GuideNhSchemaBundle,
+	index: GuideNhWorkspaceIndex | undefined
+): CompletionItem[] {
+	const attribute = schema.tags.tags[context.tagName]?.attributes[context.attributeName];
+	if (attribute?.type !== 'page') {
+		return [];
+	}
+	return createPageValueCompletions(context.prefix, index);
+}
+
+function createFrontmatterPageValueCompletions(
+	text: string,
+	offset: number,
+	frontmatter: FrontmatterBlock,
+	index: GuideNhWorkspaceIndex | undefined
+): CompletionItem[] {
+	const context = findFrontmatterValueContext(text.slice(frontmatter.start, offset));
+	if (!context || context.path.join('.') !== 'navigation.parent') {
+		return [];
+	}
+	return createPageValueCompletions(context.prefix, index);
+}
+
+function findFrontmatterValueContext(before: string): FrontmatterValueContext | undefined {
+	const line = getCurrentLine(before);
+	const valueMatch = line.match(/^(\s*)([A-Za-z_][\w.-]*)\s*:\s*([^\s]*)$/);
+	if (!valueMatch) {
+		return undefined;
+	}
+	const parentPath = findFrontmatterParentPath(before, valueMatch[1].length);
+	return {
+		path: [...parentPath, valueMatch[2]],
+		prefix: valueMatch[3]
+	};
+}
+
+function createPageValueCompletions(prefix: string, index: GuideNhWorkspaceIndex | undefined): CompletionItem[] {
+	if (!index) {
+		return [];
+	}
+	const normalizedPrefix = prefix.replace(/^\.\//, '').replace(/^\//, '');
+	return index
+		.listPages()
+		.filter((page) => page.relativePath.startsWith(normalizedPrefix))
+		.map((page) => ({
+			label: page.relativePath,
+			kind: CompletionItemKind.File,
+			detail: 'GuideNH page',
+			documentation: page.uri
+		}));
 }
 
 function createTagNameCompletions(schema: GuideNhSchemaBundle, allowed: string[] | undefined): CompletionItem[] {

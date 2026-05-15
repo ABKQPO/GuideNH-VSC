@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { CompletionItem, CompletionItemKind, InsertTextFormat } from 'vscode-languageserver/node';
+import { GuideNhWorkspaceIndex } from '../server/index/workspaceIndex';
 import { createGuideNhCompletions, GuideNhCompletionTriggerCharacters } from '../server/providers/completion';
 import { loadGuideNhSchema } from '../server/schema/schemaLoader';
 
@@ -82,6 +83,31 @@ suite('GuideNH completion provider', () => {
 		const items = createGuideNhCompletions(text, 20, schema, undefined);
 		assert.ok(items.some((item: CompletionItem) => item.label === 'title' && item.kind === CompletionItemKind.Property));
 		assert.ok(items.some((item: CompletionItem) => item.label === 'required_mods' && item.detail === 'list'));
+	});
+
+	test('completes navigation parent values from indexed pages', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/index.md', '# Index');
+		index.updatePage('file:///repo/crafting.md', '# Crafting');
+		const text = '---\nnavigation:\n  parent: c\n---\n';
+		const items = createGuideNhCompletions(text, text.indexOf('c') + 1, schema, undefined, undefined, index);
+		assert.deepStrictEqual(
+			items.map((item: CompletionItem) => item.label),
+			['crafting.md']
+		);
+	});
+
+	test('completes linksTo values from indexed pages', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/crafting.md', '# Crafting');
+		const text = '<ItemLink id="minecraft:stone" linksTo="c';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined, undefined, index);
+		assert.deepStrictEqual(
+			items.map((item: CompletionItem) => item.label),
+			['crafting.md']
+		);
 	});
 
 	test('completes GuideNH inline markdown markers', async () => {

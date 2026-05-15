@@ -52,7 +52,7 @@ connection.onCompletion(async (params) => {
 	}
 	const schema = await schemaPromise;
 	const offset = document.offsetAt(params.position);
-	return createGuideNhCompletions(document.getText(), offset, schema, undefined, semanticCache);
+	return createGuideNhCompletions(document.getText(), offset, schema, undefined, semanticCache, workspaceIndex);
 });
 
 connection.onHover(async (params) => {
