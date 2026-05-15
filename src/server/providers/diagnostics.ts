@@ -23,6 +23,10 @@ export function createGuideNhDiagnostics(text: string, schema: GuideNhSchemaBund
 	const parentStack: GuideNhParsedTag[] = [];
 	for (const tag of parsed.tags) {
 		if (tag.closing) {
+			const parentTag = parentStack[parentStack.length - 1];
+			if (parentTag && parentTag.name !== tag.name) {
+				diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Closing tag ${tag.name} does not match ${parentTag.name}`));
+			}
 			popParentTag(parentStack, tag.name);
 			continue;
 		}
@@ -49,6 +53,9 @@ export function createGuideNhDiagnostics(text: string, schema: GuideNhSchemaBund
 		if (!tag.selfClosing) {
 			parentStack.push(tag);
 		}
+	}
+	for (const tag of parentStack) {
+		diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Unclosed GuideNH tag ${tag.name}`));
 	}
 	return diagnostics;
 }

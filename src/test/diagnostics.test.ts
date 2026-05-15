@@ -36,6 +36,18 @@ suite('GuideNH diagnostics', () => {
 		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message === 'Tag Recipe is not allowed inside GameScene'), false);
 	});
 
+	test('reports mismatched closing tags', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('<GameScene>\n</Recipe>', schema);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message === 'Closing tag Recipe does not match GameScene'), true);
+	});
+
+	test('reports unclosed tags', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('<GameScene>\n  <Block id="minecraft:stone" />', schema);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message === 'Unclosed GuideNH tag GameScene'), true);
+	});
+
 	test('reports diagnostics at the tag line and character range', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const diagnostics = createGuideNhDiagnostics('intro\n  <UnknownTag />', schema);
