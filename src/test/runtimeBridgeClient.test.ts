@@ -86,7 +86,7 @@ suite('GuideNH runtime bridge client', () => {
 		try {
 			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
 			await waitFor(() => cache.getVersion('items') === 8);
-			assert.deepStrictEqual(cache.queryPrefix('items', 'minecraft:').map((entry) => entry.id), ['minecraft:stone', 'minecraft:dirt']);
+			assert.deepStrictEqual(cache.queryPrefix('items', 'minecraft:').map((entry) => entry.id), ['minecraft:dirt', 'minecraft:stone']);
 		} finally {
 			client.disconnect();
 			await closeServer(server);

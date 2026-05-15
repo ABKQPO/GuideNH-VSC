@@ -9,6 +9,26 @@ suite('GuideNH semantic cache', () => {
 		assert.strictEqual(cache.getVersion('items'), 3);
 	});
 
+	test('queries sorted runtime entries with bounded prefix scans', () => {
+		const cache = new SemanticCache();
+		cache.replace('items', 4, [
+			{ id: 'minecraft:stone' },
+			{ id: 'Minecraft:Stick' },
+			{ id: 'minecraft:dirt' },
+			{ id: 'minecraft:stone', label: 'Duplicate' }
+		]);
+
+		assert.deepStrictEqual(cache.queryPrefix('items', 'minecraft:s').map((entry) => entry.id), [
+			'Minecraft:Stick',
+			'minecraft:stone'
+		]);
+		assert.deepStrictEqual(cache.queryPrefix('items', 'minecraft:', 2).map((entry) => entry.id), [
+			'minecraft:dirt',
+			'Minecraft:Stick'
+		]);
+		assert.deepStrictEqual(cache.queryPrefix('items', 'minecraft:', 0), []);
+	});
+
 	test('marks cache stale after disconnect', () => {
 		const cache = new SemanticCache();
 		cache.replace('items', 1, [{ id: 'minecraft:stone' }]);

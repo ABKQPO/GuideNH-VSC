@@ -4,22 +4,46 @@ interface CapabilityCache {
 	version: number;
 	stale: boolean;
 	entries: SemanticEntry[];
+	keys: string[];
 }
 
 export class SemanticCache {
+	private static readonly defaultQueryLimit = 200;
+
 	private readonly capabilities = new Map<string, CapabilityCache>();
 
 	replace(capability: string, version: number, entries: SemanticEntry[]): void {
-		this.capabilities.set(capability, { version, entries, stale: false });
+		const indexedEntries = createIndexedEntries(entries);
+		this.capabilities.set(capability, {
+			version,
+			entries: indexedEntries,
+			keys: indexedEntries.map((entry) => entry.id.toLowerCase()),
+			stale: false
+		});
 	}
 
 	getVersion(capability: string): number {
 		return this.capabilities.get(capability)?.version ?? 0;
 	}
 
-	queryPrefix(capability: string, prefix: string): SemanticEntry[] {
+	queryPrefix(capability: string, prefix: string, limit = SemanticCache.defaultQueryLimit): SemanticEntry[] {
+		if (limit <= 0) {
+			return [];
+		}
+		const cache = this.capabilities.get(capability);
+		if (!cache) {
+			return [];
+		}
 		const lowered = prefix.toLowerCase();
-		return (this.capabilities.get(capability)?.entries ?? []).filter((entry) => entry.id.toLowerCase().startsWith(lowered));
+		const start = lowerBound(cache.keys, lowered);
+		const matches: SemanticEntry[] = [];
+		for (let index = start; index < cache.entries.length && matches.length < limit; index++) {
+			if (!cache.keys[index].startsWith(lowered)) {
+				break;
+			}
+			matches.push(cache.entries[index]);
+		}
+		return matches;
 	}
 
 	markStale(): void {
@@ -31,4 +55,31 @@ export class SemanticCache {
 	isStale(capability: string): boolean {
 		return this.capabilities.get(capability)?.stale ?? false;
 	}
+}
+
+function createIndexedEntries(entries: SemanticEntry[]): SemanticEntry[] {
+	const byKey = new Map<string, SemanticEntry>();
+	for (const entry of entries) {
+		const key = entry.id.toLowerCase();
+		if (!byKey.has(key)) {
+			byKey.set(key, entry);
+		}
+	}
+	return Array.from(byKey.values()).sort((left, right) => {
+		return left.id.localeCompare(right.id, undefined, { sensitivity: 'base' });
+	});
+}
+
+function lowerBound(values: string[], target: string): number {
+	let low = 0;
+	let high = values.length;
+	while (low < high) {
+		const middle = Math.floor((low + high) / 2);
+		if (values[middle] < target) {
+			low = middle + 1;
+		} else {
+			high = middle;
+		}
+	}
+	return low;
 }
