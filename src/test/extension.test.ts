@@ -10,6 +10,21 @@ suite('GuideNH extension automation', () => {
 		assert.strictEqual(readme.includes('Enjoy!'), false);
 	});
 
+	test('ships bilingual documentation and LGPLv3 licensing', () => {
+		const root = path.join(__dirname, '..', '..');
+		const englishReadme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+		const chineseReadme = fs.readFileSync(path.join(root, 'README.zh-CN.md'), 'utf8');
+		const license = fs.readFileSync(path.join(root, 'LICENSE'), 'utf8');
+		const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { license?: string };
+		assert.match(englishReadme, /GuideVSC/);
+		assert.match(chineseReadme, /GuideVSC/);
+		assert.match(chineseReadme, /运行时桥/);
+		assert.match(license, /GNU LESSER GENERAL PUBLIC LICENSE/);
+		assert.match(license, /Version 3, 29 June 2007/);
+		assert.strictEqual(packageJson.license, 'LGPL-3.0-only');
+		assert.strictEqual(fs.existsSync(path.join(root, 'vsc-extension-quickstart.md')), false);
+	});
+
 	test('defines build and package scripts for automated release checks', () => {
 		const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')) as {
 			scripts: Record<string, string>;
