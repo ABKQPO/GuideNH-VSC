@@ -27,7 +27,17 @@ export interface RuntimeBridgeClientEvents {
 }
 
 export class RuntimeBridgeClient {
-	private static readonly bootstrapCapabilities = ['items', 'ores', 'categories', 'mods'];
+	private static readonly bootstrapCapabilities = [
+		'items',
+		'ores',
+		'categories',
+		'mods',
+		'sounds',
+		'keybinds',
+		'recipes',
+		'quests',
+		'pages'
+	];
 
 	private socket: WebSocket | undefined;
 	private readonly pendingEntries = new Map<string, SemanticEntry[]>();

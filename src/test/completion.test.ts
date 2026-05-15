@@ -99,6 +99,29 @@ suite('GuideNH completion provider', () => {
 		);
 	});
 
+	test('merges runtime page values into page completions', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const index = new GuideNhWorkspaceIndex();
+		const cache = new SemanticCache();
+		index.updatePage('file:///repo/local.md', '# Local');
+		cache.replace('pages', 1, [{ id: 'runtime.md', label: 'Runtime Page' }]);
+		const frontmatterText = '---\nnavigation:\n  parent: r\n---\n';
+		const attributeText = '<ItemLink id="minecraft:stone" linksTo="r';
+
+		const frontmatterItems = createGuideNhCompletions(
+			frontmatterText,
+			frontmatterText.indexOf('parent: r') + 'parent: r'.length,
+			schema,
+			undefined,
+			cache,
+			index
+		);
+		const attributeItems = createGuideNhCompletions(attributeText, attributeText.length, schema, undefined, cache, index);
+
+		assert.ok(frontmatterItems.some((item: CompletionItem) => item.label === 'runtime.md'));
+		assert.ok(attributeItems.some((item: CompletionItem) => item.label === 'runtime.md'));
+	});
+
 	test('completes frontmatter item ids from indexed pages', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const index = new GuideNhWorkspaceIndex();

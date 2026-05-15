@@ -29,11 +29,37 @@ interface FrontmatterValueSource {
 	indexDetail?: string;
 }
 
+interface RuntimeAttributeSource {
+	tagName?: string;
+	attributeName: string;
+	capability: string;
+}
+
 const FrontmatterValueSources: FrontmatterValueSource[] = [
 	{ path: 'item_ids', capability: 'items', indexDetail: 'Indexed item id' },
 	{ path: 'ore_ids', capability: 'ores', indexDetail: 'Indexed ore id' },
 	{ path: 'categories', capability: 'categories', indexDetail: 'Indexed category' },
 	{ path: 'navigation.required_mods', capability: 'mods', indexDetail: 'Indexed required mod' }
+];
+
+const RuntimeAttributeSources: RuntimeAttributeSource[] = [
+	{ tagName: 'ItemLink', attributeName: 'id', capability: 'items' },
+	{ tagName: 'ItemLink', attributeName: 'ore', capability: 'ores' },
+	{ tagName: 'Block', attributeName: 'id', capability: 'items' },
+	{ tagName: 'PlaceBlock', attributeName: 'id', capability: 'items' },
+	{ tagName: 'RemoveBlocks', attributeName: 'id', capability: 'items' },
+	{ tagName: 'ReplaceBlock', attributeName: 'from', capability: 'items' },
+	{ tagName: 'ReplaceBlock', attributeName: 'to', capability: 'items' },
+	{ tagName: 'Recipe', attributeName: 'id', capability: 'recipes' },
+	{ tagName: 'RecipeFor', attributeName: 'id', capability: 'recipes' },
+	{ tagName: 'RecipeUsage', attributeName: 'id', capability: 'recipes' },
+	{ tagName: 'RecipesFor', attributeName: 'id', capability: 'recipes' },
+	{ tagName: 'QuestCard', attributeName: 'id', capability: 'quests' },
+	{ tagName: 'QuestLink', attributeName: 'id', capability: 'quests' },
+	{ tagName: 'KeyBind', attributeName: 'id', capability: 'keybinds' },
+	{ tagName: 'KeyBind', attributeName: 'action', capability: 'keybinds' },
+	{ tagName: 'PlaySound', attributeName: 'trigger', capability: 'sounds' },
+	{ tagName: 'SubPages', attributeName: 'id', capability: 'pages' }
 ];
 
 export function createGuideNhCompletions(
@@ -46,7 +72,7 @@ export function createGuideNhCompletions(
 ): CompletionItem[] {
 	const frontmatter = extractFrontmatter(text);
 	if (frontmatter && offset <= frontmatter.end) {
-		const pageCompletions = createFrontmatterPageValueCompletions(text, offset, frontmatter, index);
+		const pageCompletions = createFrontmatterPageValueCompletions(text, offset, frontmatter, index, cache);
 		if (pageCompletions.length > 0) {
 			return pageCompletions;
 		}
@@ -66,7 +92,7 @@ export function createGuideNhCompletions(
 
 	const attributeValueContext = findAttributeValueContext(text, offset);
 	if (attributeValueContext) {
-		const pageCompletions = createAttributePageValueCompletions(attributeValueContext, schema, index);
+		const pageCompletions = createAttributePageValueCompletions(attributeValueContext, schema, index, cache);
 		if (pageCompletions.length > 0) {
 			return pageCompletions;
 		}
@@ -76,15 +102,13 @@ export function createGuideNhCompletions(
 		}
 	}
 	if (attributeValueContext && cache) {
-		const capability = resolveRuntimeCapability(attributeValueContext.attributeName);
-		if (capability) {
-			return cache.queryPrefix(capability, attributeValueContext.prefix).map((entry) => ({
-				label: entry.id,
-				kind: CompletionItemKind.Value,
-				detail: entry.label,
-				documentation: entry.detail
-			}));
+		const runtimeCompletions = createRuntimeAttributeValueCompletions(attributeValueContext, cache, index);
+		if (runtimeCompletions.length > 0) {
+			return runtimeCompletions;
 		}
+	}
+	if (attributeValueContext) {
+		return [];
 	}
 
 	const openTag = findOpenTagPrefix(text, offset);
@@ -156,26 +180,53 @@ function resolveStaticAttributeValues(attribute: GuideNhAttributeSchema): string
 function createAttributePageValueCompletions(
 	context: AttributeValueContext,
 	schema: GuideNhSchemaBundle,
-	index: GuideNhWorkspaceIndex | undefined
+	index: GuideNhWorkspaceIndex | undefined,
+	cache: SemanticCache | undefined
 ): CompletionItem[] {
 	const attribute = schema.tags.tags[context.tagName]?.attributes[context.attributeName];
 	if (attribute?.type !== 'page') {
 		return [];
 	}
-	return createPageValueCompletions(context.prefix, index);
+	return mergeCompletionItems([
+		...createPageValueCompletions(context.prefix, index),
+		...createRuntimeValueCompletions('pages', context.prefix, cache)
+	]);
+}
+
+function createRuntimeAttributeValueCompletions(
+	context: AttributeValueContext,
+	cache: SemanticCache,
+	index: GuideNhWorkspaceIndex | undefined
+): CompletionItem[] {
+	const source = resolveRuntimeAttributeSource(context);
+	if (!source) {
+		return [];
+	}
+	const runtimeItems = createRuntimeValueCompletions(source.capability, context.prefix, cache);
+	if (source.capability !== 'pages') {
+		return runtimeItems;
+	}
+	return mergeCompletionItems([
+		...createPageValueCompletions(context.prefix, index),
+		...runtimeItems
+	]);
 }
 
 function createFrontmatterPageValueCompletions(
 	text: string,
 	offset: number,
 	frontmatter: FrontmatterBlock,
-	index: GuideNhWorkspaceIndex | undefined
+	index: GuideNhWorkspaceIndex | undefined,
+	cache?: SemanticCache
 ): CompletionItem[] {
 	const context = findFrontmatterValueContext(text.slice(frontmatter.start, offset));
 	if (!context || context.path.join('.') !== 'navigation.parent') {
 		return [];
 	}
-	return createPageValueCompletions(context.prefix, index);
+	return mergeCompletionItems([
+		...createPageValueCompletions(context.prefix, index),
+		...createRuntimeValueCompletions('pages', context.prefix, cache)
+	]);
 }
 
 function findFrontmatterValueContext(before: string): FrontmatterValueContext | undefined {
@@ -263,10 +314,21 @@ function createRuntimeFrontmatterValueCompletions(
 	prefix: string,
 	cache: SemanticCache | undefined
 ): CompletionItem[] {
-	if (!cache || !source.capability) {
+	if (!source.capability) {
 		return [];
 	}
-	return cache.queryPrefix(source.capability, prefix).map((entry) => ({
+	return createRuntimeValueCompletions(source.capability, prefix, cache);
+}
+
+function createRuntimeValueCompletions(
+	capability: string,
+	prefix: string,
+	cache: SemanticCache | undefined
+): CompletionItem[] {
+	if (!cache) {
+		return [];
+	}
+	return cache.queryPrefix(capability, prefix).map((entry) => ({
 		label: entry.id,
 		kind: CompletionItemKind.Value,
 		detail: entry.label,
@@ -440,12 +502,9 @@ function createInlineMarkerCompletions(text: string, offset: number, schema: Gui
 		}));
 }
 
-function resolveRuntimeCapability(attributeName: string): string | undefined {
-	if (attributeName === 'id') {
-		return 'items';
-	}
-	if (attributeName === 'ore') {
-		return 'ores';
-	}
-	return undefined;
+function resolveRuntimeAttributeSource(context: AttributeValueContext): RuntimeAttributeSource | undefined {
+	return RuntimeAttributeSources.find((source) => {
+		return source.attributeName === context.attributeName
+			&& (source.tagName === undefined || source.tagName === context.tagName);
+	});
 }

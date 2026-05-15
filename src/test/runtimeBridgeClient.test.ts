@@ -49,9 +49,12 @@ suite('GuideNH runtime bridge client', () => {
 
 		try {
 			client.connect({ host: '127.0.0.1', port, token: 'secret' });
-			await waitFor(() => cache.getVersion('items') === 7 && cache.getVersion('mods') === 7);
+			await waitFor(() => cache.getVersion('items') === 7 && cache.getVersion('pages') === 7);
 			assert.strictEqual(cache.queryPrefix('items', 'minecraft:s')[0]?.label, 'Stone');
-			assert.deepStrictEqual(Array.from(queriedCapabilities).sort(), ['categories', 'items', 'mods', 'ores']);
+			assert.deepStrictEqual(
+				Array.from(queriedCapabilities).sort(),
+				['categories', 'items', 'keybinds', 'mods', 'ores', 'pages', 'quests', 'recipes', 'sounds']
+			);
 		} finally {
 			client.disconnect();
 			await closeServer(server);
