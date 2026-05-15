@@ -23,6 +23,28 @@ suite('GuideNH completion provider', () => {
 		assert.ok(items.some((item: CompletionItem) => item.label === 'interactive'));
 	});
 
+	test('completes enum attribute values from schema', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '<GameScene background="t';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined);
+		assert.deepStrictEqual(
+			items.map((item: CompletionItem) => item.label),
+			['transparent']
+		);
+		assert.strictEqual(items[0].kind, CompletionItemKind.Value);
+		assert.strictEqual(items[0].detail, 'GameScene.background');
+	});
+
+	test('completes boolean attribute values from schema', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '<GameScene interactive="';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined);
+		assert.deepStrictEqual(
+			items.map((item: CompletionItem) => item.label),
+			['true', 'false']
+		);
+	});
+
 	test('filters tag completions by the open parent tag', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const text = '<GameScene>\n  <';

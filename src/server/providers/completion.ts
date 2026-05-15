@@ -1,5 +1,5 @@
 import { CompletionItem, CompletionItemKind, InsertTextFormat } from 'vscode-languageserver/node';
-import { GuideNhFrontmatterKey, GuideNhSchemaBundle, GuideNhTagSchema } from '../../common/schema';
+import { GuideNhAttributeSchema, GuideNhFrontmatterKey, GuideNhSchemaBundle, GuideNhTagSchema } from '../../common/schema';
 import { extractFrontmatter, FrontmatterBlock } from '../parser/frontmatter';
 import { SemanticCache } from '../runtime/semanticCache';
 
@@ -9,6 +9,12 @@ function findOpenTagPrefix(text: string, offset: number): string | undefined {
 	const before = text.slice(0, offset);
 	const match = before.match(/<([A-Z][A-Za-z0-9]*)?\s*[^<>]*$/);
 	return match?.[1] ?? '';
+}
+
+interface AttributeValueContext {
+	tagName: string;
+	attributeName: string;
+	prefix: string;
 }
 
 export function createGuideNhCompletions(
@@ -33,11 +39,17 @@ export function createGuideNhCompletions(
 		return inlineMarkerCompletions;
 	}
 
-	const attributeValueMatch = text.slice(0, offset).match(/([A-Za-z_][\w.-]*)=["']([^"']*)$/);
-	if (attributeValueMatch && cache) {
-		const capability = resolveRuntimeCapability(attributeValueMatch[1]);
+	const attributeValueContext = findAttributeValueContext(text, offset);
+	if (attributeValueContext) {
+		const staticCompletions = createAttributeValueCompletions(attributeValueContext, schema);
+		if (staticCompletions.length > 0) {
+			return staticCompletions;
+		}
+	}
+	if (attributeValueContext && cache) {
+		const capability = resolveRuntimeCapability(attributeValueContext.attributeName);
 		if (capability) {
-			return cache.queryPrefix(capability, attributeValueMatch[2]).map((entry) => ({
+			return cache.queryPrefix(capability, attributeValueContext.prefix).map((entry) => ({
 				label: entry.id,
 				kind: CompletionItemKind.Value,
 				detail: entry.label,
@@ -68,6 +80,48 @@ export function createGuideNhCompletions(
 		detail: attribute.type,
 		documentation: attribute.description
 	}));
+}
+
+function findAttributeValueContext(text: string, offset: number): AttributeValueContext | undefined {
+	const before = text.slice(0, offset);
+	const openTagMatch = before.match(/<([A-Z][A-Za-z0-9]*)\s*[^<>]*$/);
+	if (!openTagMatch) {
+		return undefined;
+	}
+	const attributeMatch = openTagMatch[0].match(/([A-Za-z_][\w.-]*)\s*=\s*(?:"([^"]*)|'([^']*)|\{([^}]*)|([^\s"'=<>`]*))$/);
+	if (!attributeMatch) {
+		return undefined;
+	}
+	return {
+		tagName: openTagMatch[1],
+		attributeName: attributeMatch[1],
+		prefix: attributeMatch[2] ?? attributeMatch[3] ?? attributeMatch[4] ?? attributeMatch[5] ?? ''
+	};
+}
+
+function createAttributeValueCompletions(context: AttributeValueContext, schema: GuideNhSchemaBundle): CompletionItem[] {
+	const attribute = schema.tags.tags[context.tagName]?.attributes[context.attributeName];
+	if (!attribute) {
+		return [];
+	}
+	return resolveStaticAttributeValues(attribute)
+		.filter((value) => value.startsWith(context.prefix))
+		.map((value) => ({
+			label: value,
+			kind: CompletionItemKind.Value,
+			detail: `${context.tagName}.${context.attributeName}`,
+			documentation: attribute.description
+		}));
+}
+
+function resolveStaticAttributeValues(attribute: GuideNhAttributeSchema): string[] {
+	if (attribute.type === 'boolean') {
+		return ['true', 'false'];
+	}
+	if (attribute.type === 'enum') {
+		return attribute.values ?? [];
+	}
+	return [];
 }
 
 function createTagNameCompletions(schema: GuideNhSchemaBundle, allowed: string[] | undefined): CompletionItem[] {
