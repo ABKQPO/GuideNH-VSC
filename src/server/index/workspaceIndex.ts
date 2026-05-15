@@ -13,6 +13,11 @@ export class GuideNhWorkspaceIndex {
 	private readonly pages = new Map<string, GuideNhIndexedPage>();
 	private readonly pageUriByRelativePath = new Map<string, string>();
 	private readonly sourceUrisByLinkedPage = new Map<string, Set<string>>();
+	private readonly valueCountsByFrontmatterPath = new Map<string, Map<string, number>>();
+	private sortedPages: GuideNhIndexedPage[] = [];
+	private sortedPagesDirty = true;
+	private readonly sortedFrontmatterValues = new Map<string, string[]>();
+	private readonly dirtyFrontmatterPaths = new Set<string>();
 
 	updatePage(uri: string, text: string): void {
 		this.removePage(uri);
@@ -22,6 +27,8 @@ export class GuideNhWorkspaceIndex {
 		const links = extractPageLinks(text);
 		this.pages.set(uri, { uri, relativePath, itemIds, frontmatterValues, links });
 		this.pageUriByRelativePath.set(relativePath, uri);
+		this.sortedPagesDirty = true;
+		this.addFrontmatterValues(frontmatterValues);
 		for (const link of links) {
 			this.addPageReference(link, uri);
 		}
@@ -34,6 +41,8 @@ export class GuideNhWorkspaceIndex {
 		}
 		this.pages.delete(uri);
 		this.pageUriByRelativePath.delete(page.relativePath);
+		this.sortedPagesDirty = true;
+		this.removeFrontmatterValues(page.frontmatterValues);
 		for (const link of page.links) {
 			this.removePageReference(link, uri);
 		}
@@ -50,17 +59,23 @@ export class GuideNhWorkspaceIndex {
 	}
 
 	listPages(): GuideNhIndexedPage[] {
-		return Array.from(this.pages.values()).sort((left, right) => left.relativePath.localeCompare(right.relativePath));
+		if (this.sortedPagesDirty) {
+			this.sortedPages = Array.from(this.pages.values()).sort((left, right) => {
+				return left.relativePath.localeCompare(right.relativePath);
+			});
+			this.sortedPagesDirty = false;
+		}
+		return this.sortedPages.slice();
 	}
 
 	listFrontmatterValues(path: string): string[] {
-		const values = new Set<string>();
-		for (const page of this.pages.values()) {
-			for (const value of page.frontmatterValues[path] ?? []) {
-				values.add(value);
-			}
+		if (this.dirtyFrontmatterPaths.has(path) || !this.sortedFrontmatterValues.has(path)) {
+			this.sortedFrontmatterValues.set(path, Array.from(this.valueCountsByFrontmatterPath.get(path)?.keys() ?? []).sort((left, right) => {
+				return left.localeCompare(right);
+			}));
+			this.dirtyFrontmatterPaths.delete(path);
 		}
-		return Array.from(values).sort((left, right) => left.localeCompare(right));
+		return this.sortedFrontmatterValues.get(path)?.slice() ?? [];
 	}
 
 	findReferencesToPage(relativePath: string): GuideNhIndexedPage[] {
@@ -86,6 +101,38 @@ export class GuideNhWorkspaceIndex {
 		sourceUris.delete(sourceUri);
 		if (sourceUris.size === 0) {
 			this.sourceUrisByLinkedPage.delete(normalized);
+		}
+	}
+
+	private addFrontmatterValues(values: Record<string, string[]>): void {
+		for (const [path, pathValues] of Object.entries(values)) {
+			const counts = this.valueCountsByFrontmatterPath.get(path) ?? new Map<string, number>();
+			for (const value of pathValues) {
+				counts.set(value, (counts.get(value) ?? 0) + 1);
+			}
+			this.valueCountsByFrontmatterPath.set(path, counts);
+			this.dirtyFrontmatterPaths.add(path);
+		}
+	}
+
+	private removeFrontmatterValues(values: Record<string, string[]>): void {
+		for (const [path, pathValues] of Object.entries(values)) {
+			const counts = this.valueCountsByFrontmatterPath.get(path);
+			if (!counts) {
+				continue;
+			}
+			for (const value of pathValues) {
+				const count = counts.get(value) ?? 0;
+				if (count <= 1) {
+					counts.delete(value);
+				} else {
+					counts.set(value, count - 1);
+				}
+			}
+			if (counts.size === 0) {
+				this.valueCountsByFrontmatterPath.delete(path);
+			}
+			this.dirtyFrontmatterPaths.add(path);
 		}
 	}
 }

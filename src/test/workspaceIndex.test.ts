@@ -35,6 +35,34 @@ navigation:
 		assert.deepStrictEqual(index.listFrontmatterValues('navigation.required_mods'), ['gregtech']);
 	});
 
+	test('updates cached frontmatter values incrementally', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md', `---
+categories:
+  - intro
+  - shared
+---
+`);
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/b.md', `---
+categories:
+  - shared
+  - advanced
+---
+`);
+
+		assert.deepStrictEqual(index.listFrontmatterValues('categories'), ['advanced', 'intro', 'shared']);
+
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md', `---
+categories:
+  - updated
+---
+`);
+		assert.deepStrictEqual(index.listFrontmatterValues('categories'), ['advanced', 'shared', 'updated']);
+
+		index.removePage('file:///repo/assets/guidenh/guidenh/_zh_cn/b.md');
+		assert.deepStrictEqual(index.listFrontmatterValues('categories'), ['updated']);
+	});
+
 	test('ignores reusable list examples outside frontmatter', () => {
 		const index = new GuideNhWorkspaceIndex();
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/index.md', `# Example
@@ -52,6 +80,17 @@ categories:
 			index.findPageByRelativePath('aae_intro/aae_intro-index.md')?.uri,
 			'file:///repo/assets/guidenh/guidenh/_zh_cn/aae_intro/aae_intro-index.md'
 		);
+	});
+
+	test('keeps listed pages sorted after updates and removals', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/b.md', '# B');
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md', '# A');
+		assert.deepStrictEqual(index.listPages().map((page) => page.relativePath), ['a.md', 'b.md']);
+
+		index.removePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md');
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/c.md', '# C');
+		assert.deepStrictEqual(index.listPages().map((page) => page.relativePath), ['b.md', 'c.md']);
 	});
 
 	test('finds references by uri', () => {
