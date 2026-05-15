@@ -1,5 +1,5 @@
-import { CompletionItem, CompletionItemKind } from 'vscode-languageserver/node';
-import { GuideNhSchemaBundle } from '../../common/schema';
+import { CompletionItem, CompletionItemKind, InsertTextFormat } from 'vscode-languageserver/node';
+import { GuideNhSchemaBundle, GuideNhTagSchema } from '../../common/schema';
 import { SemanticCache } from '../runtime/semanticCache';
 
 function findOpenTagPrefix(text: string, offset: number): string | undefined {
@@ -34,14 +34,10 @@ export function createGuideNhCompletions(
 	}
 	if (openTag.length === 0) {
 		const allowed = parentTag ? schema.tags.tags[parentTag]?.children : undefined;
-		return Object.values(schema.tags.tags)
-			.filter((tag) => !allowed || allowed.includes(tag.name))
-			.map((tag) => ({
-				label: tag.name,
-				kind: CompletionItemKind.Class,
-				detail: tag.kind,
-				documentation: tag.description
-			}));
+		return [
+			...createTagNameCompletions(schema, allowed),
+			...createSnippetCompletions(schema, allowed)
+		];
 	}
 	const tagSchema = schema.tags.tags[openTag];
 	if (!tagSchema) {
@@ -53,6 +49,34 @@ export function createGuideNhCompletions(
 		detail: attribute.type,
 		documentation: attribute.description
 	}));
+}
+
+function createTagNameCompletions(schema: GuideNhSchemaBundle, allowed: string[] | undefined): CompletionItem[] {
+	return Object.values(schema.tags.tags)
+		.filter((tag) => isTagAllowed(tag, allowed))
+		.map((tag) => ({
+			label: tag.name,
+			kind: CompletionItemKind.Class,
+			detail: tag.kind,
+			documentation: tag.description
+		}));
+}
+
+function createSnippetCompletions(schema: GuideNhSchemaBundle, allowed: string[] | undefined): CompletionItem[] {
+	return Object.values(schema.snippets.snippets)
+		.filter((snippet) => allowed === undefined || allowed.includes(snippet.prefix))
+		.map((snippet) => ({
+			label: snippet.prefix,
+			kind: CompletionItemKind.Snippet,
+			detail: 'GuideNH snippet',
+			documentation: snippet.description,
+			insertText: snippet.body.join('\n'),
+			insertTextFormat: InsertTextFormat.Snippet
+		}));
+}
+
+function isTagAllowed(tag: GuideNhTagSchema, allowed: string[] | undefined): boolean {
+	return allowed === undefined || allowed.includes(tag.name);
 }
 
 function resolveRuntimeCapability(attributeName: string): string | undefined {

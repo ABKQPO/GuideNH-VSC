@@ -1,71 +1,54 @@
-# guide-vsc README
+# GuideVSC
 
-This is the README for your extension "guide-vsc". After writing up a brief description, we recommend including the following sections.
+GuideVSC is a Visual Studio Code extension for authoring GuideNH Markdown content. It provides language tooling for GuideNH MDX-style tags, project navigation data, and optional runtime semantic completion from a manually configured GuideNH client bridge.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- GuideNH Markdown language support for `.guidenh.md` files.
+- Language server diagnostics for unknown GuideNH tags, unknown attributes, and required attributes.
+- Completion for GuideNH tags, attributes, reusable snippets, and runtime item or ore ids when the bridge is connected.
+- Hover information from the local GuideNH schema.
+- Definition and reference support backed by the workspace index.
+- Schema generation from the local GuideNH Java compiler sources.
+- Optional runtime semantic cache over a token-protected WebSocket bridge.
 
-For example if there is an image subfolder under your extension project workspace:
+## Runtime Bridge
 
-\!\[feature X\]\(images/feature-x.png\)
+The runtime bridge is manual and disabled until configured. The extension does not provide default host, port, or token values.
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+Configure these settings only when you intentionally want to connect to a running GuideNH client bridge:
 
-## Requirements
+- `guide-vsc.runtimeBridge.host`
+- `guide-vsc.runtimeBridge.port`
+- `guide-vsc.runtimeBridge.token`
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+Use `GuideNH: Connect Runtime Bridge` to connect and `GuideNH: Disconnect Runtime Bridge` to stop the session. Token values are passed to the language server for the active connection request and are not shown in status messages.
 
-## Extension Settings
+## Schema Generation
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+Set `guide-vsc.guideNhSourcePath` or `GUIDENH_ROOT` to the GuideNH source repository when generating schema data.
 
-For example:
+```powershell
+npm run compile
+npm run generate:schema
+```
 
-This extension contributes the following settings:
+Generated tag data is merged with handwritten schema entries so curated descriptions and snippets can be preserved.
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+## Development
 
-## Known Issues
+```powershell
+npm install
+npm run verify
+npm run package
+npm run build
+```
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+`npm run verify` regenerates schema data, runs lint, compiles TypeScript, and executes the VS Code extension test suite. `npm run package` creates `dist/guide-vsc.vsix`. `npm run build` runs verification before packaging.
 
-## Release Notes
+## Security Notes
 
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+- Runtime bridge settings have no defaults.
+- Runtime bridge token configuration is required before a connection request is sent.
+- Runtime semantic data is paged and cached by capability to avoid oversized synchronization messages.
+- The extension can work without the runtime bridge by using the local schema and workspace index.

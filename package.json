@@ -81,7 +81,10 @@
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test",
-    "verify": "npm run generate:schema && npm run lint && npm run compile && npm test"
+    "verify": "npm run generate:schema && npm run lint && npm run compile && npm test",
+    "prepackage": "node -e \"require('fs').mkdirSync('dist', { recursive: true })\"",
+    "package": "vsce package --out dist/guide-vsc.vsix",
+    "build": "npm run verify && npm run package"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1",
@@ -91,14 +94,15 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/vscode": "^1.120.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
+    "@types/vscode": "^1.120.0",
     "@types/ws": "^8.5.13",
-    "typescript-eslint": "^8.56.1",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.9.1",
     "eslint": "^9.39.3",
     "typescript": "^5.9.3",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "typescript-eslint": "^8.56.1"
   }
 }
