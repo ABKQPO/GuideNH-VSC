@@ -2,6 +2,7 @@ export type BridgeMessageType = 'request' | 'response' | 'event' | 'error';
 
 export const RuntimeBridgeConnectNotification = 'guide-vsc/runtimeBridge/connect';
 export const RuntimeBridgeDisconnectNotification = 'guide-vsc/runtimeBridge/disconnect';
+export const RuntimeBridgeStatusNotification = 'guide-vsc/runtimeBridge/status';
 
 export interface BridgeEnvelope<TPayload = unknown> {
 	id?: string;
@@ -21,6 +22,13 @@ export interface RuntimeBridgeConnectParams {
 	host: string;
 	port: number;
 	token: string;
+}
+
+export type RuntimeBridgeStatusState = 'connecting' | 'connected' | 'disconnected' | 'error';
+
+export interface RuntimeBridgeStatusParams {
+	state: RuntimeBridgeStatusState;
+	message?: string;
 }
 
 export interface BridgeError {

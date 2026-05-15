@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { WebSocketServer } from 'ws';
-import { RuntimeBridgeClient } from '../server/runtime/runtimeBridgeClient';
+import { RuntimeBridgeClient, RuntimeBridgeStatus } from '../server/runtime/runtimeBridgeClient';
 import { SemanticCache } from '../server/runtime/semanticCache';
 
 suite('GuideNH runtime bridge client', () => {
@@ -84,6 +84,51 @@ suite('GuideNH runtime bridge client', () => {
 			client.disconnect();
 			await closeServer(server);
 		}
+	});
+
+	test('publishes connected status after hello succeeds', async () => {
+		const server = new WebSocketServer({ port: 0 });
+		const port = await listenPort(server);
+		const statuses: RuntimeBridgeStatus[] = [];
+		const client = new RuntimeBridgeClient(new SemanticCache(), {
+			onStatus: (status) => {
+				statuses.push(status);
+			}
+		});
+
+		server.on('connection', (socket) => {
+			socket.on('message', (data) => {
+				const message = JSON.parse(data.toString()) as { id: string; method: string };
+				if (message.method === 'hello') {
+					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
+				}
+			});
+		});
+
+		try {
+			client.connect({ host: '127.0.0.1', port, token: 'secret' });
+			await waitFor(() => statuses.some((status) => status.state === 'connected'));
+			assert.strictEqual(statuses[0].state, 'connecting');
+			assert.ok(statuses.some((status) => status.state === 'connected'));
+		} finally {
+			client.disconnect();
+			await closeServer(server);
+		}
+	});
+
+	test('publishes error status when websocket connection fails', async () => {
+		const statuses: RuntimeBridgeStatus[] = [];
+		const client = new RuntimeBridgeClient(new SemanticCache(), {
+			onStatus: (status) => {
+				statuses.push(status);
+			}
+		});
+
+		client.connect({ host: '127.0.0.1', port: 9, token: 'secret' });
+
+		await waitFor(() => statuses.some((status) => status.state === 'error'));
+		assert.ok(statuses.find((status) => status.state === 'error')?.message);
+		client.disconnect();
 	});
 });
 

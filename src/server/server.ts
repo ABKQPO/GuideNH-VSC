@@ -14,7 +14,7 @@ import { createGuideNhDefinition } from './providers/definition';
 import { createGuideNhHover } from './providers/hover';
 import { createGuideNhReferences } from './providers/references';
 import { RuntimeBridgeClient } from './runtime/runtimeBridgeClient';
-import { createRuntimeBridgeNotificationHandlers } from './runtime/runtimeBridgeNotifications';
+import { createRuntimeBridgeNotificationHandlers, wireRuntimeBridgeStatus } from './runtime/runtimeBridgeNotifications';
 import { SemanticCache } from './runtime/semanticCache';
 import { loadGuideNhSchema } from './schema/schemaLoader';
 
@@ -23,7 +23,9 @@ const documents = new TextDocuments(TextDocument);
 const schemaPromise = loadGuideNhSchema(path.join(__dirname, '..', 'schema'));
 const workspaceIndex = new GuideNhWorkspaceIndex();
 const semanticCache = new SemanticCache();
-const runtimeBridgeClient = new RuntimeBridgeClient(semanticCache);
+const runtimeBridgeClient = new RuntimeBridgeClient(semanticCache, {
+	onStatus: wireRuntimeBridgeStatus(connection)
+});
 const runtimeBridgeHandlers = createRuntimeBridgeNotificationHandlers(runtimeBridgeClient);
 
 connection.onInitialize((_params: InitializeParams) => ({

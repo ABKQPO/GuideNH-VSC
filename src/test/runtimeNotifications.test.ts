@@ -2,11 +2,14 @@ import * as assert from 'assert';
 import {
 	RuntimeBridgeConnectNotification,
 	RuntimeBridgeConnectParams,
-	RuntimeBridgeDisconnectNotification
+	RuntimeBridgeDisconnectNotification,
+	RuntimeBridgeStatusNotification
 } from '../common/protocol';
 import {
 	createRuntimeBridgeNotificationHandlers,
-	RuntimeBridgeConnectionController
+	RuntimeBridgeConnectionController,
+	RuntimeBridgeStatusSender,
+	wireRuntimeBridgeStatus,
 } from '../server/runtime/runtimeBridgeNotifications';
 
 suite('GuideNH runtime bridge server notifications', () => {
@@ -38,5 +41,21 @@ suite('GuideNH runtime bridge server notifications', () => {
 		handlers[RuntimeBridgeDisconnectNotification]();
 
 		assert.strictEqual(disconnects, 1);
+	});
+
+	test('sends runtime bridge status to the language client', () => {
+		const notifications: Array<{ method: string; payload: unknown }> = [];
+		const sender: RuntimeBridgeStatusSender = {
+			sendNotification: (method, payload) => {
+				notifications.push({ method, payload });
+			}
+		};
+
+		wireRuntimeBridgeStatus(sender)({ state: 'connected' });
+
+		assert.deepStrictEqual(notifications, [{
+			method: RuntimeBridgeStatusNotification,
+			payload: { state: 'connected' }
+		}]);
 	});
 });

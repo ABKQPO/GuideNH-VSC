@@ -1,7 +1,9 @@
 import {
 	RuntimeBridgeConnectNotification,
 	RuntimeBridgeConnectParams,
-	RuntimeBridgeDisconnectNotification
+	RuntimeBridgeDisconnectNotification,
+	RuntimeBridgeStatusNotification,
+	RuntimeBridgeStatusParams
 } from '../../common/protocol';
 
 export interface RuntimeBridgeConnectionController {
@@ -10,6 +12,10 @@ export interface RuntimeBridgeConnectionController {
 }
 
 export type RuntimeBridgeNotificationHandler = (payload?: unknown) => void;
+
+export interface RuntimeBridgeStatusSender {
+	sendNotification(method: string, payload: unknown): void;
+}
 
 export function createRuntimeBridgeNotificationHandlers(
 	controller: RuntimeBridgeConnectionController
@@ -21,5 +27,11 @@ export function createRuntimeBridgeNotificationHandlers(
 		[RuntimeBridgeDisconnectNotification]: () => {
 			controller.disconnect();
 		}
+	};
+}
+
+export function wireRuntimeBridgeStatus(sender: RuntimeBridgeStatusSender): (status: RuntimeBridgeStatusParams) => void {
+	return (status) => {
+		sender.sendNotification(RuntimeBridgeStatusNotification, status);
 	};
 }

@@ -11,7 +11,8 @@ suite('GuideNH runtime bridge commands', () => {
 		const sender: RuntimeBridgeNotificationSender = {
 			sendNotification: async (method, payload) => {
 				notifications.push({ method, payload });
-			}
+			},
+			onNotification: () => ({ dispose: () => undefined })
 		};
 		const callbacks = createGuideNhCommandCallbacks({
 			readConfig: () => ({
@@ -45,7 +46,8 @@ suite('GuideNH runtime bridge commands', () => {
 			sender: {
 				sendNotification: async () => {
 					throw new Error('Notification must not be sent');
-				}
+				},
+				onNotification: () => ({ dispose: () => undefined })
 			},
 			showInformationMessage: async () => undefined,
 			showErrorMessage: async (message) => {

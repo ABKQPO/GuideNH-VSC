@@ -4,7 +4,9 @@ import {
 	createHelloMessage,
 	createSemanticQueryMessage,
 	SemanticEntry,
-	SemanticQueryResultPayload
+	SemanticQueryResultPayload,
+	RuntimeBridgeStatusParams,
+	RuntimeBridgeStatusState
 } from '../../common/protocol';
 import { SemanticCache } from './semanticCache';
 
@@ -14,18 +16,30 @@ export interface RuntimeBridgeConnectionOptions {
 	token: string;
 }
 
+export type RuntimeBridgeState = RuntimeBridgeStatusState;
+export type RuntimeBridgeStatus = RuntimeBridgeStatusParams;
+
+export interface RuntimeBridgeClientEvents {
+	onStatus?: (status: RuntimeBridgeStatus) => void;
+}
+
 export class RuntimeBridgeClient {
 	private static readonly bootstrapCapabilities = ['items', 'ores'];
 
 	private socket: WebSocket | undefined;
 	private readonly pendingEntries = new Map<string, SemanticEntry[]>();
 
-	public constructor(private readonly cache: SemanticCache) {}
+	public constructor(
+		private readonly cache: SemanticCache,
+		private readonly events: RuntimeBridgeClientEvents = {}
+	) {}
 
 	connect(options: RuntimeBridgeConnectionOptions): void {
 		if (!options.host || !options.port || !options.token) {
 			throw new Error('Runtime bridge host, port, and token must be configured explicitly');
 		}
+		this.closeSocket();
+		this.publishStatus({ state: 'connecting' });
 		this.socket = new WebSocket(`ws://${options.host}:${options.port}`);
 		this.socket.on('open', () => {
 			this.send(createHelloMessage(options.token));
@@ -33,15 +47,19 @@ export class RuntimeBridgeClient {
 		this.socket.on('message', (data) => {
 			this.handleMessage(data.toString());
 		});
+		this.socket.on('error', (error) => {
+			this.publishStatus({ state: 'error', message: error.message });
+		});
 		this.socket.on('close', () => {
 			this.cache.markStale();
+			this.publishStatus({ state: 'disconnected' });
 		});
 	}
 
 	disconnect(): void {
-		this.socket?.close();
-		this.socket = undefined;
+		this.closeSocket();
 		this.cache.markStale();
+		this.publishStatus({ state: 'disconnected' });
 	}
 
 	private send(message: BridgeEnvelope): void {
@@ -51,9 +69,11 @@ export class RuntimeBridgeClient {
 	private handleMessage(data: string): void {
 		const message = JSON.parse(data) as BridgeEnvelope;
 		if (message.type === 'error') {
+			this.publishStatus({ state: 'error', message: 'Runtime bridge rejected the request.' });
 			return;
 		}
 		if (message.method === 'hello' && message.type === 'response') {
+			this.publishStatus({ state: 'connected' });
 			this.refreshBootstrapCapabilities();
 			return;
 		}
@@ -79,5 +99,14 @@ export class RuntimeBridgeClient {
 		}
 		this.pendingEntries.delete(payload.capability);
 		this.cache.replace(payload.capability, payload.version, entries);
+	}
+
+	private publishStatus(status: RuntimeBridgeStatus): void {
+		this.events.onStatus?.(status);
+	}
+
+	private closeSocket(): void {
+		this.socket?.close();
+		this.socket = undefined;
 	}
 }

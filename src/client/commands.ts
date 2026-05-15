@@ -8,6 +8,7 @@ import { GuideNhExtensionDefaults, readGuideNhDefaults } from './config';
 
 export interface RuntimeBridgeNotificationSender {
 	sendNotification(method: string, payload?: unknown): Thenable<void> | Promise<void>;
+	onNotification(method: string, handler: (payload: unknown) => void): vscode.Disposable;
 }
 
 export interface GuideNhCommandCallbacks {
