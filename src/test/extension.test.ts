@@ -57,6 +57,15 @@ suite('GuideNH extension automation', () => {
 		assert.match(vscodeIgnore, /^node_modules\/\*\*$/m);
 	});
 
+	test('keeps runtime validation command registered in the extension manifest', () => {
+		const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')) as {
+			activationEvents: string[];
+			contributes: { commands: Array<{ command: string; title: string }> };
+		};
+		assert.ok(packageJson.activationEvents.includes('onCommand:guide-vsc.validateRuntimeDocument'));
+		assert.ok(packageJson.contributes.commands.some((command) => command.command === 'guide-vsc.validateRuntimeDocument'));
+	});
+
 	test('resolves the bundled language server module from the extension root', () => {
 		const resolvedModule = resolveGuideNhServerModule({
 			asAbsolutePath: (relativePath: string) => path.join('extension-root', relativePath)

@@ -40,6 +40,7 @@ export class RuntimeBridgeClient {
 	];
 
 	private socket: WebSocket | undefined;
+	private connected = false;
 	private readonly pendingEntries = new Map<string, SemanticEntry[]>();
 
 	public constructor(
@@ -61,9 +62,11 @@ export class RuntimeBridgeClient {
 			this.handleMessage(data.toString());
 		});
 		this.socket.on('error', (error) => {
+			this.connected = false;
 			this.publishStatus({ state: 'error', message: error.message });
 		});
 		this.socket.on('close', () => {
+			this.connected = false;
 			this.cache.markStale();
 			this.publishStatus({ state: 'disconnected' });
 		});
@@ -76,6 +79,11 @@ export class RuntimeBridgeClient {
 	}
 
 	validateDocument(document: RuntimeDocumentValidateParams): void {
+		if (!this.connected) {
+			const message = 'Runtime bridge must be connected before document validation.';
+			this.publishStatus({ state: 'error', message });
+			throw new Error(message);
+		}
 		const byteLength = Buffer.byteLength(document.text, 'utf8');
 		if (byteLength > MaxRuntimeDocumentBytes) {
 			throw new Error(`Runtime document validation payload is too large: ${byteLength} bytes`);
@@ -94,6 +102,7 @@ export class RuntimeBridgeClient {
 			return;
 		}
 		if (message.method === 'hello' && message.type === 'response') {
+			this.connected = true;
 			this.publishStatus({ state: 'connected' });
 			this.refreshBootstrapCapabilities();
 			return;
@@ -127,6 +136,7 @@ export class RuntimeBridgeClient {
 	}
 
 	private closeSocket(): void {
+		this.connected = false;
 		this.socket?.close();
 		this.socket = undefined;
 	}

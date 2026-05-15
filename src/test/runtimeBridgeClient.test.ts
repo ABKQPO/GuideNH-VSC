@@ -138,6 +138,21 @@ suite('GuideNH runtime bridge client', () => {
 		client.disconnect();
 	});
 
+	test('rejects document validation before the runtime bridge is connected', () => {
+		const statuses: RuntimeBridgeStatus[] = [];
+		const client = new RuntimeBridgeClient(new SemanticCache(), {
+			onStatus: (status) => {
+				statuses.push(status);
+			}
+		});
+
+		assert.throws(
+			() => client.validateDocument({ uri: 'file:///repo/page.md', languageId: 'markdown', text: '# Page' }),
+			/must be connected/
+		);
+		assert.strictEqual(statuses[0].state, 'error');
+	});
+
 	test('sends manual document validation without oversized payloads', async () => {
 		const server = new WebSocketServer({ port: 0 });
 		const port = await listenPort(server);

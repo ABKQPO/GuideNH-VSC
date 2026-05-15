@@ -11,13 +11,13 @@
     "Programming Languages",
     "Other"
   ],
-    "activationEvents": [
-      "onLanguage:markdown",
-      "onLanguage:guidenh-md",
-      "onCommand:guide-vsc.generateSchema",
-      "onCommand:guide-vsc.connectRuntimeBridge",
-      "onCommand:guide-vsc.disconnectRuntimeBridge",
-      "onCommand:guide-vsc.validateRuntimeDocument"
+  "activationEvents": [
+    "onLanguage:markdown",
+    "onLanguage:guidenh-md",
+    "onCommand:guide-vsc.generateSchema",
+    "onCommand:guide-vsc.connectRuntimeBridge",
+    "onCommand:guide-vsc.disconnectRuntimeBridge",
+    "onCommand:guide-vsc.validateRuntimeDocument"
   ],
   "main": "./out/extension.js",
   "contributes": {
