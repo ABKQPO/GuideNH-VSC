@@ -1,5 +1,7 @@
 import { Diagnostic, DiagnosticSeverity, Position } from 'vscode-languageserver/node';
 import { GuideNhAttributeSchema, GuideNhFrontmatterKey, GuideNhSchemaBundle } from '../../common/schema';
+import { GuideNhWorkspaceIndex } from '../index/workspaceIndex';
+import { findPageReferences } from '../navigation/pageReferences';
 import { GuideNhParsedTag, parseGuideNhDocument } from '../parser/documentParser';
 
 function createDiagnostic(text: string, start: number, end: number, message: string): Diagnostic {
@@ -14,11 +16,14 @@ function createDiagnostic(text: string, start: number, end: number, message: str
 	};
 }
 
-export function createGuideNhDiagnostics(text: string, schema: GuideNhSchemaBundle): Diagnostic[] {
+export function createGuideNhDiagnostics(text: string, schema: GuideNhSchemaBundle, index?: GuideNhWorkspaceIndex): Diagnostic[] {
 	const parsed = parseGuideNhDocument(text);
 	const diagnostics: Diagnostic[] = [];
 	if (parsed.frontmatter) {
 		diagnostics.push(...createFrontmatterDiagnostics(text, parsed.frontmatter.text, schema));
+	}
+	if (index) {
+		diagnostics.push(...createPageReferenceDiagnostics(text, index));
 	}
 	const parentStack: GuideNhParsedTag[] = [];
 	for (const tag of parsed.tags) {
@@ -65,6 +70,12 @@ export function createGuideNhDiagnostics(text: string, schema: GuideNhSchemaBund
 		diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Unclosed GuideNH tag ${tag.name}`));
 	}
 	return diagnostics;
+}
+
+function createPageReferenceDiagnostics(text: string, index: GuideNhWorkspaceIndex): Diagnostic[] {
+	return findPageReferences(text)
+		.filter((reference) => !index.findPageByRelativePath(reference.target))
+		.map((reference) => createDiagnostic(text, reference.start, reference.end, `Unknown GuideNH page ${reference.target}`));
 }
 
 function popParentTag(parentStack: GuideNhParsedTag[], tagName: string): void {

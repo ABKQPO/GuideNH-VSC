@@ -53,7 +53,7 @@ connection.onInitialized(() => {
 documents.onDidChangeContent(async (change) => {
 	workspaceIndex.updatePage(change.document.uri, change.document.getText());
 	const schema = await schemaPromise;
-	const diagnostics = createGuideNhDiagnostics(change.document.getText(), schema);
+	const diagnostics = createGuideNhDiagnostics(change.document.getText(), schema, workspaceIndex);
 	connection.sendDiagnostics({ uri: change.document.uri, diagnostics });
 });
 

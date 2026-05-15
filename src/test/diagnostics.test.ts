@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { Diagnostic } from 'vscode-languageserver/node';
+import { GuideNhWorkspaceIndex } from '../server/index/workspaceIndex';
 import { createGuideNhDiagnostics } from '../server/providers/diagnostics';
 import { loadGuideNhSchema } from '../server/schema/schemaLoader';
 
@@ -134,5 +135,41 @@ suite('GuideNH diagnostics', () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const diagnostics = createGuideNhDiagnostics('---\nzoom: 1.25\ncategories: [intro, tools]\nnavigation:\n  title: Intro\n---\n', schema);
 		assert.deepStrictEqual(diagnostics, []);
+	});
+
+	test('reports unresolved GuideNH page references', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/index.md', '# Index');
+		const text = [
+			'[Missing](missing.md)',
+			'---',
+			'navigation:',
+			'  parent: absent.md',
+			'---',
+			'<ItemLink id="minecraft:stone" linksTo="./gone.md#usage" />'
+		].join('\n');
+		const diagnostics = createGuideNhDiagnostics(text, schema, index);
+		assert.deepStrictEqual(
+			diagnostics.map((item: Diagnostic) => item.message),
+			[
+				'Unknown GuideNH page missing.md',
+				'Unknown GuideNH page absent.md',
+				'Unknown GuideNH page gone.md'
+			]
+		);
+		assert.deepStrictEqual(diagnostics[0].range, {
+			start: { line: 0, character: 10 },
+			end: { line: 0, character: 20 }
+		});
+	});
+
+	test('accepts resolved GuideNH page references', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/index.md', '# Index');
+		index.updatePage('file:///repo/crafting.md', '# Crafting');
+		const diagnostics = createGuideNhDiagnostics('---\nnavigation:\n  parent: index.md\n---\n<ItemLink linksTo="crafting.md" />', schema, index);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown GuideNH page')), false);
 	});
 });
