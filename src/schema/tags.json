@@ -1,74 +1,1270 @@
 {
   "schemaVersion": 1,
   "tags": {
-    "GameScene": {
-      "name": "GameScene",
+    "a": {
+      "name": "a",
+      "kind": "inline",
+      "description": "Generated from GuideNH a compiler source.",
+      "attributes": {
+        "href": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "BlockImage": {
+      "name": "BlockImage",
       "kind": "block",
-      "description": "Interactive GuideNH 3D scene.",
+      "description": "Generated from GuideNH BlockImage compiler source.",
       "attributes": {
-        "width": { "type": "number", "description": "Scene width in guide pixels." },
-        "height": { "type": "number", "description": "Scene height in guide pixels." },
-        "zoom": { "type": "number", "description": "Initial scene zoom." },
-        "interactive": { "type": "boolean", "description": "Whether the scene accepts mouse input." },
-        "background": { "type": "enum", "values": ["transparent", "default"], "description": "Scene background mode." },
-        "align": { "type": "enum", "values": ["left", "center", "right"], "description": "Block alignment." },
-        "wrap": { "type": "enum", "values": ["square"], "description": "Text wrap mode." }
-      },
-      "children": ["Block", "Entity", "ImportStructure", "ImportStructureLib", "ImportPonder", "RemoveBlocks", "BlockStats", "BlockAnnotation", "BoxAnnotation", "LineAnnotation", "DiamondAnnotation", "PlaySound"],
-      "snippets": ["guidenh.gameScene"]
-    },
-    "Block": {
-      "name": "Block",
-      "kind": "scene",
-      "description": "Places a block in a GameScene.",
-      "attributes": {
-        "id": { "type": "item", "required": true, "description": "Block id." },
-        "x": { "type": "number", "description": "X position." },
-        "y": { "type": "number", "description": "Y position." },
-        "z": { "type": "number", "description": "Z position." }
+        "scale": {
+          "type": "number"
+        }
       },
       "children": [],
-      "snippets": ["guidenh.block"]
+      "snippets": []
     },
-    "ImportStructure": {
-      "name": "ImportStructure",
-      "kind": "scene",
-      "description": "Imports an SNBT or NBT structure resource.",
+    "Column": {
+      "name": "Column",
+      "kind": "block",
+      "description": "Generated from GuideNH Column compiler source.",
       "attributes": {
-        "src": { "type": "resource", "required": true, "description": "Structure resource path." },
-        "x": { "type": "number", "description": "X offset." },
-        "y": { "type": "number", "description": "Y offset." },
-        "z": { "type": "number", "description": "Z offset." }
+        "alignItems": {
+          "type": "enum"
+        },
+        "fullWidth": {
+          "type": "boolean"
+        },
+        "gap": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number"
+        }
       },
       "children": [],
-      "snippets": ["guidenh.importStructure"]
+      "snippets": []
+    },
+    "Row": {
+      "name": "Row",
+      "kind": "block",
+      "description": "Generated from GuideNH Row compiler source.",
+      "attributes": {
+        "alignItems": {
+          "type": "enum"
+        },
+        "fullWidth": {
+          "type": "boolean"
+        },
+        "gap": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "br": {
+      "name": "br",
+      "kind": "inline",
+      "description": "Generated from GuideNH br compiler source.",
+      "attributes": {
+        "clear": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "CategoryIndex": {
+      "name": "CategoryIndex",
+      "kind": "block",
+      "description": "Generated from GuideNH CategoryIndex compiler source.",
+      "attributes": {
+        "category": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "BarChart": {
+      "name": "BarChart",
+      "kind": "chart",
+      "description": "Generated from GuideNH BarChart compiler source.",
+      "attributes": {
+        "barWidthRatio": {
+          "type": "number"
+        },
+        "categories": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "ColumnChart": {
+      "name": "ColumnChart",
+      "kind": "chart",
+      "description": "Generated from GuideNH ColumnChart compiler source.",
+      "attributes": {
+        "barWidthRatio": {
+          "type": "number"
+        },
+        "categories": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "LineChart": {
+      "name": "LineChart",
+      "kind": "chart",
+      "description": "Generated from GuideNH LineChart compiler source.",
+      "attributes": {
+        "categories": {
+          "type": "string"
+        },
+        "numericX": {
+          "type": "boolean"
+        },
+        "showPoints": {
+          "type": "boolean"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "PieChart": {
+      "name": "PieChart",
+      "kind": "chart",
+      "description": "Generated from GuideNH PieChart compiler source.",
+      "attributes": {
+        "clockwise": {
+          "type": "boolean"
+        },
+        "startAngle": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "ScatterChart": {
+      "name": "ScatterChart",
+      "kind": "chart",
+      "description": "Generated from GuideNH ScatterChart compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "Color": {
+      "name": "Color",
+      "kind": "inline",
+      "description": "Generated from GuideNH Color compiler source.",
+      "attributes": {
+        "color": {
+          "type": "color"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "CommandLink": {
+      "name": "CommandLink",
+      "kind": "inline",
+      "description": "Generated from GuideNH CommandLink compiler source.",
+      "attributes": {
+        "close": {
+          "type": "boolean"
+        },
+        "command": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "Comment": {
+      "name": "Comment",
+      "kind": "any",
+      "description": "Generated from GuideNH Comment compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "CsvTable": {
+      "name": "CsvTable",
+      "kind": "block",
+      "description": "Generated from GuideNH CsvTable compiler source.",
+      "attributes": {
+        "header": {
+          "type": "boolean"
+        },
+        "src": {
+          "type": "string"
+        },
+        "widths": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "details": {
+      "name": "details",
+      "kind": "block",
+      "description": "Generated from GuideNH details compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "div": {
+      "name": "div",
+      "kind": "any",
+      "description": "Generated from GuideNH div compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "FileTree": {
+      "name": "FileTree",
+      "kind": "block",
+      "description": "Generated from GuideNH FileTree compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "FloatingImage": {
+      "name": "FloatingImage",
+      "kind": "inline",
+      "description": "Generated from GuideNH FloatingImage compiler source.",
+      "attributes": {
+        "align": {
+          "type": "string"
+        },
+        "border": {
+          "type": "boolean"
+        },
+        "borderColor": {
+          "type": "color"
+        },
+        "borderThickness": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number"
+        },
+        "src": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "trigger": {
+          "type": "string"
+        },
+        "w": {
+          "type": "number"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "FootnoteList": {
+      "name": "FootnoteList",
+      "kind": "block",
+      "description": "Generated from GuideNH FootnoteList compiler source.",
+      "attributes": {
+        "width": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "FunctionGraph": {
+      "name": "FunctionGraph",
+      "kind": "block",
+      "description": "Generated from GuideNH FunctionGraph compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "Function": {
+      "name": "Function",
+      "kind": "block",
+      "description": "Generated from GuideNH Function compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "ItemGrid": {
+      "name": "ItemGrid",
+      "kind": "block",
+      "description": "Generated from GuideNH ItemGrid compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "ItemImage": {
+      "name": "ItemImage",
+      "kind": "inline",
+      "description": "Generated from GuideNH ItemImage compiler source.",
+      "attributes": {
+        "format": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "labelYOffset": {
+          "type": "string"
+        },
+        "noTooltip": {
+          "type": "string"
+        },
+        "scale": {
+          "type": "number"
+        },
+        "showIcon": {
+          "type": "string"
+        },
+        "showTooltip": {
+          "type": "string"
+        },
+        "yOffset": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
     },
     "ItemLink": {
       "name": "ItemLink",
       "kind": "inline",
       "description": "Item tooltip link with optional guide navigation.",
       "attributes": {
-        "id": { "type": "item", "description": "Item id." },
-        "ore": { "type": "ore", "description": "Ore dictionary name." },
-        "linksTo": { "type": "page", "description": "Override page link target." },
-        "showTooltip": { "type": "boolean", "description": "Whether hover tooltip is shown." },
-        "showIcon": { "type": "enum", "values": ["left", "right"], "description": "Icon side." }
+        "id": {
+          "type": "item",
+          "description": "Item id."
+        },
+        "ore": {
+          "type": "ore",
+          "description": "Ore dictionary name."
+        },
+        "linksTo": {
+          "type": "page",
+          "description": "Override page link target."
+        },
+        "showTooltip": {
+          "type": "boolean",
+          "description": "Whether hover tooltip is shown."
+        },
+        "showIcon": {
+          "type": "enum",
+          "values": [
+            "left",
+            "right"
+          ],
+          "description": "Icon side."
+        }
       },
       "children": [],
-      "snippets": ["guidenh.itemLink"]
+      "snippets": [
+        "guidenh.itemLink"
+      ]
+    },
+    "kbd": {
+      "name": "kbd",
+      "kind": "inline",
+      "description": "Generated from GuideNH kbd compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "KeyBind": {
+      "name": "KeyBind",
+      "kind": "inline",
+      "description": "Generated from GuideNH KeyBind compiler source.",
+      "attributes": {
+        "action": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "Latex": {
+      "name": "Latex",
+      "kind": "any",
+      "description": "Generated from GuideNH Latex compiler source.",
+      "attributes": {
+        "color": {
+          "type": "string"
+        },
+        "formula": {
+          "type": "string"
+        },
+        "offsetX": {
+          "type": "number"
+        },
+        "offsetY": {
+          "type": "number"
+        },
+        "scale": {
+          "type": "number"
+        },
+        "showTooltip": {
+          "type": "boolean"
+        },
+        "tooltip": {
+          "type": "string"
+        },
+        "valign": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "mark": {
+      "name": "mark",
+      "kind": "inline",
+      "description": "Generated from GuideNH mark compiler source.",
+      "attributes": {
+        "color": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "Mermaid": {
+      "name": "Mermaid",
+      "kind": "block",
+      "description": "Generated from GuideNH Mermaid compiler source.",
+      "attributes": {
+        "height": {
+          "type": "number"
+        },
+        "src": {
+          "type": "string"
+        },
+        "width": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "PlayerName": {
+      "name": "PlayerName",
+      "kind": "inline",
+      "description": "Generated from GuideNH PlayerName compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
     },
     "Recipe": {
       "name": "Recipe",
       "kind": "block",
       "description": "Renders a recipe by id.",
       "attributes": {
-        "id": { "type": "item", "required": true, "description": "Recipe output or recipe id." },
-        "handlerId": { "type": "string", "description": "Recipe handler id." },
-        "handlerName": { "type": "string", "description": "Recipe handler name." },
-        "fallbackText": { "type": "string", "description": "Fallback text." }
+        "id": {
+          "type": "item",
+          "required": true,
+          "description": "Recipe output or recipe id."
+        },
+        "handlerId": {
+          "type": "string",
+          "description": "Recipe handler id."
+        },
+        "handlerName": {
+          "type": "string",
+          "description": "Recipe handler name."
+        },
+        "fallbackText": {
+          "type": "string",
+          "description": "Fallback text."
+        }
       },
       "children": [],
-      "snippets": ["guidenh.recipe"]
+      "snippets": [
+        "guidenh.recipe"
+      ]
+    },
+    "RecipeFor": {
+      "name": "RecipeFor",
+      "kind": "block",
+      "description": "Generated from GuideNH RecipeFor compiler source.",
+      "attributes": {
+        "fallbackText": {
+          "type": "string"
+        },
+        "handlerId": {
+          "type": "string"
+        },
+        "handlerName": {
+          "type": "string"
+        },
+        "handlerOrder": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "string"
+        },
+        "recipeIndex": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "RecipeUsage": {
+      "name": "RecipeUsage",
+      "kind": "block",
+      "description": "Generated from GuideNH RecipeUsage compiler source.",
+      "attributes": {
+        "fallbackText": {
+          "type": "string"
+        },
+        "handlerId": {
+          "type": "string"
+        },
+        "handlerName": {
+          "type": "string"
+        },
+        "handlerOrder": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "string"
+        },
+        "recipeIndex": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "RecipesFor": {
+      "name": "RecipesFor",
+      "kind": "block",
+      "description": "Generated from GuideNH RecipesFor compiler source.",
+      "attributes": {
+        "fallbackText": {
+          "type": "string"
+        },
+        "handlerId": {
+          "type": "string"
+        },
+        "handlerName": {
+          "type": "string"
+        },
+        "handlerOrder": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "string"
+        },
+        "recipeIndex": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "SoundLink": {
+      "name": "SoundLink",
+      "kind": "inline",
+      "description": "Generated from GuideNH SoundLink compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "Structure": {
+      "name": "Structure",
+      "kind": "block",
+      "description": "Generated from GuideNH Structure compiler source.",
+      "attributes": {
+        "height": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "SubPages": {
+      "name": "SubPages",
+      "kind": "block",
+      "description": "Generated from GuideNH SubPages compiler source.",
+      "attributes": {
+        "alphabetical": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "sub": {
+      "name": "sub",
+      "kind": "inline",
+      "description": "Generated from GuideNH sub compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "sup": {
+      "name": "sup",
+      "kind": "inline",
+      "description": "Generated from GuideNH sup compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "Tooltip": {
+      "name": "Tooltip",
+      "kind": "any",
+      "description": "Generated from GuideNH Tooltip compiler source.",
+      "attributes": {
+        "label": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "BlockAnnotation": {
+      "name": "BlockAnnotation",
+      "kind": "any",
+      "description": "Generated from GuideNH BlockAnnotation compiler source.",
+      "attributes": {
+        "alwaysOnTop": {
+          "type": "boolean"
+        },
+        "color": {
+          "type": "color"
+        },
+        "thickness": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "BlockAnnotationTemplate": {
+      "name": "BlockAnnotationTemplate",
+      "kind": "any",
+      "description": "Generated from GuideNH BlockAnnotationTemplate compiler source.",
+      "attributes": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "BoxAnnotation": {
+      "name": "BoxAnnotation",
+      "kind": "any",
+      "description": "Generated from GuideNH BoxAnnotation compiler source.",
+      "attributes": {
+        "alwaysOnTop": {
+          "type": "boolean"
+        },
+        "color": {
+          "type": "color"
+        },
+        "thickness": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "DiamondAnnotation": {
+      "name": "DiamondAnnotation",
+      "kind": "any",
+      "description": "Generated from GuideNH DiamondAnnotation compiler source.",
+      "attributes": {
+        "alwaysOnTop": {
+          "type": "boolean"
+        },
+        "color": {
+          "type": "color"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "LineAnnotation": {
+      "name": "LineAnnotation",
+      "kind": "any",
+      "description": "Generated from GuideNH LineAnnotation compiler source.",
+      "attributes": {
+        "alwaysOnTop": {
+          "type": "boolean"
+        },
+        "arrow": {
+          "type": "string"
+        },
+        "color": {
+          "type": "color"
+        },
+        "index": {
+          "type": "number"
+        },
+        "pointColor": {
+          "type": "color"
+        },
+        "points": {
+          "type": "string"
+        },
+        "show": {
+          "type": "boolean"
+        },
+        "showPoints": {
+          "type": "boolean"
+        },
+        "size": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "Block": {
+      "name": "Block",
+      "kind": "scene",
+      "description": "Places a block in a GameScene.",
+      "attributes": {
+        "id": {
+          "type": "item",
+          "required": true,
+          "description": "Block id."
+        },
+        "x": {
+          "type": "number",
+          "description": "X position."
+        },
+        "y": {
+          "type": "number",
+          "description": "Y position."
+        },
+        "z": {
+          "type": "number",
+          "description": "Z position."
+        }
+      },
+      "children": [],
+      "snippets": [
+        "guidenh.block"
+      ]
+    },
+    "Entity": {
+      "name": "Entity",
+      "kind": "any",
+      "description": "Generated from GuideNH Entity compiler source.",
+      "attributes": {
+        "data": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "rotationX": {
+          "type": "number"
+        },
+        "rotationY": {
+          "type": "number"
+        },
+        "uuid": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "ImportPonder": {
+      "name": "ImportPonder",
+      "kind": "any",
+      "description": "Generated from GuideNH ImportPonder compiler source.",
+      "attributes": {
+        "src": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "ImportStructure": {
+      "name": "ImportStructure",
+      "kind": "scene",
+      "description": "Imports an SNBT or NBT structure resource.",
+      "attributes": {
+        "src": {
+          "type": "resource",
+          "required": true,
+          "description": "Structure resource path."
+        },
+        "x": {
+          "type": "number",
+          "description": "X offset."
+        },
+        "y": {
+          "type": "number",
+          "description": "Y offset."
+        },
+        "z": {
+          "type": "number",
+          "description": "Z offset."
+        }
+      },
+      "children": [],
+      "snippets": [
+        "guidenh.importStructure"
+      ]
+    },
+    "ImportStructureLib": {
+      "name": "ImportStructureLib",
+      "kind": "any",
+      "description": "Generated from GuideNH ImportStructureLib compiler source.",
+      "attributes": {
+        "channel": {
+          "type": "number"
+        },
+        "controller": {
+          "type": "string"
+        },
+        "facing": {
+          "type": "string"
+        },
+        "flip": {
+          "type": "string"
+        },
+        "offsetX": {
+          "type": "number"
+        },
+        "offsetY": {
+          "type": "number"
+        },
+        "offsetZ": {
+          "type": "number"
+        },
+        "piece": {
+          "type": "string"
+        },
+        "rotation": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "IsometricCamera": {
+      "name": "IsometricCamera",
+      "kind": "any",
+      "description": "Generated from GuideNH IsometricCamera compiler source.",
+      "attributes": {
+        "pitch": {
+          "type": "number"
+        },
+        "roll": {
+          "type": "number"
+        },
+        "yaw": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "PlaceBlock": {
+      "name": "PlaceBlock",
+      "kind": "any",
+      "description": "Generated from GuideNH PlaceBlock compiler source.",
+      "attributes": {
+        "dx": {
+          "type": "number"
+        },
+        "dy": {
+          "type": "number"
+        },
+        "dz": {
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "nbt": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "PlaySound": {
+      "name": "PlaySound",
+      "kind": "any",
+      "description": "Generated from GuideNH PlaySound compiler source.",
+      "attributes": {
+        "trigger": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "RemoveBlocks": {
+      "name": "RemoveBlocks",
+      "kind": "any",
+      "description": "Generated from GuideNH RemoveBlocks compiler source.",
+      "attributes": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "ReplaceBlock": {
+      "name": "ReplaceBlock",
+      "kind": "any",
+      "description": "Generated from GuideNH ReplaceBlock compiler source.",
+      "attributes": {
+        "dx": {
+          "type": "number"
+        },
+        "dy": {
+          "type": "number"
+        },
+        "dz": {
+          "type": "number"
+        },
+        "from": {
+          "type": "string"
+        },
+        "from_nbt": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "to_nbt": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "TextAnnotation": {
+      "name": "TextAnnotation",
+      "kind": "any",
+      "description": "Generated from GuideNH TextAnnotation compiler source.",
+      "attributes": {
+        "backgroundAlpha": {
+          "type": "number"
+        },
+        "color": {
+          "type": "color"
+        },
+        "hlMaxX": {
+          "type": "string"
+        },
+        "hlMaxY": {
+          "type": "string"
+        },
+        "hlMaxZ": {
+          "type": "string"
+        },
+        "hlMinX": {
+          "type": "string"
+        },
+        "hlMinY": {
+          "type": "string"
+        },
+        "hlMinZ": {
+          "type": "string"
+        },
+        "independent": {
+          "type": "boolean"
+        },
+        "maxWidth": {
+          "type": "number"
+        },
+        "pos": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "yOffset": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "GameScene": {
+      "name": "GameScene",
+      "kind": "block",
+      "description": "Interactive GuideNH 3D scene.",
+      "attributes": {
+        "width": {
+          "type": "number",
+          "description": "Scene width in guide pixels."
+        },
+        "height": {
+          "type": "number",
+          "description": "Scene height in guide pixels."
+        },
+        "zoom": {
+          "type": "number",
+          "description": "Initial scene zoom."
+        },
+        "interactive": {
+          "type": "boolean",
+          "description": "Whether the scene accepts mouse input."
+        },
+        "background": {
+          "type": "enum",
+          "values": [
+            "transparent",
+            "default"
+          ],
+          "description": "Scene background mode."
+        },
+        "align": {
+          "type": "enum",
+          "values": [
+            "left",
+            "center",
+            "right"
+          ],
+          "description": "Block alignment."
+        },
+        "wrap": {
+          "type": "enum",
+          "values": [
+            "square"
+          ],
+          "description": "Text wrap mode."
+        }
+      },
+      "children": [
+        "Block",
+        "Entity",
+        "ImportStructure",
+        "ImportStructureLib",
+        "ImportPonder",
+        "RemoveBlocks",
+        "BlockStats",
+        "BlockAnnotation",
+        "BoxAnnotation",
+        "LineAnnotation",
+        "DiamondAnnotation",
+        "PlaySound"
+      ],
+      "snippets": [
+        "guidenh.gameScene"
+      ]
+    },
+    "Scene": {
+      "name": "Scene",
+      "kind": "block",
+      "description": "Generated from GuideNH Scene compiler source.",
+      "attributes": {
+        "buttonEnabled": {
+          "type": "boolean"
+        },
+        "centerX": {
+          "type": "number"
+        },
+        "centerY": {
+          "type": "number"
+        },
+        "centerZ": {
+          "type": "number"
+        },
+        "corner": {
+          "type": "string"
+        },
+        "count": {
+          "type": "number"
+        },
+        "dock": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        },
+        "filterMode": {
+          "type": "string"
+        },
+        "gridButtonEnabled": {
+          "type": "boolean"
+        },
+        "height": {
+          "type": "number"
+        },
+        "interactive": {
+          "type": "boolean"
+        },
+        "item": {
+          "type": "string"
+        },
+        "maxWidth": {
+          "type": "number"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "offsetX": {
+          "type": "number"
+        },
+        "offsetY": {
+          "type": "number"
+        },
+        "perspective": {
+          "type": "string"
+        },
+        "rotateX": {
+          "type": "number"
+        },
+        "rotateY": {
+          "type": "number"
+        },
+        "rotateZ": {
+          "type": "number"
+        },
+        "showGrid": {
+          "type": "boolean"
+        },
+        "showNames": {
+          "type": "boolean"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "width": {
+          "type": "number"
+        },
+        "zoom": {
+          "type": "number"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "QuestCard": {
+      "name": "QuestCard",
+      "kind": "block",
+      "description": "Generated from GuideNH QuestCard compiler source.",
+      "attributes": {
+        "id": {
+          "type": "string"
+        },
+        "show_desc": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "QuestLink": {
+      "name": "QuestLink",
+      "kind": "inline",
+      "description": "Generated from GuideNH QuestLink compiler source.",
+      "attributes": {
+        "id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
     }
   }
 }
