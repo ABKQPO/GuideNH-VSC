@@ -31,6 +31,7 @@ export function scanJavaCompilerSource(source: string): JavaCompilerScanResult {
 function extractCompilerTagNames(source: string): string[] {
 	const names = new Set<string>();
 	const stringConstants = extractStringConstants(source);
+	const stringCollections = extractStringCollections(source, stringConstants);
 	for (const match of source.matchAll(/["']([A-Z][A-Za-z0-9]*)["']\s*,\s*new\s+[A-Za-z0-9_]+Compiler/g)) {
 		names.add(match[1]);
 	}
@@ -38,7 +39,7 @@ function extractCompilerTagNames(source: string): string[] {
 		for (const name of extractQuotedStrings(body)) {
 			names.add(name);
 		}
-		for (const name of extractResolvedTagNameConstants(body, stringConstants)) {
+		for (const name of extractResolvedTagNameConstants(body, stringConstants, stringCollections)) {
 			names.add(name);
 		}
 	}
@@ -47,30 +48,115 @@ function extractCompilerTagNames(source: string): string[] {
 
 function extractStringConstants(source: string): Map<string, string> {
 	const constants = new Map<string, string>();
-	for (const match of source.matchAll(/\b(?:(?:public|private|protected|static|final)\s+)*String\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"([^"]+)"/g)) {
-		constants.set(match[1], match[2]);
+	const declarations = Array.from(source.matchAll(/\b(?:(?:public|private|protected|static|final)\s+)*String\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([^;]+);/g));
+	let changed = true;
+	while (changed) {
+		changed = false;
+		for (const match of declarations) {
+			if (constants.has(match[1])) {
+				continue;
+			}
+			const value = resolveStringExpression(match[2], constants);
+			if (value) {
+				constants.set(match[1], value);
+				changed = true;
+			}
+		}
 	}
 	return constants;
 }
 
-function extractResolvedTagNameConstants(body: string, constants: Map<string, string>): string[] {
-	const names = new Set<string>();
-	for (const match of body.matchAll(/Collections\.singleton\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)/g)) {
-		addResolvedConstant(names, constants, match[1]);
+function extractStringCollections(source: string, constants: Map<string, string>): Map<string, string[]> {
+	const collections = new Map<string, string[]>();
+	for (const match of source.matchAll(/\b(?:(?:public|private|protected|static|final)\s+)*(?:Set|List|Collection)\s*<\s*String\s*>\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([^;]+);/gs)) {
+		collections.set(match[1], resolveStringListExpression(match[2], constants));
 	}
-	for (const match of body.matchAll(/Arrays\.asList\s*\(([^)]*)\)/gs)) {
-		for (const argument of match[1].split(',')) {
-			addResolvedConstant(names, constants, argument.trim());
+	for (const match of source.matchAll(/\b(?:(?:public|private|protected|static|final)\s+)*String\s*\[\]\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([^;]+);/gs)) {
+		collections.set(match[1], resolveStringListExpression(match[2], constants));
+	}
+	return collections;
+}
+
+function extractResolvedTagNameConstants(
+	body: string,
+	constants: Map<string, string>,
+	collections: Map<string, string[]>
+): string[] {
+	const names = new Set<string>();
+	for (const value of extractMethodReturnExpressions(body)) {
+		for (const name of resolveStringListExpression(value, constants)) {
+			names.add(name);
+		}
+		for (const name of extractResolvedStringCollections(value, collections)) {
+			names.add(name);
+		}
+		const collection = collections.get(value.trim());
+		if (collection) {
+			for (const name of collection) {
+				names.add(name);
+			}
 		}
 	}
 	return Array.from(names);
 }
 
-function addResolvedConstant(names: Set<string>, constants: Map<string, string>, identifier: string): void {
-	const value = constants.get(identifier);
-	if (value) {
-		names.add(value);
+function extractResolvedStringCollections(value: string, collections: Map<string, string[]>): string[] {
+	const names = new Set<string>();
+	for (const identifier of value.matchAll(/\b[A-Za-z_][A-Za-z0-9_]*\b/g)) {
+		const resolved = collections.get(identifier[0]);
+		if (!resolved) {
+			continue;
+		}
+		for (const name of resolved) {
+			names.add(name);
+		}
 	}
+	return Array.from(names);
+}
+
+function extractMethodReturnExpressions(body: string): string[] {
+	const expressions: string[] = [];
+	for (const match of body.matchAll(/\breturn\s+([^;]+);/gs)) {
+		expressions.push(match[1].trim());
+	}
+	return expressions;
+}
+
+function resolveStringListExpression(value: string, constants: Map<string, string>): string[] {
+	return [
+		...extractQuotedStrings(value),
+		...extractResolvedStringConstants(value, constants)
+	];
+}
+
+function extractResolvedStringConstants(value: string, constants: Map<string, string>): string[] {
+	const names = new Set<string>();
+	for (const identifier of value.matchAll(/\b[A-Za-z_][A-Za-z0-9_]*\b/g)) {
+		const resolved = constants.get(identifier[0]);
+		if (resolved) {
+			names.add(resolved);
+		}
+	}
+	return Array.from(names);
+}
+
+function resolveStringExpression(value: string, constants: Map<string, string>): string | undefined {
+	const parts = value.split('+').map((part) => part.trim());
+	let resolved = '';
+	for (const part of parts) {
+		const quoted = part.match(/^"([^"]*)"$/);
+		if (quoted) {
+			resolved += quoted[1];
+			continue;
+		}
+		const constant = constants.get(part);
+		if (constant !== undefined) {
+			resolved += constant;
+			continue;
+		}
+		return undefined;
+	}
+	return resolved;
 }
 
 function extractGetTagNamesBodies(source: string): string[] {
@@ -106,18 +192,35 @@ function findMatchingBrace(source: string, openBrace: number): number {
 
 function extractCompilerAttributes(source: string): Record<string, GuideNhAttributeSchema> {
 	const attributes: Record<string, GuideNhAttributeSchema> = {};
-	for (const match of source.matchAll(/MdxAttrs\.([A-Za-z0-9_]+)\([^;]*?"([^"]+)"[^;]*?\)/gs)) {
+	for (const match of source.matchAll(/MdxAttrs\s*\.\s*([A-Za-z0-9_]+)\([^;]*?"([^"]+)"[^;]*?\)/gs)) {
 		const type = mapMdxAttrReaderType(match[1]);
 		if (type) {
 			attributes[match[2]] = { type };
 		}
 	}
-	for (const match of source.matchAll(/getAttributeString\(\s*"([^"]+)"/g)) {
-		if (!attributes[match[1]]) {
-			attributes[match[1]] = { type: 'string' };
+	for (const attribute of extractFallbackAttributes(source)) {
+		if (!attributes[attribute.name]) {
+			attributes[attribute.name] = { type: attribute.type };
 		}
 	}
 	return sortAttributes(attributes);
+}
+
+function extractFallbackAttributes(source: string): Array<{ name: string; type: GuideNhAttributeSchema['type'] }> {
+	const attributes: Array<{ name: string; type: GuideNhAttributeSchema['type'] }> = [];
+	for (const match of source.matchAll(/getAttributeString\(\s*"([^"]+)"/g)) {
+		attributes.push({ name: match[1], type: 'string' });
+	}
+	for (const match of source.matchAll(/getAttribute(?:Value)?\(\s*"([^"]+)"/g)) {
+		attributes.push({ name: match[1], type: 'string' });
+	}
+	for (const match of source.matchAll(/getAttributeBoolean\(\s*"([^"]+)"/g)) {
+		attributes.push({ name: match[1], type: 'boolean' });
+	}
+	for (const match of source.matchAll(/getAttribute(?:Int|Integer|Float|Double)\(\s*"([^"]+)"/g)) {
+		attributes.push({ name: match[1], type: 'number' });
+	}
+	return attributes;
 }
 
 function mapMdxAttrReaderType(reader: string): GuideNhAttributeSchema['type'] | undefined {
@@ -129,6 +232,12 @@ function mapMdxAttrReaderType(reader: string): GuideNhAttributeSchema['type'] | 
 	}
 	if (reader.includes('Color')) {
 		return 'color';
+	}
+	if (reader.includes('Resource')) {
+		return 'resource';
+	}
+	if (reader.includes('Page')) {
+		return 'page';
 	}
 	if (reader.includes('Boolean')) {
 		return 'boolean';

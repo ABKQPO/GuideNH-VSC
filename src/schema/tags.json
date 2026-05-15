@@ -443,6 +443,9 @@
         "showTooltip": {
           "type": "boolean"
         },
+        "sourceScale": {
+          "type": "number"
+        },
         "tooltip": {
           "type": "string"
         },
@@ -761,6 +764,9 @@
         "points": {
           "type": "string"
         },
+        "pointSize": {
+          "type": "number"
+        },
         "show": {
           "type": "boolean"
         },
@@ -768,6 +774,9 @@
           "type": "boolean"
         },
         "size": {
+          "type": "number"
+        },
+        "thickness": {
           "type": "number"
         }
       },
@@ -1154,6 +1163,9 @@
       "kind": "block",
       "description": "Generated from GuideNH Scene compiler source.",
       "attributes": {
+        "allowLayerSlider": {
+          "type": "boolean"
+        },
         "buttonEnabled": {
           "type": "boolean"
         },
@@ -1187,11 +1199,17 @@
         "height": {
           "type": "number"
         },
+        "id": {
+          "type": "string"
+        },
         "interactive": {
           "type": "boolean"
         },
         "item": {
           "type": "string"
+        },
+        "maxHeight": {
+          "type": "number"
         },
         "maxWidth": {
           "type": "number"

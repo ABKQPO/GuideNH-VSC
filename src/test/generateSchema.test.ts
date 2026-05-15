@@ -44,6 +44,36 @@ suite('GuideNH schema generator', () => {
 		assert.deepStrictEqual(tags, ['Latex']);
 	});
 
+	test('resolves collection constants and modern collection factories', () => {
+		const source = `
+			private static final String PREFIX = "Recipe";
+			private static final String USAGE = PREFIX + "Usage";
+			private static final Set<String> TAGS = Set.of("Recipe", "RecipeFor", USAGE);
+			private static final String[] EXTRA_TAGS = new String[] { "RecipesFor" };
+			public Set<String> getTagNames() {
+				return new HashSet<>(TAGS);
+			}
+			public Set<String> getExtraTagNames() {
+				return new HashSet<>(Arrays.asList(EXTRA_TAGS));
+			}
+		`;
+		const tags = extractTagNamesFromJavaSource(source);
+		assert.deepStrictEqual(tags, ['Recipe', 'RecipeFor', 'RecipeUsage']);
+	});
+
+	test('extracts List.of and new String array tag names directly from getTagNames', () => {
+		const source = `
+			public Set<String> getTagNames() {
+				return ImmutableSet.of("QuestCard", "QuestLink");
+			}
+			public Collection<String> getOtherNames() {
+				return List.of("IgnoredOutsideGetTagNames");
+			}
+		`;
+		const tags = extractTagNamesFromJavaSource(source);
+		assert.deepStrictEqual(tags, ['QuestCard', 'QuestLink']);
+	});
+
 	test('extracts MdxAttrs attributes with schema types', () => {
 		const source = `
 			public Set<String> getTagNames() {
@@ -62,6 +92,45 @@ suite('GuideNH schema generator', () => {
 			formula: { type: 'string' },
 			scale: { type: 'number' },
 			showTooltip: { type: 'boolean' }
+		});
+	});
+
+	test('extracts additional MdxAttrs and fallback attribute reader types', () => {
+		const source = `
+			public Set<String> getTagNames() {
+				return Collections.singleton("ImportStructure");
+			}
+			protected void compile(PageCompiler compiler, LytBlockContainer parent, MdxJsxElementFields el) {
+				ResourceLocation src = MdxAttrs.getResource(compiler, parent, el, "src", null);
+				String linksTo = MdxAttrs.getPage(compiler, parent, el, "linksTo", null);
+				String title = el.getAttributeString("title", "");
+				boolean visible = el.getAttributeBoolean("visible", true);
+				int width = el.getAttributeInt("width", 100);
+			}
+		`;
+		const result = scanJavaCompilerSource(source);
+		assert.deepStrictEqual(result.tags.ImportStructure.attributes, {
+			linksTo: { type: 'page' },
+			src: { type: 'resource' },
+			title: { type: 'string' },
+			visible: { type: 'boolean' },
+			width: { type: 'number' }
+		});
+	});
+
+	test('extracts chained MdxAttrs calls split across lines', () => {
+		const source = `
+			public Set<String> getTagNames() {
+				return Collections.singleton("Scene");
+			}
+			protected void compile(PageCompiler compiler, LytErrorSink errorSink, MdxJsxElementFields el) {
+				MdxAttrs
+					.getInt(compiler, errorSink, el, "maxHeight", 180);
+			}
+		`;
+		const result = scanJavaCompilerSource(source);
+		assert.deepStrictEqual(result.tags.Scene.attributes, {
+			maxHeight: { type: 'number' }
 		});
 	});
 });
