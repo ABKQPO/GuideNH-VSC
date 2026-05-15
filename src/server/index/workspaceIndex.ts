@@ -59,23 +59,50 @@ export class GuideNhWorkspaceIndex {
 	}
 
 	listPages(): GuideNhIndexedPage[] {
-		if (this.sortedPagesDirty) {
-			this.sortedPages = Array.from(this.pages.values()).sort((left, right) => {
-				return left.relativePath.localeCompare(right.relativePath);
-			});
-			this.sortedPagesDirty = false;
-		}
+		this.refreshSortedPages();
 		return this.sortedPages.slice();
 	}
 
-	listFrontmatterValues(path: string): string[] {
-		if (this.dirtyFrontmatterPaths.has(path) || !this.sortedFrontmatterValues.has(path)) {
-			this.sortedFrontmatterValues.set(path, Array.from(this.valueCountsByFrontmatterPath.get(path)?.keys() ?? []).sort((left, right) => {
-				return left.localeCompare(right);
-			}));
-			this.dirtyFrontmatterPaths.delete(path);
+	queryPagesByPrefix(prefix: string, limit = 200): GuideNhIndexedPage[] {
+		if (limit <= 0) {
+			return [];
 		}
+		this.refreshSortedPages();
+		const normalizedPrefix = normalizePagePrefix(prefix);
+		const keys = this.sortedPages.map((page) => page.relativePath);
+		const start = lowerBound(keys, normalizedPrefix);
+		const matches: GuideNhIndexedPage[] = [];
+		for (let index = start; index < this.sortedPages.length && matches.length < limit; index++) {
+			const page = this.sortedPages[index];
+			if (!page.relativePath.startsWith(normalizedPrefix)) {
+				break;
+			}
+			matches.push(page);
+		}
+		return matches;
+	}
+
+	listFrontmatterValues(path: string): string[] {
+		this.refreshSortedFrontmatterValues(path);
 		return this.sortedFrontmatterValues.get(path)?.slice() ?? [];
+	}
+
+	queryFrontmatterValues(path: string, prefix: string, limit = 200): string[] {
+		if (limit <= 0) {
+			return [];
+		}
+		this.refreshSortedFrontmatterValues(path);
+		const values = this.sortedFrontmatterValues.get(path) ?? [];
+		const start = lowerBound(values, prefix);
+		const matches: string[] = [];
+		for (let index = start; index < values.length && matches.length < limit; index++) {
+			const value = values[index];
+			if (!value.startsWith(prefix)) {
+				break;
+			}
+			matches.push(value);
+		}
+		return matches;
 	}
 
 	findReferencesToPage(relativePath: string): GuideNhIndexedPage[] {
@@ -102,6 +129,26 @@ export class GuideNhWorkspaceIndex {
 		if (sourceUris.size === 0) {
 			this.sourceUrisByLinkedPage.delete(normalized);
 		}
+	}
+
+	private refreshSortedPages(): void {
+		if (!this.sortedPagesDirty) {
+			return;
+		}
+		this.sortedPages = Array.from(this.pages.values()).sort((left, right) => {
+			return left.relativePath.localeCompare(right.relativePath);
+		});
+		this.sortedPagesDirty = false;
+	}
+
+	private refreshSortedFrontmatterValues(path: string): void {
+		if (!this.dirtyFrontmatterPaths.has(path) && this.sortedFrontmatterValues.has(path)) {
+			return;
+		}
+		this.sortedFrontmatterValues.set(path, Array.from(this.valueCountsByFrontmatterPath.get(path)?.keys() ?? []).sort((left, right) => {
+			return left.localeCompare(right);
+		}));
+		this.dirtyFrontmatterPaths.delete(path);
 	}
 
 	private addFrontmatterValues(values: Record<string, string[]>): void {
@@ -179,6 +226,24 @@ function resolveIndexedFrontmatterPath(indent: number, key: string): string {
 
 function normalizeIndexedFrontmatterValue(value: string): string {
 	return value.replace(/^['"]|['"]$/g, '').trim();
+}
+
+function normalizePagePrefix(prefix: string): string {
+	return prefix.replace(/^\.\//, '').replace(/^\//, '');
+}
+
+function lowerBound(values: string[], target: string): number {
+	let low = 0;
+	let high = values.length;
+	while (low < high) {
+		const middle = Math.floor((low + high) / 2);
+		if (values[middle] < target) {
+			low = middle + 1;
+		} else {
+			high = middle;
+		}
+	}
+	return low;
 }
 
 function resolveGuideNhRelativePath(uri: string): string {

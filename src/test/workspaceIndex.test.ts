@@ -63,6 +63,21 @@ categories:
 		assert.deepStrictEqual(index.listFrontmatterValues('categories'), ['updated']);
 	});
 
+	test('queries cached frontmatter values by prefix', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md', `---
+categories:
+  - advanced
+  - archive
+  - intro
+---
+`);
+
+		assert.deepStrictEqual(index.queryFrontmatterValues('categories', 'a'), ['advanced', 'archive']);
+		assert.deepStrictEqual(index.queryFrontmatterValues('categories', 'a', 1), ['advanced']);
+		assert.deepStrictEqual(index.queryFrontmatterValues('categories', 'missing'), []);
+	});
+
 	test('ignores reusable list examples outside frontmatter', () => {
 		const index = new GuideNhWorkspaceIndex();
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/index.md', `# Example
@@ -91,6 +106,17 @@ categories:
 		index.removePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md');
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/c.md', '# C');
 		assert.deepStrictEqual(index.listPages().map((page) => page.relativePath), ['b.md', 'c.md']);
+	});
+
+	test('queries cached pages by normalized prefix', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/intro/a.md', '# A');
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/intro/b.md', '# B');
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/other/c.md', '# C');
+
+		assert.deepStrictEqual(index.queryPagesByPrefix('./intro/').map((page) => page.relativePath), ['intro/a.md', 'intro/b.md']);
+		assert.deepStrictEqual(index.queryPagesByPrefix('/intro/', 1).map((page) => page.relativePath), ['intro/a.md']);
+		assert.deepStrictEqual(index.queryPagesByPrefix('missing/'), []);
 	});
 
 	test('finds references by uri', () => {

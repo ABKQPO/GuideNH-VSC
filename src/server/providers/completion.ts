@@ -257,10 +257,8 @@ function createPageValueCompletions(prefix: string, index: GuideNhWorkspaceIndex
 	if (!index) {
 		return [];
 	}
-	const normalizedPrefix = prefix.replace(/^\.\//, '').replace(/^\//, '');
 	return index
-		.listPages()
-		.filter((page) => page.relativePath.startsWith(normalizedPrefix))
+		.queryPagesByPrefix(prefix)
 		.map((page) => ({
 			label: page.relativePath,
 			kind: CompletionItemKind.File,
@@ -300,8 +298,7 @@ function createIndexedFrontmatterValueCompletions(
 		return [];
 	}
 	return index
-		.listFrontmatterValues(source.path)
-		.filter((value) => value.startsWith(prefix))
+		.queryFrontmatterValues(source.path, prefix)
 		.map((value) => ({
 			label: value,
 			kind: CompletionItemKind.Value,
