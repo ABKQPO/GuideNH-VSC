@@ -51,7 +51,8 @@ export function createGuideNhCompletions(
 		return [];
 	}
 	if (openTag.length === 0) {
-		const allowed = parentTag ? schema.tags.tags[parentTag]?.children : undefined;
+		const resolvedParentTag = parentTag ?? inferOpenParentTag(text, offset);
+		const allowed = resolvedParentTag ? schema.tags.tags[resolvedParentTag]?.children : undefined;
 		return [
 			...createTagNameCompletions(schema, allowed),
 			...createSnippetCompletions(schema, allowed)
@@ -95,6 +96,32 @@ function createSnippetCompletions(schema: GuideNhSchemaBundle, allowed: string[]
 
 function isTagAllowed(tag: GuideNhTagSchema, allowed: string[] | undefined): boolean {
 	return allowed === undefined || allowed.includes(tag.name);
+}
+
+function inferOpenParentTag(text: string, offset: number): string | undefined {
+	const stack: string[] = [];
+	const before = text.slice(0, offset);
+	const tagPattern = /<\/?([A-Z][A-Za-z0-9]*)(?:\s[^<>]*?)?(\/?)>/g;
+	let match: RegExpExecArray | null;
+	while ((match = tagPattern.exec(before)) !== null) {
+		const source = match[0];
+		const tagName = match[1];
+		if (source.startsWith('</')) {
+			popTag(stack, tagName);
+		} else if (match[2] !== '/') {
+			stack.push(tagName);
+		}
+	}
+	return stack[stack.length - 1];
+}
+
+function popTag(stack: string[], tagName: string): void {
+	for (let index = stack.length - 1; index >= 0; index--) {
+		if (stack[index] === tagName) {
+			stack.splice(index);
+			return;
+		}
+	}
 }
 
 function createFrontmatterCompletions(

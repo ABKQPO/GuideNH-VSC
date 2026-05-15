@@ -23,6 +23,21 @@ suite('GuideNH completion provider', () => {
 		assert.ok(items.some((item: CompletionItem) => item.label === 'interactive'));
 	});
 
+	test('filters tag completions by the open parent tag', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '<GameScene>\n  <';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'Block' && item.kind === CompletionItemKind.Class));
+		assert.strictEqual(items.some((item: CompletionItem) => item.label === 'Recipe'), false);
+	});
+
+	test('restores global tag completions after closing the parent tag', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '<GameScene>\n  <Block id="minecraft:stone" />\n</GameScene>\n<';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'Recipe'));
+	});
+
 	test('completes reusable GuideNH snippets', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const items = createGuideNhCompletions('<', 1, schema, undefined);
