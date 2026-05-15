@@ -19,4 +19,20 @@ suite('GuideNH definition provider', () => {
 		const definition = createGuideNhDefinition('prefix [A](a.md)', 1, index);
 		assert.strictEqual(definition, undefined);
 	});
+
+	test('resolves navigation parent values at the cursor position', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/index.md', '# Index');
+		const text = '---\nnavigation:\n  parent: index.md\n---\n';
+		const definition = createGuideNhDefinition(text, text.indexOf('index.md') + 1, index);
+		assert.strictEqual((definition as Location | undefined)?.uri, 'file:///repo/index.md');
+	});
+
+	test('resolves linksTo attribute values at the cursor position', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/crafting.md', '# Crafting');
+		const text = '<ItemLink id="minecraft:stone" linksTo="./crafting.md#smelting" />';
+		const definition = createGuideNhDefinition(text, text.indexOf('crafting.md') + 1, index);
+		assert.strictEqual((definition as Location | undefined)?.uri, 'file:///repo/crafting.md');
+	});
 });
