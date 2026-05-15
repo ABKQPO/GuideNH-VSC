@@ -4,10 +4,12 @@ import {
 	InitializeParams,
 	ProposedFeatures,
 	TextDocumentSyncKind,
-	TextDocuments
+	TextDocuments,
+	WorkspaceFolder
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { GuideNhWorkspaceIndex } from './index/workspaceIndex';
+import { indexGuideNhWorkspaceFolders } from './index/workspaceScanner';
 import { createGuideNhCompletions, GuideNhCompletionTriggerCharacters } from './providers/completion';
 import { createGuideNhDiagnostics } from './providers/diagnostics';
 import { createGuideNhDefinition } from './providers/definition';
@@ -27,16 +29,26 @@ const runtimeBridgeClient = new RuntimeBridgeClient(semanticCache, {
 	onStatus: wireRuntimeBridgeStatus(connection)
 });
 const runtimeBridgeHandlers = createRuntimeBridgeNotificationHandlers(runtimeBridgeClient);
+let workspaceFolders: WorkspaceFolder[] = [];
 
-connection.onInitialize((_params: InitializeParams) => ({
-	capabilities: {
-		textDocumentSync: TextDocumentSyncKind.Incremental,
-		completionProvider: { triggerCharacters: GuideNhCompletionTriggerCharacters },
-		definitionProvider: true,
-		referencesProvider: true,
-		hoverProvider: true
-	}
-}));
+connection.onInitialize((params: InitializeParams) => {
+	workspaceFolders = params.workspaceFolders ?? [];
+	return {
+		capabilities: {
+			textDocumentSync: TextDocumentSyncKind.Incremental,
+			completionProvider: { triggerCharacters: GuideNhCompletionTriggerCharacters },
+			definitionProvider: true,
+			referencesProvider: true,
+			hoverProvider: true
+		}
+	};
+});
+
+connection.onInitialized(() => {
+	void indexGuideNhWorkspaceFolders(workspaceFolders, workspaceIndex).catch((error: unknown) => {
+		connection.console.warn(`GuideNH workspace scan failed: ${error instanceof Error ? error.message : String(error)}`);
+	});
+});
 
 documents.onDidChangeContent(async (change) => {
 	workspaceIndex.updatePage(change.document.uri, change.document.getText());

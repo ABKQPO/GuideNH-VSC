@@ -1,6 +1,8 @@
 .vscode/**
 .vscode-test/**
 docs/**
+ROADMAP.zh-CN.md
+**/ROADMAP.zh-CN.md
 src/**
 out/test/**
 .gitignore

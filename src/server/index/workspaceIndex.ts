@@ -14,7 +14,7 @@ export class GuideNhWorkspaceIndex {
 
 	updatePage(uri: string, text: string): void {
 		this.removePage(uri);
-		const relativePath = uri.slice(uri.lastIndexOf('/') + 1);
+		const relativePath = resolveGuideNhRelativePath(uri);
 		const itemIds = Array.from(text.matchAll(/^\s*-\s+([A-Za-z0-9_.-]+:[A-Za-z0-9_./*-]+)/gm)).map((match) => match[1]);
 		const links = extractPageLinks(text);
 		this.pages.set(uri, { uri, relativePath, itemIds, links });
@@ -79,4 +79,14 @@ export class GuideNhWorkspaceIndex {
 
 function extractPageLinks(text: string): string[] {
 	return Array.from(new Set(findPageReferences(text).map((reference) => reference.target)));
+}
+
+function resolveGuideNhRelativePath(uri: string): string {
+	const normalized = uri.replace(/\\/g, '/');
+	const localeMatch = normalized.match(/\/guidenh\/_[a-z]{2}_[a-z]{2}\/(.+\.md)$/i);
+	if (localeMatch) {
+		return decodeURIComponent(localeMatch[1]);
+	}
+	const fileName = normalized.slice(normalized.lastIndexOf('/') + 1);
+	return decodeURIComponent(fileName);
 }
