@@ -70,12 +70,7 @@ connection.onDefinition((params) => {
 	if (!document) {
 		return undefined;
 	}
-	const line = document.getText({
-		start: { line: params.position.line, character: 0 },
-		end: { line: params.position.line + 1, character: 0 }
-	});
-	const match = line.match(/\[[^\]]+\]\(([^)]+\.md(?:#[^)]+)?)\)/);
-	return match ? createGuideNhDefinition(match[1].split('#')[0], workspaceIndex) : undefined;
+	return createGuideNhDefinition(document.getText(), document.offsetAt(params.position), workspaceIndex);
 });
 
 connection.onReferences((params) => {
