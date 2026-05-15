@@ -18,6 +18,24 @@ suite('GuideNH diagnostics', () => {
 		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Missing required attribute id')), true);
 	});
 
+	test('reports tags that are not allowed inside the current parent tag', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('<GameScene>\n  <Recipe id="minecraft:stone" />\n</GameScene>', schema);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message === 'Tag Recipe is not allowed inside GameScene'), true);
+	});
+
+	test('accepts tags allowed by the current parent tag', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('<GameScene>\n  <Block id="minecraft:stone" />\n</GameScene>', schema);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('not allowed inside')), false);
+	});
+
+	test('does not apply parent tag rules after the parent is closed', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('<GameScene>\n  <Block id="minecraft:stone" />\n</GameScene>\n<Recipe id="minecraft:stone" />', schema);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message === 'Tag Recipe is not allowed inside GameScene'), false);
+	});
+
 	test('reports diagnostics at the tag line and character range', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const diagnostics = createGuideNhDiagnostics('intro\n  <UnknownTag />', schema);

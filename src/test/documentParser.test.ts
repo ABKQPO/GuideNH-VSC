@@ -15,9 +15,11 @@ navigation:
 </GameScene>
 `);
 		assert.strictEqual(parsed.frontmatter?.text.includes('navigation:'), true);
-		assert.strictEqual(parsed.tags.length, 2);
+		assert.strictEqual(parsed.tags.length, 3);
 		assert.strictEqual(parsed.tags[0].name, 'GameScene');
 		assert.strictEqual(parsed.tags[1].attributes.id, 'minecraft:stone');
+		assert.strictEqual(parsed.tags[2].name, 'GameScene');
+		assert.strictEqual(parsed.tags[2].closing, true);
 	});
 
 	test('ignores MDX comments', () => {

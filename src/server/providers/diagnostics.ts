@@ -1,6 +1,6 @@
 import { Diagnostic, DiagnosticSeverity, Position } from 'vscode-languageserver/node';
 import { GuideNhFrontmatterKey, GuideNhSchemaBundle } from '../../common/schema';
-import { parseGuideNhDocument } from '../parser/documentParser';
+import { GuideNhParsedTag, parseGuideNhDocument } from '../parser/documentParser';
 
 function createDiagnostic(text: string, start: number, end: number, message: string): Diagnostic {
 	return {
@@ -20,11 +20,21 @@ export function createGuideNhDiagnostics(text: string, schema: GuideNhSchemaBund
 	if (parsed.frontmatter) {
 		diagnostics.push(...createFrontmatterDiagnostics(text, parsed.frontmatter.text, schema));
 	}
+	const parentStack: GuideNhParsedTag[] = [];
 	for (const tag of parsed.tags) {
+		if (tag.closing) {
+			popParentTag(parentStack, tag.name);
+			continue;
+		}
 		const tagSchema = schema.tags.tags[tag.name];
 		if (!tagSchema) {
 			diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Unknown GuideNH tag ${tag.name}`));
 			continue;
+		}
+		const parentTag = parentStack[parentStack.length - 1];
+		const parentSchema = parentTag ? schema.tags.tags[parentTag.name] : undefined;
+		if (parentTag && parentSchema && parentSchema.children.length > 0 && !parentSchema.children.includes(tag.name)) {
+			diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Tag ${tag.name} is not allowed inside ${parentTag.name}`));
 		}
 		for (const attributeName of Object.keys(tag.attributes)) {
 			if (!tagSchema.attributes[attributeName]) {
@@ -36,8 +46,20 @@ export function createGuideNhDiagnostics(text: string, schema: GuideNhSchemaBund
 				diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Missing required attribute ${attributeName} on ${tag.name}`));
 			}
 		}
+		if (!tag.selfClosing) {
+			parentStack.push(tag);
+		}
 	}
 	return diagnostics;
+}
+
+function popParentTag(parentStack: GuideNhParsedTag[], tagName: string): void {
+	for (let index = parentStack.length - 1; index >= 0; index--) {
+		if (parentStack[index].name === tagName) {
+			parentStack.splice(index);
+			return;
+		}
+	}
 }
 
 function createFrontmatterDiagnostics(text: string, frontmatter: string, schema: GuideNhSchemaBundle): Diagnostic[] {

@@ -6,6 +6,7 @@ export interface GuideNhParsedTag {
 	start: number;
 	end: number;
 	selfClosing: boolean;
+	closing: boolean;
 }
 
 export interface GuideNhParsedDocument {
@@ -32,15 +33,17 @@ export function parseGuideNhDocument(text: string): GuideNhParsedDocument {
 	const masked = maskMdxComments(text);
 	const frontmatter = extractFrontmatter(masked);
 	const tags: GuideNhParsedTag[] = [];
-	const tagPattern = /<([A-Z][A-Za-z0-9]*)(\s[^<>]*?)?(\/?)>/g;
+	const tagPattern = /<\/?([A-Z][A-Za-z0-9]*)(\s[^<>]*?)?(\/?)>/g;
 	let match: RegExpExecArray | null;
 	while ((match = tagPattern.exec(masked)) !== null) {
+		const closing = match[0].startsWith('</');
 		tags.push({
 			name: match[1],
-			attributes: parseAttributes(match[2] ?? ''),
+			attributes: closing ? {} : parseAttributes(match[2] ?? ''),
 			start: match.index,
 			end: match.index + match[0].length,
-			selfClosing: match[3] === '/'
+			selfClosing: match[3] === '/',
+			closing
 		});
 	}
 	return { frontmatter, tags };
