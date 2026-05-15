@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": 1,
+  "capabilities": ["items", "ores", "sounds", "keybinds", "recipes", "quests", "structurelib", "pages"],
+  "limits": {
+    "maxMessageBytes": 262144,
+    "maxPageSize": 200,
+    "maxSubscriptions": 16,
+    "maxConnections": 2,
+    "maxDeltaEntries": 200
+  }
+}

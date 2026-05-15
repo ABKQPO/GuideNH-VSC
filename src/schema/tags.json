@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "tags": {
+    "GameScene": {
+      "name": "GameScene",
+      "kind": "block",
+      "description": "Interactive GuideNH 3D scene.",
+      "attributes": {
+        "width": { "type": "number", "description": "Scene width in guide pixels." },
+        "height": { "type": "number", "description": "Scene height in guide pixels." },
+        "zoom": { "type": "number", "description": "Initial scene zoom." },
+        "interactive": { "type": "boolean", "description": "Whether the scene accepts mouse input." },
+        "background": { "type": "enum", "values": ["transparent", "default"], "description": "Scene background mode." },
+        "align": { "type": "enum", "values": ["left", "center", "right"], "description": "Block alignment." },
+        "wrap": { "type": "enum", "values": ["square"], "description": "Text wrap mode." }
+      },
+      "children": ["Block", "Entity", "ImportStructure", "ImportStructureLib", "ImportPonder", "RemoveBlocks", "BlockStats", "BlockAnnotation", "BoxAnnotation", "LineAnnotation", "DiamondAnnotation", "PlaySound"],
+      "snippets": ["guidenh.gameScene"]
+    },
+    "Block": {
+      "name": "Block",
+      "kind": "scene",
+      "description": "Places a block in a GameScene.",
+      "attributes": {
+        "id": { "type": "item", "required": true, "description": "Block id." },
+        "x": { "type": "number", "description": "X position." },
+        "y": { "type": "number", "description": "Y position." },
+        "z": { "type": "number", "description": "Z position." }
+      },
+      "children": [],
+      "snippets": ["guidenh.block"]
+    },
+    "ImportStructure": {
+      "name": "ImportStructure",
+      "kind": "scene",
+      "description": "Imports an SNBT or NBT structure resource.",
+      "attributes": {
+        "src": { "type": "resource", "required": true, "description": "Structure resource path." },
+        "x": { "type": "number", "description": "X offset." },
+        "y": { "type": "number", "description": "Y offset." },
+        "z": { "type": "number", "description": "Z offset." }
+      },
+      "children": [],
+      "snippets": ["guidenh.importStructure"]
+    },
+    "ItemLink": {
+      "name": "ItemLink",
+      "kind": "inline",
+      "description": "Item tooltip link with optional guide navigation.",
+      "attributes": {
+        "id": { "type": "item", "description": "Item id." },
+        "ore": { "type": "ore", "description": "Ore dictionary name." },
+        "linksTo": { "type": "page", "description": "Override page link target." },
+        "showTooltip": { "type": "boolean", "description": "Whether hover tooltip is shown." },
+        "showIcon": { "type": "enum", "values": ["left", "right"], "description": "Icon side." }
+      },
+      "children": [],
+      "snippets": ["guidenh.itemLink"]
+    },
+    "Recipe": {
+      "name": "Recipe",
+      "kind": "block",
+      "description": "Renders a recipe by id.",
+      "attributes": {
+        "id": { "type": "item", "required": true, "description": "Recipe output or recipe id." },
+        "handlerId": { "type": "string", "description": "Recipe handler id." },
+        "handlerName": { "type": "string", "description": "Recipe handler name." },
+        "fallbackText": { "type": "string", "description": "Fallback text." }
+      },
+      "children": [],
+      "snippets": ["guidenh.recipe"]
+    }
+  }
+}
