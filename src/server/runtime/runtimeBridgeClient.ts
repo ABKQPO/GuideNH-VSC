@@ -12,11 +12,18 @@ import {
 	RuntimeBridgeStatusState
 } from '../../common/protocol';
 import { SemanticCache } from './semanticCache';
+import {
+	createSemanticPayloadGuardState,
+	SemanticPayloadGuardState,
+	validateSemanticPayload
+} from './semanticPayloadGuard';
+import { validateRuntimeBridgeConnectionParams } from '../../common/runtimeBridgeSecurity';
 
 export interface RuntimeBridgeConnectionOptions {
 	host: string;
 	port: number;
 	token: string;
+	allowRemote: boolean;
 }
 
 export type RuntimeBridgeState = RuntimeBridgeStatusState;
@@ -25,6 +32,8 @@ export type RuntimeBridgeStatus = RuntimeBridgeStatusParams;
 export interface RuntimeBridgeClientEvents {
 	onStatus?: (status: RuntimeBridgeStatus) => void;
 }
+
+const MaxRuntimeBridgeMessageBytes = 262144;
 
 export class RuntimeBridgeClient {
 	private static readonly bootstrapCapabilities = [
@@ -42,6 +51,8 @@ export class RuntimeBridgeClient {
 	private socket: WebSocket | undefined;
 	private connected = false;
 	private readonly pendingEntries = new Map<string, SemanticEntry[]>();
+	private readonly pendingPayloadStates = new Map<string, SemanticPayloadGuardState>();
+	private readonly allowedCapabilities = new Set(RuntimeBridgeClient.bootstrapCapabilities);
 
 	public constructor(
 		private readonly cache: SemanticCache,
@@ -49,9 +60,7 @@ export class RuntimeBridgeClient {
 	) {}
 
 	connect(options: RuntimeBridgeConnectionOptions): void {
-		if (!options.host || !options.port || !options.token) {
-			throw new Error('Runtime bridge host, port, and token must be configured explicitly');
-		}
+		validateRuntimeBridgeConnectionParams(options);
 		this.closeSocket();
 		this.publishStatus({ state: 'connecting' });
 		this.socket = new WebSocket(`ws://${options.host}:${options.port}`);
@@ -96,7 +105,14 @@ export class RuntimeBridgeClient {
 	}
 
 	private handleMessage(data: string): void {
-		const message = JSON.parse(data) as BridgeEnvelope;
+		if (Buffer.byteLength(data, 'utf8') > MaxRuntimeBridgeMessageBytes) {
+			this.publishStatus({ state: 'error', message: 'Runtime bridge message is too large.' });
+			return;
+		}
+		const message = this.parseMessage(data);
+		if (!message) {
+			return;
+		}
 		if (message.type === 'error') {
 			this.publishStatus({ state: 'error', message: 'Runtime bridge rejected the request.' });
 			return;
@@ -108,27 +124,62 @@ export class RuntimeBridgeClient {
 			return;
 		}
 		if (message.method === 'semantic.query' && message.type === 'response') {
-			this.handleSemanticQueryResult(message.payload as SemanticQueryResultPayload);
+			this.handleSemanticQueryResult(message.payload);
 		}
 	}
 
 	private refreshBootstrapCapabilities(): void {
 		for (const capability of RuntimeBridgeClient.bootstrapCapabilities) {
 			this.pendingEntries.set(capability, []);
+			this.pendingPayloadStates.set(capability, createSemanticPayloadGuardState());
 			this.send(createSemanticQueryMessage(`semantic.${capability}.0`, capability));
 		}
 	}
 
-	private handleSemanticQueryResult(payload: SemanticQueryResultPayload): void {
+	private handleSemanticQueryResult(value: unknown): void {
+		let payload: SemanticQueryResultPayload;
+		let nextCursor: string | undefined;
+		let totalEntries: number;
+		try {
+			const rawCapability = typeof value === 'object' && value ? (value as Partial<SemanticQueryResultPayload>).capability : undefined;
+			const capability = typeof rawCapability === 'string' ? rawCapability : '';
+			const state = this.pendingPayloadStates.get(capability);
+			if (!state) {
+				throw new Error('Runtime semantic payload was not requested.');
+			}
+			const result = validateSemanticPayload(value, this.allowedCapabilities, state);
+			payload = result.payload;
+			nextCursor = result.nextCursor;
+			totalEntries = result.totalEntries;
+			this.pendingPayloadStates.set(payload.capability, state);
+		} catch (error) {
+			this.publishStatus({ state: 'error', message: error instanceof Error ? error.message : 'Runtime semantic payload is invalid.' });
+			return;
+		}
 		const existing = this.pendingEntries.get(payload.capability) ?? [];
 		const entries = existing.concat(payload.entries);
-		if (payload.nextCursor) {
+		if (nextCursor) {
+			this.pendingPayloadStates.get(payload.capability)?.seenCursors.add(nextCursor);
+			const state = this.pendingPayloadStates.get(payload.capability);
+			if (state) {
+				state.totalEntries = totalEntries;
+			}
 			this.pendingEntries.set(payload.capability, entries);
-			this.send(createSemanticQueryMessage(`semantic.${payload.capability}.${payload.nextCursor}`, payload.capability, payload.nextCursor));
+			this.send(createSemanticQueryMessage(`semantic.${payload.capability}.${nextCursor}`, payload.capability, nextCursor));
 			return;
 		}
 		this.pendingEntries.delete(payload.capability);
+		this.pendingPayloadStates.delete(payload.capability);
 		this.cache.replace(payload.capability, payload.version, entries);
+	}
+
+	private parseMessage(data: string): BridgeEnvelope | undefined {
+		try {
+			return JSON.parse(data) as BridgeEnvelope;
+		} catch {
+			this.publishStatus({ state: 'error', message: 'Runtime bridge returned invalid JSON.' });
+			return undefined;
+		}
 	}
 
 	private publishStatus(status: RuntimeBridgeStatus): void {

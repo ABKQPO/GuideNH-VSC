@@ -24,6 +24,7 @@ export interface RuntimeBridgeConnectParams {
 	host: string;
 	port: number;
 	token: string;
+	allowRemote: boolean;
 }
 
 export interface RuntimeDocumentValidateParams {

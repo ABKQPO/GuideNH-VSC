@@ -21,8 +21,9 @@ GuideVSC 是用于编写 GuideNH Markdown 内容的 Visual Studio Code 插件。
 - `guide-vsc.runtimeBridge.host`
 - `guide-vsc.runtimeBridge.port`
 - `guide-vsc.runtimeBridge.token`
+- `guide-vsc.runtimeBridge.allowRemote`
 
-使用 `GuideNH: Connect Runtime Bridge` 建立连接，使用 `GuideNH: Disconnect Runtime Bridge` 断开连接。token 只会用于当前连接请求，不会显示在状态消息中。
+使用 `GuideNH: Connect Runtime Bridge` 建立连接，使用 `GuideNH: Disconnect Runtime Bridge` 断开连接。token 只会用于当前连接请求，不会显示在状态消息中。默认只允许连接本机地址，非本机地址必须显式启用 `guide-vsc.runtimeBridge.allowRemote`。
 
 ## Schema 生成
 
@@ -50,5 +51,6 @@ npm run build
 
 - 运行时桥没有默认配置。
 - 连接运行时桥之前必须显式配置 token。
+- 运行时桥默认只允许本机连接，远程地址需要显式启用。
 - 运行时语义数据按 capability 分页并缓存，避免同步消息过大。
 - 不连接运行时桥时，插件仍然可以基于本地 schema 和工作区索引工作。

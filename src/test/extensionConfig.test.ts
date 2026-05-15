@@ -13,5 +13,6 @@ suite('GuideNH extension configuration', () => {
 		assert.strictEqual(defaults.runtimeHost, '');
 		assert.strictEqual(defaults.runtimePort, 0);
 		assert.strictEqual(defaults.runtimeToken, '');
+		assert.strictEqual(defaults.runtimeAllowRemote, false);
 	});
 });

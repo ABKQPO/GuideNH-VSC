@@ -25,9 +25,9 @@ suite('GuideNH runtime bridge server notifications', () => {
 		};
 		const handlers = createRuntimeBridgeNotificationHandlers(controller);
 
-		handlers[RuntimeBridgeConnectNotification]({ host: '127.0.0.1', port: 8765, token: 'secret' });
+		handlers[RuntimeBridgeConnectNotification]({ host: '127.0.0.1', port: 8765, token: 'secret', allowRemote: false });
 
-		assert.deepStrictEqual(calls, [{ host: '127.0.0.1', port: 8765, token: 'secret' }]);
+		assert.deepStrictEqual(calls, [{ host: '127.0.0.1', port: 8765, token: 'secret', allowRemote: false }]);
 	});
 
 	test('disconnects runtime bridge from language client notification', () => {

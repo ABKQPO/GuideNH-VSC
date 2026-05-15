@@ -5,6 +5,7 @@ export interface GuideNhExtensionDefaults {
 	runtimeHost: string;
 	runtimePort: number;
 	runtimeToken: string;
+	runtimeAllowRemote: boolean;
 }
 
 export function isGuideNhDocumentSelector(path: string): boolean {
@@ -18,6 +19,7 @@ export function readGuideNhDefaults(): GuideNhExtensionDefaults {
 		guideNhSourcePath: config.get('guideNhSourcePath', 'E:\\Github\\GuideNH'),
 		runtimeHost: config.get('runtimeBridge.host', ''),
 		runtimePort: config.get('runtimeBridge.port', 0),
-		runtimeToken: config.get('runtimeBridge.token', '')
+		runtimeToken: config.get('runtimeBridge.token', ''),
+		runtimeAllowRemote: config.get('runtimeBridge.allowRemote', false)
 	};
 }

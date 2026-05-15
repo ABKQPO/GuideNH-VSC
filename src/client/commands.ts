@@ -8,6 +8,7 @@ import {
 	MaxRuntimeDocumentBytes
 } from '../common/protocol';
 import { GuideNhExtensionDefaults, readGuideNhDefaults } from './config';
+import { isLoopbackHost } from '../common/runtimeBridgeSecurity';
 
 export interface RuntimeBridgeNotificationSender {
 	sendNotification(method: string, payload?: unknown): Thenable<void> | Promise<void>;
@@ -46,10 +47,15 @@ export function createGuideNhCommandCallbacks(dependencies: GuideNhCommandDepend
 				await dependencies.showErrorMessage('GuideNH runtime bridge host, port, and token must be configured explicitly.');
 				return;
 			}
+			if (!config.runtimeAllowRemote && !isLoopbackHost(config.runtimeHost)) {
+				await dependencies.showErrorMessage('GuideNH runtime bridge host must be local unless remote runtime bridge access is explicitly enabled.');
+				return;
+			}
 			const params: RuntimeBridgeConnectParams = {
 				host: config.runtimeHost,
 				port: config.runtimePort,
-				token: config.runtimeToken
+				token: config.runtimeToken,
+				allowRemote: config.runtimeAllowRemote
 			};
 			await dependencies.sender.sendNotification(RuntimeBridgeConnectNotification, params);
 			await dependencies.showInformationMessage('GuideNH runtime bridge connection requested.');

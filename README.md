@@ -21,8 +21,9 @@ Configure these settings only when you intentionally want to connect to a runnin
 - `guide-vsc.runtimeBridge.host`
 - `guide-vsc.runtimeBridge.port`
 - `guide-vsc.runtimeBridge.token`
+- `guide-vsc.runtimeBridge.allowRemote`
 
-Use `GuideNH: Connect Runtime Bridge` to connect and `GuideNH: Disconnect Runtime Bridge` to stop the session. Token values are passed to the language server for the active connection request and are not shown in status messages.
+Use `GuideNH: Connect Runtime Bridge` to connect and `GuideNH: Disconnect Runtime Bridge` to stop the session. Token values are passed to the language server for the active connection request and are not shown in status messages. Non-loopback hosts are rejected unless `guide-vsc.runtimeBridge.allowRemote` is enabled.
 
 ## Schema Generation
 
@@ -50,5 +51,6 @@ npm run build
 
 - Runtime bridge settings have no defaults.
 - Runtime bridge token configuration is required before a connection request is sent.
+- Runtime bridge connections are local-only by default. Remote hosts require explicit opt-in.
 - Runtime semantic data is paged and cached by capability to avoid oversized synchronization messages.
 - The extension can work without the runtime bridge by using the local schema and workspace index.

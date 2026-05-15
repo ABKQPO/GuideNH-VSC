@@ -56,6 +56,11 @@
           "type": "string",
           "default": "",
           "description": "GuideNH runtime bridge token. No default is provided for safety."
+        },
+        "guide-vsc.runtimeBridge.allowRemote": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow runtime bridge connections to non-loopback hosts. Keep disabled unless the bridge transport is secured externally."
         }
       }
     },
