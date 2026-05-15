@@ -26,4 +26,35 @@ suite('GuideNH diagnostics', () => {
 			end: { line: 1, character: 16 }
 		});
 	});
+
+	test('reports unknown top-level frontmatter keys', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('---\nunknown_key: true\nnavigation:\n  title: Intro\n---\n', schema);
+		assert.strictEqual(diagnostics.length, 1);
+		assert.strictEqual(diagnostics[0].message, 'Unknown frontmatter key unknown_key');
+		assert.deepStrictEqual(diagnostics[0].range, {
+			start: { line: 1, character: 0 },
+			end: { line: 1, character: 11 }
+		});
+	});
+
+	test('reports unknown nested frontmatter keys', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('---\nnavigation:\n  unknown_child: value\n  title: Intro\n---\n', schema);
+		assert.strictEqual(diagnostics.length, 1);
+		assert.strictEqual(diagnostics[0].message, 'Unknown frontmatter key navigation.unknown_child');
+		assert.deepStrictEqual(diagnostics[0].range, {
+			start: { line: 2, character: 2 },
+			end: { line: 2, character: 15 }
+		});
+	});
+
+	test('does not cascade unknown frontmatter parent diagnostics to children', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('---\nunknown_parent:\n  child: value\n---\n', schema);
+		assert.deepStrictEqual(
+			diagnostics.map((item: Diagnostic) => item.message),
+			['Unknown frontmatter key unknown_parent']
+		);
+	});
 });
