@@ -1,3 +1,5 @@
+import { findPageReferences } from '../navigation/pageReferences';
+
 export interface GuideNhIndexedPage {
 	uri: string;
 	relativePath: string;
@@ -76,42 +78,5 @@ export class GuideNhWorkspaceIndex {
 }
 
 function extractPageLinks(text: string): string[] {
-	const links = new Set<string>();
-	for (const link of extractMarkdownLinks(text)) {
-		links.add(link);
-	}
-	for (const link of extractNavigationParentLinks(text)) {
-		links.add(link);
-	}
-	for (const link of extractLinksToAttributes(text)) {
-		links.add(link);
-	}
-	return Array.from(links);
-}
-
-function extractMarkdownLinks(text: string): string[] {
-	return Array.from(text.matchAll(/\[[^\]]+\]\(([^)]+\.md(?:#[^)]+)?)\)/g))
-		.map((match) => normalizePageReference(match[1]))
-		.filter((link): link is string => link !== undefined);
-}
-
-function extractNavigationParentLinks(text: string): string[] {
-	return Array.from(text.matchAll(/^\s{2,}parent:\s*([^\s#]+\.md(?:#[^\s]+)?)/gm))
-		.map((match) => normalizePageReference(match[1]))
-		.filter((link): link is string => link !== undefined);
-}
-
-function extractLinksToAttributes(text: string): string[] {
-	return Array.from(text.matchAll(/\blinksTo\s*=\s*(?:"([^"]+)"|'([^']+)'|\{([^}]+)\}|([^\s"'=<>`]+))/g))
-		.map((match) => normalizePageReference(match[1] ?? match[2] ?? match[3] ?? match[4]))
-		.filter((link): link is string => link !== undefined);
-}
-
-function normalizePageReference(value: string | undefined): string | undefined {
-	const withoutAnchor = value?.trim().split('#')[0];
-	if (!withoutAnchor || !withoutAnchor.endsWith('.md')) {
-		return undefined;
-	}
-	const withoutNamespace = withoutAnchor.includes(':') ? withoutAnchor.slice(withoutAnchor.indexOf(':') + 1) : withoutAnchor;
-	return withoutNamespace.replace(/^\.\//, '').replace(/^\//, '');
+	return Array.from(new Set(findPageReferences(text).map((reference) => reference.target)));
 }

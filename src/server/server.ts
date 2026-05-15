@@ -79,7 +79,7 @@ connection.onReferences((params) => {
 		return [];
 	}
 	const current = document.uri.slice(document.uri.lastIndexOf('/') + 1);
-	return createGuideNhReferences(current, workspaceIndex);
+	return createGuideNhReferences(document.getText(), document.offsetAt(params.position), current, workspaceIndex);
 });
 
 for (const [method, handler] of Object.entries(runtimeBridgeHandlers)) {

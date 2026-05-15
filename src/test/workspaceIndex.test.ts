@@ -15,6 +15,15 @@ navigation:
 		assert.strictEqual(index.findItemReference('minecraft:stone')?.uri, 'file:///repo/assets/guidenh/guidenh/_zh_cn/index.md');
 	});
 
+	test('indexes nested GuideNH page paths relative to the locale root', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/aae_intro/aae_intro-index.md', '# AAE');
+		assert.strictEqual(
+			index.findPageByRelativePath('aae_intro/aae_intro-index.md')?.uri,
+			'file:///repo/assets/guidenh/guidenh/_zh_cn/aae_intro/aae_intro-index.md'
+		);
+	});
+
 	test('finds references by uri', () => {
 		const index = new GuideNhWorkspaceIndex();
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md', '[B](b.md)');
