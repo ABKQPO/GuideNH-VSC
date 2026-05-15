@@ -1,5 +1,8 @@
 export type BridgeMessageType = 'request' | 'response' | 'event' | 'error';
 
+export const RuntimeBridgeConnectNotification = 'guide-vsc/runtimeBridge/connect';
+export const RuntimeBridgeDisconnectNotification = 'guide-vsc/runtimeBridge/disconnect';
+
 export interface BridgeEnvelope<TPayload = unknown> {
 	id?: string;
 	type: BridgeMessageType;
@@ -12,6 +15,12 @@ export interface HelloPayload {
 	token: string;
 	clientName: string;
 	supportedProtocols: number[];
+}
+
+export interface RuntimeBridgeConnectParams {
+	host: string;
+	port: number;
+	token: string;
 }
 
 export interface BridgeError {

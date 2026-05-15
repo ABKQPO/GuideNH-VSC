@@ -13,6 +13,8 @@ import { createGuideNhDiagnostics } from './providers/diagnostics';
 import { createGuideNhDefinition } from './providers/definition';
 import { createGuideNhHover } from './providers/hover';
 import { createGuideNhReferences } from './providers/references';
+import { RuntimeBridgeClient } from './runtime/runtimeBridgeClient';
+import { createRuntimeBridgeNotificationHandlers } from './runtime/runtimeBridgeNotifications';
 import { SemanticCache } from './runtime/semanticCache';
 import { loadGuideNhSchema } from './schema/schemaLoader';
 
@@ -21,6 +23,8 @@ const documents = new TextDocuments(TextDocument);
 const schemaPromise = loadGuideNhSchema(path.join(__dirname, '..', 'schema'));
 const workspaceIndex = new GuideNhWorkspaceIndex();
 const semanticCache = new SemanticCache();
+const runtimeBridgeClient = new RuntimeBridgeClient(semanticCache);
+const runtimeBridgeHandlers = createRuntimeBridgeNotificationHandlers(runtimeBridgeClient);
 
 connection.onInitialize((_params: InitializeParams) => ({
 	capabilities: {
@@ -80,6 +84,10 @@ connection.onReferences((params) => {
 	const current = document.uri.slice(document.uri.lastIndexOf('/') + 1);
 	return createGuideNhReferences(current, workspaceIndex);
 });
+
+for (const [method, handler] of Object.entries(runtimeBridgeHandlers)) {
+	connection.onNotification(method, handler);
+}
 
 documents.listen(connection);
 connection.listen();

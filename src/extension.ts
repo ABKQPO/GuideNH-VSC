@@ -3,8 +3,8 @@ import { registerGuideNhCommands } from './client/commands';
 import { createGuideNhLanguageClient } from './client/languageClient';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	registerGuideNhCommands(context);
 	const client = createGuideNhLanguageClient(context);
+	registerGuideNhCommands(context, client);
 	context.subscriptions.push(client);
 	await client.start();
 }
