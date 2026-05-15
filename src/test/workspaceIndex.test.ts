@@ -38,4 +38,22 @@ navigation:
 		assert.strictEqual(index.findReferencesToPage('b.md').length, 0);
 		assert.strictEqual(index.findReferencesToPage('c.md').length, 1);
 	});
+
+	test('indexes navigation parent references', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/child.md', `---
+navigation:
+  parent: index.md
+---
+`);
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/index.md', '# Index');
+		assert.strictEqual(index.findReferencesToPage('index.md').length, 1);
+	});
+
+	test('indexes ItemLink linksTo page references', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/source.md', '<ItemLink id="minecraft:stone" linksTo="./crafting.md#smelting" />');
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/crafting.md', '# Crafting');
+		assert.strictEqual(index.findReferencesToPage('crafting.md').length, 1);
+	});
 });
