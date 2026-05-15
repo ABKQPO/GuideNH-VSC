@@ -1,5 +1,6 @@
 import { CompletionItem, CompletionItemKind } from 'vscode-languageserver/node';
 import { GuideNhSchemaBundle } from '../../common/schema';
+import { SemanticCache } from '../runtime/semanticCache';
 
 function findOpenTagPrefix(text: string, offset: number): string | undefined {
 	const before = text.slice(0, offset);
@@ -11,8 +12,22 @@ export function createGuideNhCompletions(
 	text: string,
 	offset: number,
 	schema: GuideNhSchemaBundle,
-	parentTag: string | undefined
+	parentTag: string | undefined,
+	cache?: SemanticCache
 ): CompletionItem[] {
+	const attributeValueMatch = text.slice(0, offset).match(/([A-Za-z_][\w.-]*)=["']([^"']*)$/);
+	if (attributeValueMatch && cache) {
+		const capability = resolveRuntimeCapability(attributeValueMatch[1]);
+		if (capability) {
+			return cache.queryPrefix(capability, attributeValueMatch[2]).map((entry) => ({
+				label: entry.id,
+				kind: CompletionItemKind.Value,
+				detail: entry.label,
+				documentation: entry.detail
+			}));
+		}
+	}
+
 	const openTag = findOpenTagPrefix(text, offset);
 	if (openTag === undefined) {
 		return [];
@@ -38,4 +53,14 @@ export function createGuideNhCompletions(
 		detail: attribute.type,
 		documentation: attribute.description
 	}));
+}
+
+function resolveRuntimeCapability(attributeName: string): string | undefined {
+	if (attributeName === 'id') {
+		return 'items';
+	}
+	if (attributeName === 'ore') {
+		return 'ores';
+	}
+	return undefined;
 }

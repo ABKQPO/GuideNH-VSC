@@ -13,12 +13,14 @@ import { createGuideNhDiagnostics } from './providers/diagnostics';
 import { createGuideNhDefinition } from './providers/definition';
 import { createGuideNhHover } from './providers/hover';
 import { createGuideNhReferences } from './providers/references';
+import { SemanticCache } from './runtime/semanticCache';
 import { loadGuideNhSchema } from './schema/schemaLoader';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
 const schemaPromise = loadGuideNhSchema(path.join(__dirname, '..', 'schema'));
 const workspaceIndex = new GuideNhWorkspaceIndex();
+const semanticCache = new SemanticCache();
 
 connection.onInitialize((_params: InitializeParams) => ({
 	capabilities: {
@@ -44,7 +46,7 @@ connection.onCompletion(async (params) => {
 	}
 	const schema = await schemaPromise;
 	const offset = document.offsetAt(params.position);
-	return createGuideNhCompletions(document.getText(), offset, schema, undefined);
+	return createGuideNhCompletions(document.getText(), offset, schema, undefined, semanticCache);
 });
 
 connection.onHover(async (params) => {
