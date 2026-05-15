@@ -26,4 +26,12 @@ navigation:
 		const parsed = parseGuideNhDocument('Visible {/* <ItemLink id="minecraft:stone" /> */} text');
 		assert.strictEqual(parsed.tags.length, 0);
 	});
+
+	test('tracks attribute value ranges when the value matches the attribute name', () => {
+		const parsed = parseGuideNhDocument('<GuideExample name="name" />');
+		assert.deepStrictEqual(parsed.tags[0].attributeRanges.name, {
+			start: 20,
+			end: 24
+		});
+	});
 });

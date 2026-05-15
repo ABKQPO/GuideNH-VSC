@@ -1,5 +1,5 @@
 import { Diagnostic, DiagnosticSeverity, Position } from 'vscode-languageserver/node';
-import { GuideNhFrontmatterKey, GuideNhSchemaBundle } from '../../common/schema';
+import { GuideNhAttributeSchema, GuideNhFrontmatterKey, GuideNhSchemaBundle } from '../../common/schema';
 import { GuideNhParsedTag, parseGuideNhDocument } from '../parser/documentParser';
 
 function createDiagnostic(text: string, start: number, end: number, message: string): Diagnostic {
@@ -41,8 +41,15 @@ export function createGuideNhDiagnostics(text: string, schema: GuideNhSchemaBund
 			diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Tag ${tag.name} is not allowed inside ${parentTag.name}`));
 		}
 		for (const attributeName of Object.keys(tag.attributes)) {
-			if (!tagSchema.attributes[attributeName]) {
+			const attributeSchema = tagSchema.attributes[attributeName];
+			if (!attributeSchema) {
 				diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Unknown attribute ${attributeName} on ${tag.name}`));
+				continue;
+			}
+			const typeError = validateAttributeValueType(attributeSchema, tag.attributes[attributeName]);
+			if (typeError) {
+				const range = tag.attributeRanges[attributeName] ?? { start: tag.start, end: tag.end };
+				diagnostics.push(createDiagnostic(text, range.start, range.end, `Attribute ${attributeName} on ${tag.name} expects ${typeError} value`));
 			}
 		}
 		for (const [attributeName, attribute] of Object.entries(tagSchema.attributes)) {
@@ -148,6 +155,28 @@ function validateFrontmatterValueType(key: GuideNhFrontmatterKey, value: string)
 	}
 	if (key.type === 'list') {
 		return value.startsWith('[') && value.endsWith(']') ? undefined : 'list';
+	}
+	return undefined;
+}
+
+function validateAttributeValueType(attribute: GuideNhAttributeSchema, value: string | true): string | undefined {
+	if (value === true) {
+		return attribute.type === 'boolean' ? undefined : attribute.type;
+	}
+	if (attribute.type === 'number') {
+		return /^-?\d+(?:\.\d+)?$/.test(value) ? undefined : 'number';
+	}
+	if (attribute.type === 'boolean') {
+		return /^(?:true|false)$/i.test(value) ? undefined : 'boolean';
+	}
+	if (attribute.type === 'color') {
+		return /^(?:#[0-9a-fA-F]{6}|0x[0-9a-fA-F]{6}|[A-Za-z_][\w.-]*)$/.test(value) ? undefined : 'color';
+	}
+	if (attribute.type === 'enum') {
+		return !attribute.values || attribute.values.includes(value) ? undefined : 'enum';
+	}
+	if (attribute.type === 'item' || attribute.type === 'ore' || attribute.type === 'resource' || attribute.type === 'page') {
+		return value.trim().length > 0 ? undefined : attribute.type;
 	}
 	return undefined;
 }

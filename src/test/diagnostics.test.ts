@@ -18,6 +18,32 @@ suite('GuideNH diagnostics', () => {
 		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Missing required attribute id')), true);
 	});
 
+	test('reports invalid tag attribute value types', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('<GameScene width="wide" interactive="maybe" />', schema);
+		assert.deepStrictEqual(
+			diagnostics.map((item: Diagnostic) => item.message),
+			[
+				'Attribute width on GameScene expects number value',
+				'Attribute interactive on GameScene expects boolean value'
+			]
+		);
+		assert.deepStrictEqual(diagnostics[0].range, {
+			start: { line: 0, character: 18 },
+			end: { line: 0, character: 22 }
+		});
+	});
+
+	test('reports invalid tag enum attribute values', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('<GameScene background="opaque" />', schema);
+		assert.deepStrictEqual(diagnostics.map((item: Diagnostic) => item.message), ['Attribute background on GameScene expects enum value']);
+		assert.deepStrictEqual(diagnostics[0].range, {
+			start: { line: 0, character: 23 },
+			end: { line: 0, character: 29 }
+		});
+	});
+
 	test('reports tags that are not allowed inside the current parent tag', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const diagnostics = createGuideNhDiagnostics('<GameScene>\n  <Recipe id="minecraft:stone" />\n</GameScene>', schema);
