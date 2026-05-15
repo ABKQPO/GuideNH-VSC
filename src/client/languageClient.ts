@@ -2,8 +2,16 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node';
 
+export interface ExtensionPathResolver {
+	asAbsolutePath(relativePath: string): string;
+}
+
+export function resolveGuideNhServerModule(pathResolver: ExtensionPathResolver): string {
+	return pathResolver.asAbsolutePath(path.join('out', 'server.js'));
+}
+
 export function createGuideNhLanguageClient(context: vscode.ExtensionContext): LanguageClient {
-	const serverModule = context.asAbsolutePath(path.join('out', 'server', 'server.js'));
+	const serverModule = resolveGuideNhServerModule(context);
 	const serverOptions: ServerOptions = {
 		run: { module: serverModule, transport: TransportKind.ipc },
 		debug: { module: serverModule, transport: TransportKind.ipc }

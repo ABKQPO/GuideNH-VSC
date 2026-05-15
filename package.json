@@ -74,16 +74,16 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
+    "bundle": "node ./out/scripts/bundle.js",
     "generate:schema": "node ./out/scripts/generateSchema.js",
     "verify:e2e": "node ./out/scripts/verifyE2e.js",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test",
     "verify": "npm run generate:schema && npm run lint && npm run compile && npm test",
-    "prepackage": "node -e \"require('fs').mkdirSync('dist', { recursive: true })\"",
+    "prepackage": "npm run compile && npm run bundle",
     "package": "vsce package --out dist/guide-vsc.vsix",
     "build": "npm run verify && npm run package"
   },
@@ -102,6 +102,7 @@
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.9.1",
+    "esbuild": "^0.28.0",
     "eslint": "^9.39.3",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1"

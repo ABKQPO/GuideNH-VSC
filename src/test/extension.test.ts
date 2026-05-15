@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
+import { resolveGuideNhServerModule } from '../client/languageClient';
 
 suite('GuideNH extension automation', () => {
 	test('uses project documentation instead of template README text', () => {
@@ -31,12 +32,35 @@ suite('GuideNH extension automation', () => {
 			devDependencies?: Record<string, string>;
 		};
 		assert.strictEqual(packageJson.scripts.build, 'npm run verify && npm run package');
-		assert.strictEqual(packageJson.scripts.prepackage, 'node -e "require(\'fs\').mkdirSync(\'dist\', { recursive: true })"');
+		assert.strictEqual(packageJson.scripts.prepackage, 'npm run compile && npm run bundle');
 		assert.strictEqual(packageJson.scripts.package, 'vsce package --out dist/guide-vsc.vsix');
 		assert.match(packageJson.scripts.verify, /npm run generate:schema/);
 		assert.match(packageJson.scripts.verify, /npm run lint/);
 		assert.match(packageJson.scripts.verify, /npm run compile/);
 		assert.match(packageJson.scripts.verify, /npm test/);
 		assert.ok(packageJson.devDependencies?.['@vscode/vsce']);
+	});
+
+	test('bundles release JavaScript before packaging', () => {
+		const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')) as {
+			scripts: Record<string, string>;
+			devDependencies?: Record<string, string>;
+		};
+		const vscodeIgnore = fs.readFileSync(path.join(__dirname, '..', '..', '.vscodeignore'), 'utf8');
+		assert.strictEqual(packageJson.scripts.bundle, 'node ./out/scripts/bundle.js');
+		assert.strictEqual(packageJson.scripts['vscode:prepublish'], undefined);
+		assert.strictEqual(packageJson.scripts.prepackage, 'npm run compile && npm run bundle');
+		assert.ok(packageJson.devDependencies?.esbuild);
+		assert.match(vscodeIgnore, /^out\/\*\*$/m);
+		assert.match(vscodeIgnore, /^!out\/extension\.js$/m);
+		assert.match(vscodeIgnore, /^!out\/server\.js$/m);
+		assert.match(vscodeIgnore, /^node_modules\/\*\*$/m);
+	});
+
+	test('resolves the bundled language server module from the extension root', () => {
+		const resolvedModule = resolveGuideNhServerModule({
+			asAbsolutePath: (relativePath: string) => path.join('extension-root', relativePath)
+		});
+		assert.strictEqual(resolvedModule, path.join('extension-root', 'out', 'server.js'));
 	});
 });
