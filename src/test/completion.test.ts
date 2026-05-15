@@ -24,4 +24,20 @@ suite('GuideNH completion provider', () => {
 		assert.strictEqual(snippet?.insertTextFormat, InsertTextFormat.Snippet);
 		assert.match(String(snippet?.insertText), /<GameScene width="\$\{1:220\}"/);
 	});
+
+	test('completes top-level frontmatter keys', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '---\nna\n---\n';
+		const items = createGuideNhCompletions(text, 6, schema, undefined);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'navigation' && item.kind === CompletionItemKind.Property));
+		assert.ok(items.some((item: CompletionItem) => item.label === 'item_ids' && item.detail === 'list'));
+	});
+
+	test('completes nested frontmatter keys', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '---\nnavigation:\n  ti\n---\n';
+		const items = createGuideNhCompletions(text, 20, schema, undefined);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'title' && item.kind === CompletionItemKind.Property));
+		assert.ok(items.some((item: CompletionItem) => item.label === 'required_mods' && item.detail === 'list'));
+	});
 });

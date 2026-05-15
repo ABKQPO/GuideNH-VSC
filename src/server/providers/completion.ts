@@ -1,5 +1,6 @@
 import { CompletionItem, CompletionItemKind, InsertTextFormat } from 'vscode-languageserver/node';
-import { GuideNhSchemaBundle, GuideNhTagSchema } from '../../common/schema';
+import { GuideNhFrontmatterKey, GuideNhSchemaBundle, GuideNhTagSchema } from '../../common/schema';
+import { extractFrontmatter, FrontmatterBlock } from '../parser/frontmatter';
 import { SemanticCache } from '../runtime/semanticCache';
 
 function findOpenTagPrefix(text: string, offset: number): string | undefined {
@@ -15,6 +16,11 @@ export function createGuideNhCompletions(
 	parentTag: string | undefined,
 	cache?: SemanticCache
 ): CompletionItem[] {
+	const frontmatter = extractFrontmatter(text);
+	if (frontmatter && offset <= frontmatter.end) {
+		return createFrontmatterCompletions(text, offset, frontmatter, schema);
+	}
+
 	const attributeValueMatch = text.slice(0, offset).match(/([A-Za-z_][\w.-]*)=["']([^"']*)$/);
 	if (attributeValueMatch && cache) {
 		const capability = resolveRuntimeCapability(attributeValueMatch[1]);
@@ -77,6 +83,74 @@ function createSnippetCompletions(schema: GuideNhSchemaBundle, allowed: string[]
 
 function isTagAllowed(tag: GuideNhTagSchema, allowed: string[] | undefined): boolean {
 	return allowed === undefined || allowed.includes(tag.name);
+}
+
+function createFrontmatterCompletions(
+	text: string,
+	offset: number,
+	frontmatter: FrontmatterBlock,
+	schema: GuideNhSchemaBundle
+): CompletionItem[] {
+	const before = text.slice(frontmatter.start, offset);
+	const line = getCurrentLine(before);
+	if (isFrontmatterBoundaryLine(line)) {
+		return [];
+	}
+	const keys = resolveFrontmatterKeys(before, schema);
+	return Object.entries(keys).map(([name, key]) => createFrontmatterKeyCompletion(name, key));
+}
+
+function createFrontmatterKeyCompletion(name: string, key: GuideNhFrontmatterKey): CompletionItem {
+	return {
+		label: name,
+		kind: CompletionItemKind.Property,
+		detail: key.type,
+		documentation: key.description
+	};
+}
+
+function resolveFrontmatterKeys(before: string, schema: GuideNhSchemaBundle): Record<string, GuideNhFrontmatterKey> {
+	const currentIndent = getLineIndent(getCurrentLine(before));
+	const parentPath = findFrontmatterParentPath(before, currentIndent);
+	let keys = schema.frontmatter.keys;
+	for (const parent of parentPath) {
+		keys = keys[parent]?.children ?? {};
+	}
+	return keys;
+}
+
+function findFrontmatterParentPath(before: string, currentIndent: number): string[] {
+	const parentByIndent = new Map<number, string>();
+	for (const line of before.split(/\r?\n/).slice(1, -1)) {
+		const match = line.match(/^(\s*)([A-Za-z_][\w.-]*)\s*:\s*$/);
+		if (!match) {
+			continue;
+		}
+		const indent = match[1].length;
+		for (const knownIndent of Array.from(parentByIndent.keys())) {
+			if (knownIndent >= indent) {
+				parentByIndent.delete(knownIndent);
+			}
+		}
+		parentByIndent.set(indent, match[2]);
+	}
+	return Array.from(parentByIndent.entries())
+		.filter(([indent]) => indent < currentIndent)
+		.sort(([left], [right]) => left - right)
+		.map(([, key]) => key);
+}
+
+function getCurrentLine(value: string): string {
+	const lineStart = Math.max(value.lastIndexOf('\n'), value.lastIndexOf('\r')) + 1;
+	return value.slice(lineStart);
+}
+
+function getLineIndent(line: string): number {
+	return line.match(/^\s*/)?.[0].length ?? 0;
+}
+
+function isFrontmatterBoundaryLine(line: string): boolean {
+	return line.trim() === '---';
 }
 
 function resolveRuntimeCapability(attributeName: string): string | undefined {
