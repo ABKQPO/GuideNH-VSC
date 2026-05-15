@@ -26,6 +26,21 @@ export interface SemanticEntry {
 	detail?: string;
 }
 
+export interface SemanticQueryPayload {
+	capability: string;
+	cursor: string;
+	limit: number;
+	prefix: string;
+	filters: Record<string, string>;
+}
+
+export interface SemanticQueryResultPayload {
+	capability: string;
+	version: number;
+	entries: SemanticEntry[];
+	nextCursor?: string | null;
+}
+
 export function createHelloMessage(token: string): BridgeEnvelope<HelloPayload> {
 	return {
 		id: 'hello',
@@ -36,6 +51,27 @@ export function createHelloMessage(token: string): BridgeEnvelope<HelloPayload> 
 			token,
 			clientName: 'guide-vsc',
 			supportedProtocols: [1]
+		}
+	};
+}
+
+export function createSemanticQueryMessage(
+	id: string,
+	capability: string,
+	cursor = '',
+	limit = 200
+): BridgeEnvelope<SemanticQueryPayload> {
+	return {
+		id,
+		type: 'request',
+		method: 'semantic.query',
+		protocol: 1,
+		payload: {
+			capability,
+			cursor,
+			limit,
+			prefix: '',
+			filters: {}
 		}
 	};
 }
