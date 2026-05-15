@@ -3,6 +3,8 @@ import { GuideNhFrontmatterKey, GuideNhSchemaBundle, GuideNhTagSchema } from '..
 import { extractFrontmatter, FrontmatterBlock } from '../parser/frontmatter';
 import { SemanticCache } from '../runtime/semanticCache';
 
+export const GuideNhCompletionTriggerCharacters = ['<', ' ', '"', '\'', '`', '=', '+', ':', '^'];
+
 function findOpenTagPrefix(text: string, offset: number): string | undefined {
 	const before = text.slice(0, offset);
 	const match = before.match(/<([A-Z][A-Za-z0-9]*)?\s*[^<>]*$/);
@@ -19,6 +21,16 @@ export function createGuideNhCompletions(
 	const frontmatter = extractFrontmatter(text);
 	if (frontmatter && offset <= frontmatter.end) {
 		return createFrontmatterCompletions(text, offset, frontmatter, schema);
+	}
+
+	const fencedBlockCompletions = createFencedBlockCompletions(text, offset, schema);
+	if (fencedBlockCompletions.length > 0) {
+		return fencedBlockCompletions;
+	}
+
+	const inlineMarkerCompletions = createInlineMarkerCompletions(text, offset, schema);
+	if (inlineMarkerCompletions.length > 0) {
+		return inlineMarkerCompletions;
 	}
 
 	const attributeValueMatch = text.slice(0, offset).match(/([A-Za-z_][\w.-]*)=["']([^"']*)$/);
@@ -151,6 +163,37 @@ function getLineIndent(line: string): number {
 
 function isFrontmatterBoundaryLine(line: string): boolean {
 	return line.trim() === '---';
+}
+
+function createFencedBlockCompletions(text: string, offset: number, schema: GuideNhSchemaBundle): CompletionItem[] {
+	const line = getCurrentLine(text.slice(0, offset));
+	if (!/^```\w*$/.test(line)) {
+		return [];
+	}
+	return Object.entries(schema.markdownExtensions.fencedCodeBlocks).map(([name, block]) => ({
+		label: name,
+		kind: CompletionItemKind.Value,
+		detail: 'GuideNH fenced block',
+		documentation: block.description
+	}));
+}
+
+function createInlineMarkerCompletions(text: string, offset: number, schema: GuideNhSchemaBundle): CompletionItem[] {
+	const line = getCurrentLine(text.slice(0, offset));
+	const markerPrefix = line.match(/(?:^|\s)([=+:^]{1,2})$/)?.[1];
+	if (!markerPrefix) {
+		return [];
+	}
+	return Object.entries(schema.markdownExtensions.inlineMarkers)
+		.filter(([, marker]) => marker.open.startsWith(markerPrefix))
+		.map(([name, marker]) => ({
+			label: name,
+			kind: CompletionItemKind.Snippet,
+			detail: marker.open,
+			documentation: marker.description,
+			insertText: `${marker.open}\${1:text}${marker.close}`,
+			insertTextFormat: InsertTextFormat.Snippet
+		}));
 }
 
 function resolveRuntimeCapability(attributeName: string): string | undefined {

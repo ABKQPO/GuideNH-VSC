@@ -8,7 +8,7 @@ import {
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { GuideNhWorkspaceIndex } from './index/workspaceIndex';
-import { createGuideNhCompletions } from './providers/completion';
+import { createGuideNhCompletions, GuideNhCompletionTriggerCharacters } from './providers/completion';
 import { createGuideNhDiagnostics } from './providers/diagnostics';
 import { createGuideNhDefinition } from './providers/definition';
 import { createGuideNhHover } from './providers/hover';
@@ -31,7 +31,7 @@ const runtimeBridgeHandlers = createRuntimeBridgeNotificationHandlers(runtimeBri
 connection.onInitialize((_params: InitializeParams) => ({
 	capabilities: {
 		textDocumentSync: TextDocumentSyncKind.Incremental,
-		completionProvider: { triggerCharacters: ['<', ' ', '"', '\''] },
+		completionProvider: { triggerCharacters: GuideNhCompletionTriggerCharacters },
 		definitionProvider: true,
 		referencesProvider: true,
 		hoverProvider: true
