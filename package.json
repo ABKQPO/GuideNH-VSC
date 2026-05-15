@@ -1,0 +1,103 @@
+{
+  "name": "guide-vsc",
+  "displayName": "GuideVSC",
+  "description": "GuideNH VSC",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.120.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:markdown",
+    "onLanguage:guidenh-md",
+    "onCommand:guide-vsc.generateSchema",
+    "onCommand:guide-vsc.connectRuntimeBridge",
+    "onCommand:guide-vsc.disconnectRuntimeBridge"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "guidenh-md",
+        "aliases": [
+          "GuideNH Markdown",
+          "guidenh-md"
+        ],
+        "extensions": [
+          ".guidenh.md"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "configuration": {
+      "title": "GuideNH",
+      "properties": {
+        "guide-vsc.guideNhSourcePath": {
+          "type": "string",
+          "default": "E:\\\\Github\\\\GuideNH",
+          "description": "Path to the GuideNH source repository used by schema generation."
+        },
+        "guide-vsc.runtimeBridge.host": {
+          "type": "string",
+          "default": "",
+          "description": "GuideNH runtime bridge host. No default is provided for safety."
+        },
+        "guide-vsc.runtimeBridge.port": {
+          "type": "number",
+          "default": 0,
+          "description": "GuideNH runtime bridge port. No default is provided for safety."
+        },
+        "guide-vsc.runtimeBridge.token": {
+          "type": "string",
+          "default": "",
+          "description": "GuideNH runtime bridge token. No default is provided for safety."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "guide-vsc.generateSchema",
+        "title": "GuideNH: Generate Schema"
+      },
+      {
+        "command": "guide-vsc.connectRuntimeBridge",
+        "title": "GuideNH: Connect Runtime Bridge"
+      },
+      {
+        "command": "guide-vsc.disconnectRuntimeBridge",
+        "title": "GuideNH: Disconnect Runtime Bridge"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "generate:schema": "node ./out/scripts/generateSchema.js",
+    "verify:e2e": "node ./out/scripts/verifyE2e.js",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "verify": "npm run generate:schema && npm run lint && npm run compile && npm test"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-uri": "^3.0.8",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.120.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/ws": "^8.5.13",
+    "typescript-eslint": "^8.56.1",
+    "eslint": "^9.39.3",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
