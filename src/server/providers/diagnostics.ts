@@ -46,7 +46,7 @@ function createFrontmatterDiagnostics(text: string, frontmatter: string, schema:
 	const unknownParentIndents = new Set<number>();
 	let lineStart = 0;
 	for (const line of frontmatter.split(/\r?\n/)) {
-		const match = line.match(/^(\s*)([A-Za-z_][\w.-]*)\s*:/);
+		const match = line.match(/^(\s*)([A-Za-z_][\w.-]*)\s*:(.*)$/);
 		if (match) {
 			const indent = match[1].length;
 			for (const knownIndent of Array.from(parentByIndent.keys())) {
@@ -70,11 +70,20 @@ function createFrontmatterDiagnostics(text: string, frontmatter: string, schema:
 				continue;
 			}
 			const allowedKeys = resolveFrontmatterAllowedKeys(schema.frontmatter.keys, parentPath);
-			if (!allowedKeys[key]) {
+			const keySchema = allowedKeys[key];
+			if (!keySchema) {
 				const qualifiedKey = [...parentPath, key].join('.');
 				const start = lineStart + indent;
 				diagnostics.push(createDiagnostic(text, start, start + key.length, `Unknown frontmatter key ${qualifiedKey}`));
 				unknownParentIndents.add(indent);
+			} else {
+				const qualifiedKey = [...parentPath, key].join('.');
+				const value = match[3].trim();
+				const valueStart = lineStart + line.indexOf(match[3]) + match[3].search(/\S/);
+				const typeError = validateFrontmatterValueType(keySchema, value);
+				if (typeError && value.length > 0) {
+					diagnostics.push(createDiagnostic(text, valueStart, valueStart + value.length, `Frontmatter key ${qualifiedKey} expects ${typeError} value`));
+				}
 			}
 			parentByIndent.set(indent, key);
 		}
@@ -96,6 +105,22 @@ function resolveFrontmatterAllowedKeys(
 		current = current[key]?.children ?? {};
 	}
 	return current;
+}
+
+function validateFrontmatterValueType(key: GuideNhFrontmatterKey, value: string): string | undefined {
+	if (value.length === 0 || key.type === 'map' || key.type === 'string' || key.type === 'date') {
+		return undefined;
+	}
+	if (key.type === 'number') {
+		return /^-?\d+(?:\.\d+)?$/.test(value) ? undefined : 'number';
+	}
+	if (key.type === 'boolean') {
+		return /^(?:true|false)$/i.test(value) ? undefined : 'boolean';
+	}
+	if (key.type === 'list') {
+		return value.startsWith('[') && value.endsWith(']') ? undefined : 'list';
+	}
+	return undefined;
 }
 
 function offsetToPosition(text: string, offset: number): Position {

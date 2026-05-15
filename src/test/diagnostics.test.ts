@@ -57,4 +57,26 @@ suite('GuideNH diagnostics', () => {
 			['Unknown frontmatter key unknown_parent']
 		);
 	});
+
+	test('reports invalid frontmatter scalar value types', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('---\nzoom: fast\ncategories: tech\n---\n', schema);
+		assert.deepStrictEqual(
+			diagnostics.map((item: Diagnostic) => item.message),
+			[
+				'Frontmatter key zoom expects number value',
+				'Frontmatter key categories expects list value'
+			]
+		);
+		assert.deepStrictEqual(diagnostics[0].range, {
+			start: { line: 1, character: 6 },
+			end: { line: 1, character: 10 }
+		});
+	});
+
+	test('accepts valid frontmatter scalar value types', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('---\nzoom: 1.25\ncategories: [intro, tools]\nnavigation:\n  title: Intro\n---\n', schema);
+		assert.deepStrictEqual(diagnostics, []);
+	});
 });
