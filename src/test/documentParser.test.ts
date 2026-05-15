@@ -1,0 +1,27 @@
+import * as assert from 'assert';
+import { parseGuideNhDocument } from '../server/parser/documentParser';
+
+suite('GuideNH document parser', () => {
+	test('extracts frontmatter and MDX tags', () => {
+		const parsed = parseGuideNhDocument(`---
+navigation:
+  title: Machines
+---
+
+# Machines
+
+<GameScene width="220">
+  <Block id="minecraft:stone" />
+</GameScene>
+`);
+		assert.strictEqual(parsed.frontmatter?.text.includes('navigation:'), true);
+		assert.strictEqual(parsed.tags.length, 2);
+		assert.strictEqual(parsed.tags[0].name, 'GameScene');
+		assert.strictEqual(parsed.tags[1].attributes.id, 'minecraft:stone');
+	});
+
+	test('ignores MDX comments', () => {
+		const parsed = parseGuideNhDocument('Visible {/* <ItemLink id="minecraft:stone" /> */} text');
+		assert.strictEqual(parsed.tags.length, 0);
+	});
+});
