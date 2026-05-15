@@ -8,7 +8,7 @@ import {
 	MaxRuntimeDocumentBytes
 } from '../common/protocol';
 import { GuideNhExtensionDefaults, readGuideNhDefaults } from './config';
-import { isLoopbackHost } from '../common/runtimeBridgeSecurity';
+import { resolveRuntimeBridgeConnectionParams } from '../common/runtimeBridgeSecurity';
 
 export interface RuntimeBridgeNotificationSender {
 	sendNotification(method: string, payload?: unknown): Thenable<void> | Promise<void>;
@@ -47,16 +47,11 @@ export function createGuideNhCommandCallbacks(dependencies: GuideNhCommandDepend
 				await dependencies.showErrorMessage('GuideNH runtime bridge host, port, and token must be configured explicitly.');
 				return;
 			}
-			if (!config.runtimeAllowRemote && !isLoopbackHost(config.runtimeHost)) {
-				await dependencies.showErrorMessage('GuideNH runtime bridge host must be local unless remote runtime bridge access is explicitly enabled.');
+			const params = resolveRuntimeBridgeConnectParams(config);
+			if (!params) {
+				await dependencies.showErrorMessage(readRuntimeBridgeConnectError(config));
 				return;
 			}
-			const params: RuntimeBridgeConnectParams = {
-				host: config.runtimeHost,
-				port: config.runtimePort,
-				token: config.runtimeToken,
-				allowRemote: config.runtimeAllowRemote
-			};
 			await dependencies.sender.sendNotification(RuntimeBridgeConnectNotification, params);
 			await dependencies.showInformationMessage('GuideNH runtime bridge connection requested.');
 		},
@@ -92,6 +87,33 @@ export function createGuideNhCommandCallbacks(dependencies: GuideNhCommandDepend
 
 function isGuideNhDocumentLanguage(languageId: string): boolean {
 	return languageId === 'markdown' || languageId === 'guidenh-md';
+}
+
+function resolveRuntimeBridgeConnectParams(config: GuideNhExtensionDefaults): RuntimeBridgeConnectParams | undefined {
+	try {
+		return resolveRuntimeBridgeConnectionParams({
+			host: config.runtimeHost,
+			port: config.runtimePort,
+			token: config.runtimeToken,
+			allowRemote: config.runtimeAllowRemote
+		});
+	} catch {
+		return undefined;
+	}
+}
+
+function readRuntimeBridgeConnectError(config: GuideNhExtensionDefaults): string {
+	try {
+		resolveRuntimeBridgeConnectionParams({
+			host: config.runtimeHost,
+			port: config.runtimePort,
+			token: config.runtimeToken,
+			allowRemote: config.runtimeAllowRemote
+		});
+	} catch (error) {
+		return error instanceof Error ? `GuideNH ${error.message}.` : 'GuideNH runtime bridge host is invalid.';
+	}
+	return 'GuideNH runtime bridge host is invalid.';
 }
 
 export function registerGuideNhCommands(context: vscode.ExtensionContext, sender: RuntimeBridgeNotificationSender): void {

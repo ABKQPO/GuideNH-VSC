@@ -17,7 +17,7 @@ import {
 	SemanticPayloadGuardState,
 	validateSemanticPayload
 } from './semanticPayloadGuard';
-import { validateRuntimeBridgeConnectionParams } from '../../common/runtimeBridgeSecurity';
+import { createRuntimeBridgeWebSocketUrl, resolveRuntimeBridgeConnectionParams } from '../../common/runtimeBridgeSecurity';
 
 export interface RuntimeBridgeConnectionOptions {
 	host: string;
@@ -60,12 +60,12 @@ export class RuntimeBridgeClient {
 	) {}
 
 	connect(options: RuntimeBridgeConnectionOptions): void {
-		validateRuntimeBridgeConnectionParams(options);
+		const resolvedOptions = resolveRuntimeBridgeConnectionParams(options);
 		this.closeSocket();
 		this.publishStatus({ state: 'connecting' });
-		this.socket = new WebSocket(`ws://${options.host}:${options.port}`);
+		this.socket = new WebSocket(createRuntimeBridgeWebSocketUrl(resolvedOptions));
 		this.socket.on('open', () => {
-			this.send(createHelloMessage(options.token));
+			this.send(createHelloMessage(resolvedOptions.token));
 		});
 		this.socket.on('message', (data) => {
 			this.handleMessage(data.toString());

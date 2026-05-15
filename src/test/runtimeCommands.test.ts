@@ -20,7 +20,7 @@ suite('GuideNH runtime bridge commands', () => {
 		const callbacks = createGuideNhCommandCallbacks({
 			readConfig: () => ({
 				guideNhSourcePath: 'E:\\Github\\GuideNH',
-				runtimeHost: '127.0.0.1',
+				runtimeHost: ' LOCALHOST ',
 				runtimePort: 8765,
 				runtimeToken: 'secret',
 				runtimeAllowRemote: false
@@ -35,8 +35,38 @@ suite('GuideNH runtime bridge commands', () => {
 
 		assert.deepStrictEqual(notifications, [{
 			method: RuntimeBridgeConnectNotification,
-			payload: { host: '127.0.0.1', port: 8765, token: 'secret', allowRemote: false }
+			payload: { host: 'localhost', port: 8765, token: 'secret', allowRemote: false }
 		}]);
+	});
+
+	test('rejects runtime bridge hosts with url syntax', async () => {
+		const errors: string[] = [];
+		const callbacks = createGuideNhCommandCallbacks({
+			readConfig: () => ({
+				guideNhSourcePath: 'E:\\Github\\GuideNH',
+				runtimeHost: 'ws://127.0.0.1',
+				runtimePort: 8765,
+				runtimeToken: 'secret',
+				runtimeAllowRemote: false
+			}),
+			sender: {
+				sendNotification: async () => {
+					throw new Error('Notification must not be sent');
+				},
+				onNotification: () => ({ dispose: () => undefined })
+			},
+			activeTextEditor: () => undefined,
+			showInformationMessage: async () => undefined,
+			showErrorMessage: async (message) => {
+				errors.push(message);
+				return undefined;
+			}
+		});
+
+		await callbacks.connectRuntimeBridge();
+
+		assert.strictEqual(errors.length, 1);
+		assert.ok(errors[0].includes('host name or IP address'));
 	});
 
 	test('rejects remote runtime bridge hosts by default', async () => {
