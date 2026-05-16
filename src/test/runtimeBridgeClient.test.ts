@@ -268,6 +268,35 @@ suite('GuideNH runtime bridge client', () => {
 		}
 	});
 
+	test('rejects malformed runtime bridge envelopes before dispatching them', async () => {
+		const server = new WebSocketServer({ port: 0 });
+		const port = await listenPort(server);
+		const statuses: RuntimeBridgeStatus[] = [];
+		const client = new RuntimeBridgeClient(new SemanticCache(), {
+			onStatus: (status) => {
+				statuses.push(status);
+			}
+		});
+
+		server.on('connection', (socket) => {
+			socket.on('message', (data) => {
+				const message = JSON.parse(data.toString()) as { method: string };
+				if (message.method === 'hello') {
+					socket.send(JSON.stringify({ type: 'response', method: 'hello', protocol: 1 }));
+				}
+			});
+		});
+
+		try {
+			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
+			await waitFor(() => statuses.some((status) => status.state === 'error'));
+			assert.ok(statuses.find((status) => status.state === 'error')?.message?.includes('missing payload'));
+		} finally {
+			client.disconnect();
+			await closeServer(server);
+		}
+	});
+
 	test('sends manual document validation without oversized payloads', async () => {
 		const server = new WebSocketServer({ port: 0 });
 		const port = await listenPort(server);

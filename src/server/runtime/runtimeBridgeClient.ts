@@ -17,6 +17,7 @@ import {
 	SemanticPayloadGuardState,
 	validateSemanticPayload
 } from './semanticPayloadGuard';
+import { validateBridgeEnvelope } from './runtimeBridgeEnvelopeGuard';
 import { createRuntimeBridgeWebSocketUrl, resolveRuntimeBridgeConnectionParams } from '../../common/runtimeBridgeSecurity';
 
 export interface RuntimeBridgeConnectionOptions {
@@ -191,9 +192,12 @@ export class RuntimeBridgeClient {
 
 	private parseMessage(data: string): BridgeEnvelope | undefined {
 		try {
-			return JSON.parse(data) as BridgeEnvelope;
-		} catch {
-			this.publishStatus({ state: 'error', message: 'Runtime bridge returned invalid JSON.' });
+			return validateBridgeEnvelope(JSON.parse(data));
+		} catch (error) {
+			this.publishStatus({
+				state: 'error',
+				message: error instanceof Error ? error.message : 'Runtime bridge returned invalid JSON.'
+			});
 			return undefined;
 		}
 	}
