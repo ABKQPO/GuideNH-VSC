@@ -52,7 +52,9 @@ export class RuntimeBridgeClient {
 	private connected = false;
 	private readonly pendingEntries = new Map<string, SemanticEntry[]>();
 	private readonly pendingPayloadStates = new Map<string, SemanticPayloadGuardState>();
+	private readonly pendingDocumentValidations = new Set<string>();
 	private readonly allowedCapabilities = new Set(RuntimeBridgeClient.bootstrapCapabilities);
+	private documentValidationSequence = 0;
 
 	public constructor(
 		private readonly cache: SemanticCache,
@@ -97,7 +99,9 @@ export class RuntimeBridgeClient {
 		if (byteLength > MaxRuntimeDocumentBytes) {
 			throw new Error(`Runtime document validation payload is too large: ${byteLength} bytes`);
 		}
-		this.send(createRuntimeDocumentValidateMessage(`document.validate.${Date.now()}`, document));
+		const requestId = this.createDocumentValidationRequestId();
+		this.pendingDocumentValidations.add(requestId);
+		this.send(createRuntimeDocumentValidateMessage(requestId, document));
 	}
 
 	private send(message: BridgeEnvelope): void {
@@ -125,6 +129,10 @@ export class RuntimeBridgeClient {
 		}
 		if (message.method === 'semantic.query' && message.type === 'response') {
 			this.handleSemanticQueryResult(message.payload);
+			return;
+		}
+		if (message.method === 'document.validate' && message.type === 'response') {
+			this.handleDocumentValidationResult(message.id);
 		}
 	}
 
@@ -173,6 +181,14 @@ export class RuntimeBridgeClient {
 		this.cache.replace(payload.capability, payload.version, entries);
 	}
 
+	private handleDocumentValidationResult(id: string | undefined): void {
+		if (!id || !this.pendingDocumentValidations.has(id)) {
+			this.publishStatus({ state: 'error', message: 'Runtime document validation response was not requested.' });
+			return;
+		}
+		this.pendingDocumentValidations.delete(id);
+	}
+
 	private parseMessage(data: string): BridgeEnvelope | undefined {
 		try {
 			return JSON.parse(data) as BridgeEnvelope;
@@ -188,7 +204,13 @@ export class RuntimeBridgeClient {
 
 	private closeSocket(): void {
 		this.connected = false;
+		this.pendingDocumentValidations.clear();
 		this.socket?.close();
 		this.socket = undefined;
+	}
+
+	private createDocumentValidationRequestId(): string {
+		this.documentValidationSequence++;
+		return `document.validate.${this.documentValidationSequence}`;
 	}
 }

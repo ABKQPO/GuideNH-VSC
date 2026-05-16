@@ -304,6 +304,69 @@ suite('GuideNH runtime bridge client', () => {
 			await closeServer(server);
 		}
 	});
+
+	test('tracks manual document validation request ids', async () => {
+		const server = new WebSocketServer({ port: 0 });
+		const port = await listenPort(server);
+		const client = new RuntimeBridgeClient(new SemanticCache());
+		const validationIds: string[] = [];
+
+		server.on('connection', (socket) => {
+			socket.on('message', (data) => {
+				const message = JSON.parse(data.toString()) as { id: string; method: string };
+				if (message.method === 'hello') {
+					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
+					return;
+				}
+				if (message.method === 'document.validate') {
+					validationIds.push(message.id);
+					socket.send(JSON.stringify(response(message.id, 'document.validate', { diagnostics: [] })));
+				}
+			});
+		});
+
+		try {
+			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
+			await waitFor(() => validationIds.length === 0);
+			client.validateDocument({ uri: 'file:///repo/first.md', languageId: 'markdown', text: '# First' });
+			client.validateDocument({ uri: 'file:///repo/second.md', languageId: 'markdown', text: '# Second' });
+			await waitFor(() => validationIds.length === 2);
+			assert.deepStrictEqual(validationIds, ['document.validate.1', 'document.validate.2']);
+		} finally {
+			client.disconnect();
+			await closeServer(server);
+		}
+	});
+
+	test('rejects document validation responses that were not requested', async () => {
+		const server = new WebSocketServer({ port: 0 });
+		const port = await listenPort(server);
+		const statuses: RuntimeBridgeStatus[] = [];
+		const client = new RuntimeBridgeClient(new SemanticCache(), {
+			onStatus: (status) => {
+				statuses.push(status);
+			}
+		});
+
+		server.on('connection', (socket) => {
+			socket.on('message', (data) => {
+				const message = JSON.parse(data.toString()) as { id: string; method: string };
+				if (message.method === 'hello') {
+					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
+					socket.send(JSON.stringify(response('document.validate.999', 'document.validate', { diagnostics: [] })));
+				}
+			});
+		});
+
+		try {
+			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
+			await waitFor(() => statuses.some((status) => status.state === 'error'));
+			assert.ok(statuses.find((status) => status.state === 'error')?.message?.includes('not requested'));
+		} finally {
+			client.disconnect();
+			await closeServer(server);
+		}
+	});
 });
 
 function response(id: string, method: string, payload: unknown): object {
