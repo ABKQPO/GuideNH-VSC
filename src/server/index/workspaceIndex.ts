@@ -12,6 +12,7 @@ export interface GuideNhIndexedPage {
 export class GuideNhWorkspaceIndex {
 	private readonly pages = new Map<string, GuideNhIndexedPage>();
 	private readonly pageUriByRelativePath = new Map<string, string>();
+	private readonly pageUrisByItemId = new Map<string, Set<string>>();
 	private readonly sourceUrisByLinkedPage = new Map<string, Set<string>>();
 	private readonly valueCountsByFrontmatterPath = new Map<string, Map<string, number>>();
 	private sortedPages: GuideNhIndexedPage[] = [];
@@ -27,6 +28,7 @@ export class GuideNhWorkspaceIndex {
 		const links = extractPageLinks(text);
 		this.pages.set(uri, { uri, relativePath, itemIds, frontmatterValues, links });
 		this.pageUriByRelativePath.set(relativePath, uri);
+		this.addItemReferences(itemIds, uri);
 		this.sortedPagesDirty = true;
 		this.addFrontmatterValues(frontmatterValues);
 		for (const link of links) {
@@ -41,6 +43,7 @@ export class GuideNhWorkspaceIndex {
 		}
 		this.pages.delete(uri);
 		this.pageUriByRelativePath.delete(page.relativePath);
+		this.removeItemReferences(page.itemIds, uri);
 		this.sortedPagesDirty = true;
 		this.removeFrontmatterValues(page.frontmatterValues);
 		for (const link of page.links) {
@@ -55,7 +58,8 @@ export class GuideNhWorkspaceIndex {
 	}
 
 	findItemReference(itemId: string): GuideNhIndexedPage | undefined {
-		return Array.from(this.pages.values()).find((page) => page.itemIds.includes(itemId));
+		const uri = this.pageUrisByItemId.get(itemId)?.values().next().value;
+		return uri ? this.pages.get(uri) : undefined;
 	}
 
 	listPages(): GuideNhIndexedPage[] {
@@ -128,6 +132,27 @@ export class GuideNhWorkspaceIndex {
 		sourceUris.delete(sourceUri);
 		if (sourceUris.size === 0) {
 			this.sourceUrisByLinkedPage.delete(normalized);
+		}
+	}
+
+	private addItemReferences(itemIds: string[], uri: string): void {
+		for (const itemId of itemIds) {
+			const uris = this.pageUrisByItemId.get(itemId) ?? new Set<string>();
+			uris.add(uri);
+			this.pageUrisByItemId.set(itemId, uris);
+		}
+	}
+
+	private removeItemReferences(itemIds: string[], uri: string): void {
+		for (const itemId of itemIds) {
+			const uris = this.pageUrisByItemId.get(itemId);
+			if (!uris) {
+				continue;
+			}
+			uris.delete(uri);
+			if (uris.size === 0) {
+				this.pageUrisByItemId.delete(itemId);
+			}
 		}
 	}
 

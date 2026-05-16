@@ -15,6 +15,43 @@ navigation:
 		assert.strictEqual(index.findItemReference('minecraft:stone')?.uri, 'file:///repo/assets/guidenh/guidenh/_zh_cn/index.md');
 	});
 
+	test('updates item id references when pages change or are removed', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md', `---
+item_ids:
+  - minecraft:stone
+---
+`);
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md', `---
+item_ids:
+  - minecraft:dirt
+---
+`);
+
+		assert.strictEqual(index.findItemReference('minecraft:stone'), undefined);
+		assert.strictEqual(index.findItemReference('minecraft:dirt')?.uri, 'file:///repo/assets/guidenh/guidenh/_zh_cn/a.md');
+
+		index.removePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md');
+		assert.strictEqual(index.findItemReference('minecraft:dirt'), undefined);
+	});
+
+	test('keeps shared item id references while one source remains', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md', `---
+item_ids:
+  - minecraft:stone
+---
+`);
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/b.md', `---
+item_ids:
+  - minecraft:stone
+---
+`);
+
+		index.removePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md');
+		assert.strictEqual(index.findItemReference('minecraft:stone')?.uri, 'file:///repo/assets/guidenh/guidenh/_zh_cn/b.md');
+	});
+
 	test('indexes reusable frontmatter list values', () => {
 		const index = new GuideNhWorkspaceIndex();
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/index.md', `---
