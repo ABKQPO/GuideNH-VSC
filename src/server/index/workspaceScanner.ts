@@ -5,6 +5,8 @@ import { WorkspaceFolder } from 'vscode-languageserver/node';
 import { URI } from 'vscode-uri';
 import { GuideNhWorkspaceIndex } from './workspaceIndex';
 
+const WorkspaceScanReadConcurrency = 8;
+
 export async function indexGuideNhWorkspaceFolders(folders: WorkspaceFolder[], index: GuideNhWorkspaceIndex): Promise<void> {
 	for (const folder of folders) {
 		await indexGuideNhWorkspaceFolder(folder.uri, index);
@@ -13,9 +15,18 @@ export async function indexGuideNhWorkspaceFolders(folders: WorkspaceFolder[], i
 
 export async function indexGuideNhWorkspaceFolder(folderUri: string, index: GuideNhWorkspaceIndex): Promise<void> {
 	const folderPath = URI.parse(folderUri).fsPath;
-	for (const filePath of await findGuideNhMarkdownFiles(folderPath)) {
+	const filePaths = await findGuideNhMarkdownFiles(folderPath);
+	await runLimited(filePaths, WorkspaceScanReadConcurrency, async (filePath) => {
+		await indexGuideNhMarkdownFile(filePath, index);
+	});
+}
+
+async function indexGuideNhMarkdownFile(filePath: string, index: GuideNhWorkspaceIndex): Promise<void> {
+	try {
 		const text = await fs.readFile(filePath, 'utf8');
 		index.updatePage(pathToFileURL(filePath).toString(), text);
+	} catch {
+		return;
 	}
 }
 
@@ -52,4 +63,17 @@ function shouldSkipDirectory(name: string): boolean {
 function isGuideNhMarkdownPath(filePath: string): boolean {
 	const normalized = filePath.replace(/\\/g, '/');
 	return /\/assets\/[^/]+\/guidenh\/_[a-z]{2}_[a-z]{2}\/.+\.md$/i.test(normalized);
+}
+
+async function runLimited<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> {
+	let nextIndex = 0;
+	const workerCount = Math.min(concurrency, items.length);
+	const workers = Array.from({ length: workerCount }, async () => {
+		while (nextIndex < items.length) {
+			const item = items[nextIndex];
+			nextIndex++;
+			await worker(item);
+		}
+	});
+	await Promise.all(workers);
 }
