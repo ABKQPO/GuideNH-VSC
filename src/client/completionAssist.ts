@@ -13,8 +13,10 @@ export interface GuideNhCompletionAssistContext {
 
 const GuideNhCompletionAssistWindowSize = 4096;
 const GuideNhCompletionAssistTextPattern = /^[A-Za-z0-9._:/-]$/;
+const GuideNhCompletionAssistDelayMs = 25;
 
 export function registerGuideNhCompletionAssist(context: vscode.ExtensionContext): void {
+	const pendingSuggests = new Map<string, ReturnType<typeof setTimeout>>();
 	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
 		const editor = vscode.window.activeTextEditor;
 		if (!editor || editor.document.uri.toString() !== event.document.uri.toString()) {
@@ -37,7 +39,7 @@ export function registerGuideNhCompletionAssist(context: vscode.ExtensionContext
 		})) {
 			return;
 		}
-		setTimeout(() => {
+		scheduleGuideNhSuggest(pendingSuggests, event.document.uri.toString(), () => {
 			const activeEditor = vscode.window.activeTextEditor;
 			if (!activeEditor || activeEditor.document.uri.toString() !== event.document.uri.toString()) {
 				return;
@@ -51,8 +53,16 @@ export function registerGuideNhCompletionAssist(context: vscode.ExtensionContext
 				return;
 			}
 			void vscode.commands.executeCommand('editor.action.triggerSuggest');
-		}, 0);
+		});
 	}));
+	context.subscriptions.push({
+		dispose() {
+			for (const handle of pendingSuggests.values()) {
+				clearTimeout(handle);
+			}
+			pendingSuggests.clear();
+		}
+	});
 }
 
 export function shouldTriggerGuideNhSuggest(context: GuideNhCompletionAssistContext): boolean {
@@ -64,6 +74,9 @@ export function shouldTriggerGuideNhSuggest(context: GuideNhCompletionAssistCont
 	}
 	if (!isGuideNhCompletionAssistChange(context.changeText, context.rangeLength)) {
 		return false;
+	}
+	if (context.changeText === '<>' && isGuideNhSuggestContext(trimTrailingAutoClosedBracket(context.textBeforeCursor))) {
+		return true;
 	}
 	return isGuideNhSuggestContext(context.textBeforeCursor);
 }
@@ -115,4 +128,27 @@ function findGuideNhOpenTagPrefix(textBeforeCursor: string): string | undefined 
 		return undefined;
 	}
 	return openTag;
+}
+
+function trimTrailingAutoClosedBracket(textBeforeCursor: string): string {
+	if (!textBeforeCursor.endsWith('>')) {
+		return textBeforeCursor;
+	}
+	return textBeforeCursor.slice(0, -1);
+}
+
+function scheduleGuideNhSuggest(
+	pendingSuggests: Map<string, ReturnType<typeof setTimeout>>,
+	documentUri: string,
+	callback: () => void
+): void {
+	const existing = pendingSuggests.get(documentUri);
+	if (existing) {
+		clearTimeout(existing);
+	}
+	const handle = setTimeout(() => {
+		pendingSuggests.delete(documentUri);
+		callback();
+	}, GuideNhCompletionAssistDelayMs);
+	pendingSuggests.set(documentUri, handle);
 }

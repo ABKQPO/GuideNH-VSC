@@ -7,7 +7,8 @@ import { GuideNhWorkspaceIndex } from '../server/index/workspaceIndex';
 import {
 	createGuideNhCompletionResult,
 	createGuideNhCompletions,
-	GuideNhCompletionTriggerCharacters
+	GuideNhCompletionTriggerCharacters,
+	resolveGuideNhCompletionOffset
 } from '../server/providers/completion';
 import { SemanticCache } from '../server/runtime/semanticCache';
 import { loadGuideNhSchema } from '../server/schema/schemaLoader';
@@ -26,6 +27,42 @@ suite('GuideNH completion provider', () => {
 		assert.ok(gameScene);
 		assert.strictEqual(gameScene?.insertTextFormat, InsertTextFormat.Snippet);
 		assert.strictEqual(gameScene?.insertText, '<GameScene>$0</GameScene>');
+	});
+
+	test('completes tags when the cursor is inside an auto-closed angle bracket pair', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const allItems = createGuideNhCompletions('<>', 1, schema, undefined);
+		const filteredItems = createGuideNhCompletions('<B>', 2, schema, undefined);
+
+		assert.ok(allItems.some((item: CompletionItem) => item.label === 'GameScene' && item.kind === CompletionItemKind.Class));
+		assert.ok(filteredItems.some((item: CompletionItem) => item.label === 'Block'));
+		assert.ok(filteredItems.some((item: CompletionItem) => item.label === 'BlockImage'));
+		assert.strictEqual(filteredItems.some((item: CompletionItem) => item.label === 'Recipe'), false);
+	});
+
+	test('normalizes completion offsets when VS Code requests suggest at the auto-closed bracket edge', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const emptyOffset = resolveGuideNhCompletionOffset('<>', 2);
+		const filteredOffset = resolveGuideNhCompletionOffset('<B>', 3);
+		const emptyItems = createGuideNhCompletions('<>', emptyOffset, schema, undefined);
+		const filteredItems = createGuideNhCompletions('<B>', filteredOffset, schema, undefined);
+
+		assert.strictEqual(emptyOffset, 1);
+		assert.strictEqual(filteredOffset, 2);
+		assert.ok(emptyItems.some((item: CompletionItem) => item.label === 'GameScene'));
+		assert.ok(filteredItems.some((item: CompletionItem) => item.label === 'Block'));
+	});
+
+	test('replaces the auto-closed angle bracket pair when completing a tag inside it', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const items = createGuideNhCompletions('<>', 1, schema, undefined);
+		const gameScene = items.find((item: CompletionItem) => item.label === 'GameScene' && item.kind === CompletionItemKind.Class);
+
+		assert.ok(gameScene?.textEdit && 'range' in gameScene.textEdit);
+		assert.deepStrictEqual(gameScene?.textEdit.range, {
+			start: { line: 0, character: 0 },
+			end: { line: 0, character: 2 }
+		});
 	});
 
 	test('completes inline tags as self-closing snippets after opening angle bracket', async () => {
@@ -124,6 +161,12 @@ suite('GuideNH completion provider', () => {
 		assert.strictEqual(shouldTriggerGuideNhSuggest({
 			...base,
 			textBeforeCursor: '<',
+			changeText: '<>',
+			rangeLength: 0
+		}), true);
+		assert.strictEqual(shouldTriggerGuideNhSuggest({
+			...base,
+			textBeforeCursor: '<>',
 			changeText: '<>',
 			rangeLength: 0
 		}), true);

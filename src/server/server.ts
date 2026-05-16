@@ -18,7 +18,8 @@ import { indexGuideNhWorkspaceFolders } from './index/workspaceScanner';
 import { localizeServer, setServerLocale } from './localization';
 import {
 	createGuideNhCompletionResult,
-	GuideNhCompletionTriggerCharacters
+	GuideNhCompletionTriggerCharacters,
+	resolveGuideNhCompletionOffset
 } from './providers/completion';
 import { createGuideNhDiagnostics } from './providers/diagnostics';
 import { createGuideNhDefinition } from './providers/definition';
@@ -83,7 +84,8 @@ connection.onCompletion(async (params) => {
 		return [];
 	}
 	const schema = await schemaPromise;
-	const offset = document.offsetAt(params.position);
+	const requestedOffset = document.offsetAt(params.position);
+	const offset = resolveGuideNhCompletionOffset(document.getText(), requestedOffset);
 	const text = document.getText();
 	const completionResult = createGuideNhCompletionResult(
 		text,

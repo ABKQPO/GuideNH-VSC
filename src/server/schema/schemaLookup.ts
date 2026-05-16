@@ -1,11 +1,22 @@
 import { GuideNhAttributeSchema, GuideNhSchemaBundle, GuideNhTagSchema } from '../../common/schema';
 
+interface CachedTagSchema {
+	tag: GuideNhTagSchema;
+	attributesByLowerName: Map<string, GuideNhAttributeSchema>;
+}
+
+interface CachedSchemaLookup {
+	tags: GuideNhTagSchema[];
+	tagsByLowerName: Map<string, CachedTagSchema>;
+}
+
+const SchemaLookupCache = new WeakMap<GuideNhSchemaBundle, CachedSchemaLookup>();
+
 export function findTagSchema(schema: GuideNhSchemaBundle, tagName: string | undefined): GuideNhTagSchema | undefined {
 	if (!tagName) {
 		return undefined;
 	}
-	const normalizedTagName = tagName.toLowerCase();
-	return Object.values(schema.tags.tags).find((tag) => tag.name.toLowerCase() === normalizedTagName);
+	return getCachedSchemaLookup(schema).tagsByLowerName.get(tagName.toLowerCase())?.tag;
 }
 
 export function findAttributeSchema(
@@ -16,12 +27,11 @@ export function findAttributeSchema(
 	if (!attributeName) {
 		return undefined;
 	}
-	const tag = findTagSchema(schema, tagName);
-	if (!tag) {
+	const cachedTag = tagName ? getCachedSchemaLookup(schema).tagsByLowerName.get(tagName.toLowerCase()) : undefined;
+	if (!cachedTag) {
 		return undefined;
 	}
-	return Object.entries(tag.attributes)
-		.find(([name]) => name.toLowerCase() === attributeName.toLowerCase())?.[1];
+	return cachedTag.attributesByLowerName.get(attributeName.toLowerCase());
 }
 
 export function isChildTagAllowed(
@@ -55,3 +65,29 @@ export function hasAttributeValue(
 	return Object.keys(attributes).some((name) => name.toLowerCase() === normalizedAttributeName);
 }
 
+export function listTagSchemas(schema: GuideNhSchemaBundle): GuideNhTagSchema[] {
+	return getCachedSchemaLookup(schema).tags;
+}
+
+function getCachedSchemaLookup(schema: GuideNhSchemaBundle): CachedSchemaLookup {
+	const cached = SchemaLookupCache.get(schema);
+	if (cached) {
+		return cached;
+	}
+	const tags = Object.values(schema.tags.tags);
+	const tagsByLowerName = new Map<string, CachedTagSchema>();
+	for (const tag of tags) {
+		tagsByLowerName.set(tag.name.toLowerCase(), {
+			tag,
+			attributesByLowerName: new Map(
+				Object.entries(tag.attributes).map(([name, attribute]) => [name.toLowerCase(), attribute])
+			)
+		});
+	}
+	const lookup = {
+		tags,
+		tagsByLowerName
+	};
+	SchemaLookupCache.set(schema, lookup);
+	return lookup;
+}

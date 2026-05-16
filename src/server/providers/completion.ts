@@ -3,7 +3,7 @@ import { GuideNhAttributeSchema, GuideNhFrontmatterKey, GuideNhSchemaBundle, Gui
 import { GuideNhResourceIndex } from '../index/resourceIndex';
 import { GuideNhWorkspaceIndex } from '../index/workspaceIndex';
 import { maskIgnoredMarkdownRanges } from '../parser/documentParser';
-import { findAttributeSchema, findTagSchema, matchesTagName } from '../schema/schemaLookup';
+import { findAttributeSchema, findTagSchema, listTagSchemas, matchesTagName } from '../schema/schemaLookup';
 import { findOpenTagAttributeValue, findOpenTagContext, normalizeResourceReference } from '../parser/documentModel';
 import { extractFrontmatter, FrontmatterBlock } from '../parser/frontmatter';
 import { SemanticCache } from '../runtime/semanticCache';
@@ -154,7 +154,7 @@ export function createGuideNhCompletionResult(
 			...createTagNameSnippetCompletions(schema, allowed),
 			...createSnippetCompletions(schema, allowed)
 		];
-		return { items: withReplacementRange(completions, text, offset - 1, offset) };
+		return { items: withReplacementRange(completions, text, offset - 1, resolveTagCompletionReplaceEnd(text, offset)) };
 	}
 	const tagSchema = findTagSchema(schema, openTag.name);
 	if (!tagSchema || !openTag.hasAttributeBoundary) {
@@ -164,7 +164,14 @@ export function createGuideNhCompletionResult(
 			...createTagNameSnippetCompletions(schema, allowed).filter((item) => item.label.toLowerCase().startsWith(openTag.name.toLowerCase())),
 			...createSnippetCompletions(schema, allowed).filter((item) => item.label.toLowerCase().startsWith(openTag.name.toLowerCase()))
 		];
-		return { items: withReplacementRange(completions, text, offset - openTag.name.length - 1, offset) };
+		return {
+			items: withReplacementRange(
+				completions,
+				text,
+				offset - openTag.name.length - 1,
+				resolveTagCompletionReplaceEnd(text, offset)
+			)
+		};
 	}
 	return {
 		items: Object.entries(tagSchema.attributes).map(([name, attribute]) => ({
@@ -578,7 +585,7 @@ function mergeCompletionItems(items: CompletionItem[]): CompletionItem[] {
 }
 
 function createTagNameCompletions(schema: GuideNhSchemaBundle, allowed: string[] | undefined): CompletionItem[] {
-	return Object.values(schema.tags.tags)
+	return listTagSchemas(schema)
 		.filter((tag) => isTagAllowed(tag, allowed))
 		.map((tag) => ({
 			label: tag.name,
@@ -589,7 +596,7 @@ function createTagNameCompletions(schema: GuideNhSchemaBundle, allowed: string[]
 }
 
 function createTagNameSnippetCompletions(schema: GuideNhSchemaBundle, allowed: string[] | undefined): CompletionItem[] {
-	return Object.values(schema.tags.tags)
+	return listTagSchemas(schema)
 		.filter((tag) => isTagAllowed(tag, allowed))
 		.map((tag) => ({
 			label: tag.name,
@@ -629,6 +636,10 @@ function withReplacementRange(items: CompletionItem[], text: string, start: numb
 	});
 }
 
+function resolveTagCompletionReplaceEnd(text: string, offset: number): number {
+	return text[offset] === '>' ? offset + 1 : offset;
+}
+
 function createPlainTagCompletions(
 	maskedText: string,
 	text: string,
@@ -657,12 +668,18 @@ function findPlainTagPrefix(text: string, offset: number): string | undefined {
 	return match[1];
 }
 
+export function resolveGuideNhCompletionOffset(text: string, requestedOffset: number): number {
+	const normalizedOffset = clampOffset(text, requestedOffset);
+	const fallbackOffset = resolveAutoClosedTagOffset(text, normalizedOffset);
+	return fallbackOffset ?? normalizedOffset;
+}
+
 function createTagSnippetCompletions(
 	schema: GuideNhSchemaBundle,
 	allowed: string[] | undefined,
 	prefix: string
 ): CompletionItem[] {
-	return Object.values(schema.tags.tags)
+	return listTagSchemas(schema)
 		.filter((tag) => isTagAllowed(tag, allowed) && tag.name.toLowerCase().startsWith(prefix.toLowerCase()))
 		.map((tag) => ({
 			label: tag.name,
@@ -838,6 +855,39 @@ function offsetToPosition(text: string, offset: number): Position {
 		}
 	}
 	return { line, character };
+}
+
+function resolveAutoClosedTagOffset(text: string, offset: number): number | undefined {
+	if (offset <= 0 || offset > text.length) {
+		return undefined;
+	}
+	if (text[offset - 1] !== '>') {
+		return undefined;
+	}
+	const previous = text[offset - 2];
+	if (previous !== '<' && !isAsciiAlphaNumeric(previous)) {
+		return undefined;
+	}
+	const insideOffset = offset - 1;
+	const openTag = findOpenTagContext(text, insideOffset);
+	if (!openTag) {
+		return undefined;
+	}
+	return insideOffset;
+}
+
+function clampOffset(text: string, offset: number): number {
+	if (offset < 0) {
+		return 0;
+	}
+	if (offset > text.length) {
+		return text.length;
+	}
+	return offset;
+}
+
+function isAsciiAlphaNumeric(value: string | undefined): boolean {
+	return value !== undefined && /^[A-Za-z0-9]$/.test(value);
 }
 
 function createFencedBlockCompletions(text: string, offset: number, schema: GuideNhSchemaBundle): CompletionItem[] {
