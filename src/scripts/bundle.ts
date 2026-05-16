@@ -1,5 +1,7 @@
 import { build, BuildOptions } from 'esbuild';
 import { promises as fs } from 'fs';
+import * as path from 'path';
+import { writeBundledGuideNhSchema } from '../server/schema/schemaLoader';
 
 const baseOptions: BuildOptions = {
 	bundle: true,
@@ -17,6 +19,7 @@ async function bundle(): Promise<void> {
 		bundleEntry('out/extension.js', 'out/extension.js'),
 		bundleEntry('out/server/server.js', 'out/server.js')
 	]);
+	await writeBundledGuideNhSchema(path.join('src', 'schema'), path.join('out', 'schema'));
 }
 
 async function bundleEntry(entryPoint: string, outfile: string): Promise<void> {

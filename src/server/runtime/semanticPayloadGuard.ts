@@ -9,7 +9,7 @@ export interface SemanticPayloadGuardLimits {
 
 export const DefaultSemanticPayloadGuardLimits: SemanticPayloadGuardLimits = {
 	pageEntries: 500,
-	totalEntries: 5000,
+	totalEntries: 50000,
 	entryTextLength: 512,
 	cursorLength: 128
 };
@@ -55,7 +55,7 @@ export function validateSemanticPayload(
 	const rawEntries = candidate.entries;
 	const nextTotal = state.totalEntries + rawEntries.length;
 	if (nextTotal > limits.totalEntries) {
-		throw new Error('Runtime semantic payload entry total is too large.');
+		throw new Error(`Runtime semantic payload entry total is too large: ${nextTotal} > ${limits.totalEntries}.`);
 	}
 	const entries = rawEntries.map((entry) => validateSemanticEntry(entry, limits.entryTextLength));
 	const nextCursor = validateNextCursor(candidate.nextCursor, state, limits.cursorLength);

@@ -9,7 +9,9 @@ import {
 import {
 	createRuntimeBridgeNotificationHandlers,
 	RuntimeBridgeConnectionController,
+	RuntimeBridgeLogSender,
 	RuntimeBridgeStatusSender,
+	wireRuntimeBridgeLogs,
 	wireRuntimeBridgeStatus,
 } from '../server/runtime/runtimeBridgeNotifications';
 
@@ -76,5 +78,18 @@ suite('GuideNH runtime bridge server notifications', () => {
 			method: RuntimeBridgeStatusNotification,
 			payload: { state: 'connected' }
 		}]);
+	});
+
+	test('forwards runtime bridge logs to the server logger', () => {
+		const logs: string[] = [];
+		const sender: RuntimeBridgeLogSender = {
+			info: (message) => {
+				logs.push(message);
+			}
+		};
+
+		wireRuntimeBridgeLogs(sender)('GuideNH runtime bridge connecting to ws://127.0.0.1:8765');
+
+		assert.deepStrictEqual(logs, ['GuideNH runtime bridge connecting to ws://127.0.0.1:8765']);
 	});
 });

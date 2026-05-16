@@ -1,0 +1,14 @@
+{
+  "extension.displayName": "GuideVSC",
+  "extension.description": "面向 Visual Studio Code 的 GuideNH 编写支持。",
+  "configuration.guideNhSourcePath.description": "用于生成 schema 的 GuideNH 源码仓库路径。",
+  "configuration.resourcePackPath.description": "用于本地工作区索引的默认 GuideNH resourcepack 路径。",
+  "configuration.runtimeBridge.host.description": "GuideNH 运行时桥接主机。出于安全考虑不提供默认值。",
+  "configuration.runtimeBridge.port.description": "GuideNH 运行时桥接端口。出于安全考虑不提供默认值。",
+  "configuration.runtimeBridge.token.description": "GuideNH 运行时桥接 token。出于安全考虑不提供默认值。",
+  "configuration.runtimeBridge.allowRemote.description": "允许连接非本机运行时桥接主机。除非桥接传输已由外部安全措施保护，否则请保持关闭。",
+  "command.generateSchema.title": "GuideNH: 生成 Schema",
+  "command.connectRuntimeBridge.title": "GuideNH: 连接运行时桥接",
+  "command.disconnectRuntimeBridge.title": "GuideNH: 断开运行时桥接",
+  "command.validateRuntimeDocument.title": "GuideNH: 使用运行时校验当前文档"
+}

@@ -1,9 +1,13 @@
 {
   "name": "guide-vsc",
-  "displayName": "GuideVSC",
-  "description": "GuideNH VSC",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
   "version": "0.0.1",
   "license": "LGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ABKQPO/GuideNH-VSC.git"
+  },
   "engines": {
     "vscode": "^1.120.0"
   },
@@ -34,52 +38,67 @@
         "configuration": "./language-configuration.json"
       }
     ],
+    "grammars": [
+      {
+        "scopeName": "guidenh.mdx.injection",
+        "path": "./syntaxes/guidenh-mdx.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown",
+          "source.gfm"
+        ]
+      }
+    ],
     "configuration": {
       "title": "GuideNH",
       "properties": {
         "guide-vsc.guideNhSourcePath": {
           "type": "string",
-          "default": "E:\\\\Github\\\\GuideNH",
-          "description": "Path to the GuideNH source repository used by schema generation."
+          "default": "E:\\Github\\GuideNH",
+          "description": "%configuration.guideNhSourcePath.description%"
+        },
+        "guide-vsc.resourcePackPath": {
+          "type": "string",
+          "default": "E:\\Github\\GuideNH\\wiki\\resourcepack",
+          "description": "%configuration.resourcePackPath.description%"
         },
         "guide-vsc.runtimeBridge.host": {
           "type": "string",
           "default": "",
-          "description": "GuideNH runtime bridge host. No default is provided for safety."
+          "description": "%configuration.runtimeBridge.host.description%"
         },
         "guide-vsc.runtimeBridge.port": {
           "type": "number",
           "default": 0,
-          "description": "GuideNH runtime bridge port. No default is provided for safety."
+          "description": "%configuration.runtimeBridge.port.description%"
         },
         "guide-vsc.runtimeBridge.token": {
           "type": "string",
           "default": "",
-          "description": "GuideNH runtime bridge token. No default is provided for safety."
+          "description": "%configuration.runtimeBridge.token.description%"
         },
         "guide-vsc.runtimeBridge.allowRemote": {
           "type": "boolean",
           "default": false,
-          "description": "Allow runtime bridge connections to non-loopback hosts. Keep disabled unless the bridge transport is secured externally."
+          "description": "%configuration.runtimeBridge.allowRemote.description%"
         }
       }
     },
     "commands": [
       {
         "command": "guide-vsc.generateSchema",
-        "title": "GuideNH: Generate Schema"
+        "title": "%command.generateSchema.title%"
       },
       {
         "command": "guide-vsc.connectRuntimeBridge",
-        "title": "GuideNH: Connect Runtime Bridge"
+        "title": "%command.connectRuntimeBridge.title%"
       },
       {
         "command": "guide-vsc.disconnectRuntimeBridge",
-        "title": "GuideNH: Disconnect Runtime Bridge"
+        "title": "%command.disconnectRuntimeBridge.title%"
       },
       {
         "command": "guide-vsc.validateRuntimeDocument",
-        "title": "GuideNH: Validate Current Document With Runtime"
+        "title": "%command.validateRuntimeDocument.title%"
       }
     ]
   },

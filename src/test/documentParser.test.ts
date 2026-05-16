@@ -27,11 +27,36 @@ navigation:
 		assert.strictEqual(parsed.tags.length, 0);
 	});
 
+	test('ignores tags inside inline and fenced code', () => {
+		const parsed = parseGuideNhDocument([
+			'Use `<ColumnChart>` in prose.',
+			'```md',
+			'<LineChart title="demo">',
+			'  <Series name="ignored" />',
+			'</LineChart>',
+			'```',
+			'<ItemImage id="minecraft:stone" />'
+		].join('\n'));
+		assert.deepStrictEqual(
+			parsed.tags.map((tag) => tag.name),
+			['ItemImage']
+		);
+	});
+
 	test('tracks attribute value ranges when the value matches the attribute name', () => {
 		const parsed = parseGuideNhDocument('<GuideExample name="name" />');
 		assert.deepStrictEqual(parsed.tags[0].attributeRanges.name, {
 			start: 20,
 			end: 24
+		});
+	});
+
+	test('tracks attribute value styles', () => {
+		const parsed = parseGuideNhDocument('<GameScene width="256" zoom={4} interactive />');
+		assert.deepStrictEqual(parsed.tags[0].attributeValueStyles, {
+			width: 'string',
+			zoom: 'expression',
+			interactive: 'bare'
 		});
 	});
 });

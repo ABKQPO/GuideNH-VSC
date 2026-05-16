@@ -11,6 +11,18 @@ export interface JavaCompilerScanResult {
 	tags: Record<string, GuideNhTagSchema>;
 }
 
+interface JavaSourceFile {
+	path: string;
+	text: string;
+}
+
+interface ChartChildTagDefinition {
+	name: string;
+	description: string;
+	attributes: Record<string, GuideNhAttributeSchema>;
+	children: string[];
+}
+
 export function scanJavaCompilerSource(source: string): JavaCompilerScanResult {
 	const tagNames = extractCompilerTagNames(source);
 	const attributes = extractCompilerAttributes(source);
@@ -26,6 +38,20 @@ export function scanJavaCompilerSource(source: string): JavaCompilerScanResult {
 		};
 	}
 	return { tagNames, tags };
+}
+
+export function enhanceGeneratedTagsFromJavaSources(
+	tags: Record<string, GuideNhTagSchema>,
+	sources: JavaSourceFile[]
+): Record<string, GuideNhTagSchema> {
+	const enhanced = { ...tags };
+	applyChartAttributeEnhancements(enhanced, sources);
+	applyChartChildTagEnhancements(enhanced, sources);
+	applyFunctionGraphEnhancements(enhanced, sources);
+	applySceneTagEnhancements(enhanced, sources);
+	applyRecipeEnhancements(enhanced);
+	applyReferenceEnhancements(enhanced);
+	return enhanced;
 }
 
 function extractCompilerTagNames(source: string): string[] {
@@ -193,65 +219,88 @@ function findMatchingBrace(source: string, openBrace: number): number {
 function extractCompilerAttributes(source: string): Record<string, GuideNhAttributeSchema> {
 	const attributes: Record<string, GuideNhAttributeSchema> = {};
 	for (const match of source.matchAll(/MdxAttrs\s*\.\s*([A-Za-z0-9_]+)\([^;]*?"([^"]+)"[^;]*?\)/gs)) {
-		const type = mapMdxAttrReaderType(match[1]);
-		if (type) {
-			attributes[match[2]] = { type };
+		const attribute = mapMdxAttrReaderSchema(match[1]);
+		if (attribute) {
+			attributes[match[2]] = attribute;
 		}
+	}
+	for (const match of source.matchAll(/MdxAttrs\s*\.\s*getRequiredItemStack(?:AndId)?\s*\([^;]*?\)/gs)) {
+		attributes.id = { type: 'item', valueStyle: 'string' };
+		attributes.ore = { type: 'ore', valueStyle: 'string' };
 	}
 	for (const attribute of extractFallbackAttributes(source)) {
 		if (!attributes[attribute.name]) {
-			attributes[attribute.name] = { type: attribute.type };
+			attributes[attribute.name] = createAttributeSchema(attribute.type, attribute.reader);
 		}
 	}
 	return sortAttributes(attributes);
 }
 
-function extractFallbackAttributes(source: string): Array<{ name: string; type: GuideNhAttributeSchema['type'] }> {
-	const attributes: Array<{ name: string; type: GuideNhAttributeSchema['type'] }> = [];
+function extractFallbackAttributes(source: string): Array<{ name: string; type: GuideNhAttributeSchema['type']; reader: string }> {
+	const attributes: Array<{ name: string; type: GuideNhAttributeSchema['type']; reader: string }> = [];
 	for (const match of source.matchAll(/getAttributeString\(\s*"([^"]+)"/g)) {
-		attributes.push({ name: match[1], type: 'string' });
+		attributes.push({ name: match[1], type: 'string', reader: 'getAttributeString' });
 	}
 	for (const match of source.matchAll(/getAttribute(?:Value)?\(\s*"([^"]+)"/g)) {
-		attributes.push({ name: match[1], type: 'string' });
+		attributes.push({ name: match[1], type: 'string', reader: 'getAttributeValue' });
 	}
 	for (const match of source.matchAll(/getAttributeBoolean\(\s*"([^"]+)"/g)) {
-		attributes.push({ name: match[1], type: 'boolean' });
+		attributes.push({ name: match[1], type: 'boolean', reader: 'getAttributeBoolean' });
 	}
 	for (const match of source.matchAll(/getAttribute(?:Int|Integer|Float|Double)\(\s*"([^"]+)"/g)) {
-		attributes.push({ name: match[1], type: 'number' });
+		attributes.push({ name: match[1], type: 'number', reader: match[0].includes('Float') || match[0].includes('Double') ? 'getAttributeFloat' : 'getAttributeInt' });
 	}
 	return attributes;
 }
 
-function mapMdxAttrReaderType(reader: string): GuideNhAttributeSchema['type'] | undefined {
+function mapMdxAttrReaderSchema(reader: string): GuideNhAttributeSchema | undefined {
 	if (reader.includes('Item')) {
-		return 'item';
+		return { type: 'item', valueStyle: 'string' };
+	}
+	if (reader.includes('Block')) {
+		return { type: 'item', valueStyle: 'string' };
 	}
 	if (reader.includes('Ore')) {
-		return 'ore';
+		return { type: 'ore', valueStyle: 'string' };
 	}
 	if (reader.includes('Color')) {
-		return 'color';
+		return { type: 'color', valueStyle: 'string' };
+	}
+	if (reader.includes('Vector')) {
+		return { type: 'string', valueStyle: 'string' };
 	}
 	if (reader.includes('Resource')) {
-		return 'resource';
+		return { type: 'resource', valueStyle: 'string' };
 	}
 	if (reader.includes('Page')) {
-		return 'page';
+		return { type: 'page', valueStyle: 'string' };
 	}
 	if (reader.includes('Boolean')) {
-		return 'boolean';
+		return { type: 'boolean', valueStyle: 'expression' };
 	}
-	if (reader.includes('Int') || reader.includes('Float') || reader.includes('Double')) {
-		return 'number';
+	if (reader.includes('Int')) {
+		return { type: 'number', valueStyle: 'string' };
+	}
+	if (reader.includes('Float') || reader.includes('Double')) {
+		return { type: 'number', valueStyle: 'expression' };
 	}
 	if (reader.includes('Enum')) {
-		return 'enum';
+		return { type: 'enum', valueStyle: 'string' };
 	}
 	if (reader.includes('String')) {
-		return 'string';
+		return { type: 'string', valueStyle: 'string' };
 	}
 	return undefined;
+}
+
+function createAttributeSchema(type: GuideNhAttributeSchema['type'], reader: string): GuideNhAttributeSchema {
+	if (type === 'boolean') {
+		return { type, valueStyle: 'expression' };
+	}
+	if (type === 'number' && (reader.includes('Float') || reader.includes('Double'))) {
+		return { type, valueStyle: 'expression' };
+	}
+	return { type, valueStyle: 'string' };
 }
 
 function inferTagKind(source: string): GuideNhTagSchema['kind'] {
@@ -265,6 +314,571 @@ function inferTagKind(source: string): GuideNhTagSchema['kind'] {
 		return 'block';
 	}
 	return 'any';
+}
+
+function applyChartAttributeEnhancements(tags: Record<string, GuideNhTagSchema>, sources: JavaSourceFile[]): void {
+	const commonChartAttributes = collectAttributesFromClass(sources, 'CommonChartAttrs');
+	const axisAttributesBySource = collectChartAxisAttributesBySource(sources);
+	for (const source of sources) {
+		const scan = scanJavaCompilerSource(source.text);
+		if (!source.text.includes('CommonChartAttrs.apply')) {
+			continue;
+		}
+		for (const tagName of scan.tagNames) {
+			mergeAttributes(tags[tagName], commonChartAttributes);
+			mergeAttributes(tags[tagName], axisAttributesBySource.get(source.path) ?? {});
+		}
+	}
+}
+
+function applyChartChildTagEnhancements(tags: Record<string, GuideNhTagSchema>, sources: JavaSourceFile[]): void {
+	const chartChildParser = findSourceByClassName(sources, 'ChartChildParser');
+	if (!chartChildParser) {
+		return;
+	}
+	for (const definition of createChartChildTagDefinitions(chartChildParser.text)) {
+		const existing = tags[definition.name];
+		if (existing) {
+			mergeAttributes(existing, definition.attributes);
+			existing.children = mergeChildren(existing.children, definition.children);
+			continue;
+		}
+		tags[definition.name] = {
+			name: definition.name,
+			kind: 'chart',
+			description: definition.description,
+			attributes: sortAttributes(definition.attributes),
+			children: definition.children,
+			snippets: []
+		};
+	}
+	applyChartParentChildren(tags);
+}
+
+function applySceneTagEnhancements(tags: Record<string, GuideNhTagSchema>, sources: JavaSourceFile[]): void {
+	const sceneTagCompiler = findSourceByClassName(sources, 'SceneTagCompiler');
+	if (!sceneTagCompiler) {
+		applySceneDocumentationEnhancements(tags);
+		return;
+	}
+	applySceneChildren(tags, sceneTagCompiler.text);
+	applySceneBlockStatsTags(tags);
+	applySceneDocumentationEnhancements(tags);
+}
+
+function applySceneChildren(tags: Record<string, GuideNhTagSchema>, source: string): void {
+	const sceneChildren = extractSceneElementNames(source);
+	setChildren(tags.GameScene, sceneChildren);
+}
+
+function extractSceneElementNames(source: string): string[] {
+	const names = new Set<string>();
+	for (const match of source.matchAll(/"([A-Z][A-Za-z0-9]*)"\.equals\(name\)/g)) {
+		if (match[1] !== 'BlockStat') {
+			names.add(match[1]);
+		}
+	}
+	for (const match of source.matchAll(/s\.add\("([A-Z][A-Za-z0-9]*)"\)/g)) {
+		if (match[1] !== 'GameScene' && match[1] !== 'Scene') {
+			names.add(match[1]);
+		}
+	}
+	for (const match of source.matchAll(/Collections\.singleton\("([A-Z][A-Za-z0-9]*)"\)/g)) {
+		if (match[1] !== 'GameScene' && match[1] !== 'Scene') {
+			names.add(match[1]);
+		}
+	}
+	return Array.from(names).sort((left, right) => left.localeCompare(right));
+}
+
+function applySceneBlockStatsTags(tags: Record<string, GuideNhTagSchema>): void {
+	tags.BlockStats = {
+		name: 'BlockStats',
+		kind: 'block',
+		description: 'Generated from GuideNH scene block stats configuration.',
+		attributes: sortAttributes({
+			buttonEnabled: { type: 'boolean', valueStyle: 'expression' },
+			corner: { type: 'string', valueStyle: 'string' },
+			dock: { type: 'string', valueStyle: 'string' },
+			filter: { type: 'string', valueStyle: 'string' },
+			filterMode: { type: 'string', valueStyle: 'string' },
+			maxHeight: { type: 'number', valueStyle: 'string' },
+			maxWidth: { type: 'number', valueStyle: 'string' },
+			mode: { type: 'string', valueStyle: 'string' },
+			showNames: { type: 'boolean', valueStyle: 'expression' },
+			visible: { type: 'boolean', valueStyle: 'expression' }
+		}),
+		children: ['BlockStat'],
+		snippets: []
+	};
+	tags.BlockStat = {
+		name: 'BlockStat',
+		kind: 'block',
+		description: 'Generated from GuideNH manual block stats entry.',
+		attributes: sortAttributes({
+			count: { type: 'number', valueStyle: 'expression' },
+			id: { type: 'item', valueStyle: 'string' },
+			item: { type: 'item', valueStyle: 'string' },
+			ore: { type: 'ore', valueStyle: 'string' }
+		}),
+		children: [],
+		snippets: []
+	};
+	mergeAttributes(tags.PlaySound, {
+		cooldown: { type: 'number', valueStyle: 'string' },
+		minVolume: { type: 'number', valueStyle: 'expression' },
+		pitch: { type: 'number', valueStyle: 'expression' },
+		radius: { type: 'number', valueStyle: 'expression' },
+		sound: { type: 'string', valueStyle: 'string' },
+		src: { type: 'resource', valueStyle: 'string' },
+		volume: { type: 'number', valueStyle: 'expression' },
+		x: { type: 'number', valueStyle: 'expression' },
+		y: { type: 'number', valueStyle: 'expression' },
+		z: { type: 'number', valueStyle: 'expression' }
+	});
+}
+
+function applySceneDocumentationEnhancements(tags: Record<string, GuideNhTagSchema>): void {
+	mergeAttributes(tags.Entity, {
+		baby: { type: 'boolean', valueStyle: 'expression' },
+		capeRotation: { type: 'string', valueStyle: 'string' },
+		headRotation: { type: 'string', valueStyle: 'string' },
+		leftArmRotation: { type: 'string', valueStyle: 'string' },
+		leftLegRotation: { type: 'string', valueStyle: 'string' },
+		rightArmRotation: { type: 'string', valueStyle: 'string' },
+		rightLegRotation: { type: 'string', valueStyle: 'string' },
+		showCape: { type: 'boolean', valueStyle: 'expression' },
+		showName: { type: 'boolean', valueStyle: 'expression' }
+	});
+	mergeAttributes(tags.LineAnnotation, {
+		arrow: { type: 'string', valueStyle: 'string' },
+		pointColor: { type: 'color', valueStyle: 'string' },
+		points: { type: 'string', valueStyle: 'string' },
+		pointSize: { type: 'number', valueStyle: 'expression' },
+		showPoints: { type: 'boolean', valueStyle: 'expression' }
+	});
+	tags.LinePoint = {
+		name: 'LinePoint',
+		kind: 'any',
+		description: 'Generated from GuideNH line annotation point styling support.',
+		attributes: sortAttributes({
+			color: { type: 'color', valueStyle: 'string' },
+			index: { type: 'number', valueStyle: 'string' },
+			show: { type: 'boolean', valueStyle: 'bare' },
+			size: { type: 'number', valueStyle: 'expression' }
+		}),
+		children: [],
+		snippets: []
+	};
+	if (tags.LineAnnotation) {
+		tags.LineAnnotation.children = [];
+	}
+}
+
+function applyFunctionGraphEnhancements(tags: Record<string, GuideNhTagSchema>, sources: JavaSourceFile[]): void {
+	const attrsSource = findSourceByClassName(sources, 'FunctionGraphAttrs');
+	if (!attrsSource) {
+		applyFallbackFunctionGraphEnhancements(tags);
+		return;
+	}
+	const attributeMap = extractFunctionGraphAttributes(attrsSource.text);
+	mergeAttributes(tags.FunctionGraph, attributeMap.container);
+	mergeAttributes(tags.Function, attributeMap.container);
+	mergeAttributes(tags.Function, attributeMap.plot);
+	tags.Plot = {
+		name: 'Plot',
+		kind: 'block',
+		description: 'Generated from GuideNH function graph plot support.',
+		attributes: sortAttributes(attributeMap.plot),
+		children: [],
+		snippets: []
+	};
+	setChildren(tags.FunctionGraph, ['Plot', 'Function', 'Point']);
+}
+
+function applyFallbackFunctionGraphEnhancements(tags: Record<string, GuideNhTagSchema>): void {
+	const container = createFallbackFunctionGraphContainerAttributes();
+	const plot = createFallbackFunctionPlotAttributes();
+	mergeAttributes(tags.FunctionGraph, container);
+	mergeAttributes(tags.Function, {
+		...container,
+		...plot
+	});
+	tags.Plot = {
+		name: 'Plot',
+		kind: 'block',
+		description: 'Generated from GuideNH function graph plot support.',
+		attributes: sortAttributes(plot),
+		children: [],
+		snippets: []
+	};
+	setChildren(tags.FunctionGraph, ['Plot', 'Function', 'Point']);
+}
+
+function extractFunctionGraphAttributes(source: string): {
+	container: Record<string, GuideNhAttributeSchema>;
+	plot: Record<string, GuideNhAttributeSchema>;
+} {
+	const container: Record<string, GuideNhAttributeSchema> = {};
+	const plot: Record<string, GuideNhAttributeSchema> = {};
+	for (const match of source.matchAll(/MdxAttrs\.getString\(compiler,\s*sink,\s*el,\s*"([^"]+)"\s*,/g)) {
+		const name = match[1];
+		if (isFunctionContainerAttribute(name)) {
+			container[name] = { type: resolveFunctionStringAttributeType(name), valueStyle: 'string' };
+		} else {
+			plot[name] = { type: resolveFunctionStringAttributeType(name), valueStyle: 'string' };
+		}
+	}
+	for (const match of source.matchAll(/MdxAttrs\.getInt\(compiler,\s*sink,\s*el,\s*"([^"]+)"\s*,/g)) {
+		const name = match[1];
+		container[name] = { type: 'number', valueStyle: 'string' };
+	}
+	for (const match of source.matchAll(/MdxAttrs\.getBoolean\(compiler,\s*sink,\s*el,\s*"([^"]+)"\s*,/g)) {
+		const name = match[1];
+		if (isFunctionContainerAttribute(name)) {
+			container[name] = { type: 'boolean', valueStyle: 'expression' };
+		} else {
+			plot[name] = { type: 'boolean', valueStyle: 'expression' };
+		}
+	}
+	return {
+		container: sortAttributes({
+			...createFallbackFunctionGraphContainerAttributes(),
+			...container
+		}),
+		plot: sortAttributes({
+			...createFallbackFunctionPlotAttributes(),
+			...plot
+		})
+	};
+}
+
+function isFunctionContainerAttribute(name: string): boolean {
+	return [
+		'axisColor',
+		'background',
+		'border',
+		'cornerLegend',
+		'cornerLegendBackground',
+		'cornerLegendHeight',
+		'cornerLegendWidth',
+		'gridColor',
+		'height',
+		'quadrants',
+		'showAxes',
+		'showGrid',
+		'title',
+		'width',
+		'xMax',
+		'xMin',
+		'xRange',
+		'xStep',
+		'yMax',
+		'yMin',
+		'yRange',
+		'yStep'
+	].includes(name);
+}
+
+function resolveFunctionStringAttributeType(name: string): GuideNhAttributeSchema['type'] {
+	return name.toLowerCase().includes('color') ? 'color' : 'string';
+}
+
+function createFallbackFunctionGraphContainerAttributes(): Record<string, GuideNhAttributeSchema> {
+	return {
+		axisColor: { type: 'color', valueStyle: 'string' },
+		background: { type: 'color', valueStyle: 'string' },
+		border: { type: 'color', valueStyle: 'string' },
+		cornerLegend: { type: 'string', valueStyle: 'string' },
+		cornerLegendBackground: { type: 'color', valueStyle: 'string' },
+		cornerLegendHeight: { type: 'number', valueStyle: 'string' },
+		cornerLegendWidth: { type: 'number', valueStyle: 'string' },
+		gridColor: { type: 'color', valueStyle: 'string' },
+		height: { type: 'number', valueStyle: 'string' },
+		quadrants: { type: 'string', valueStyle: 'string' },
+		showAxes: { type: 'boolean', valueStyle: 'expression' },
+		showGrid: { type: 'boolean', valueStyle: 'expression' },
+		title: { type: 'string', valueStyle: 'string' },
+		width: { type: 'number', valueStyle: 'string' },
+		xMax: { type: 'string', valueStyle: 'string' },
+		xMin: { type: 'string', valueStyle: 'string' },
+		xRange: { type: 'string', valueStyle: 'string' },
+		xStep: { type: 'string', valueStyle: 'string' },
+		yMax: { type: 'string', valueStyle: 'string' },
+		yMin: { type: 'string', valueStyle: 'string' },
+		yRange: { type: 'string', valueStyle: 'string' },
+		yStep: { type: 'string', valueStyle: 'string' }
+	};
+}
+
+function createFallbackFunctionPlotAttributes(): Record<string, GuideNhAttributeSchema> {
+	return {
+		autoPointColor: { type: 'color', valueStyle: 'string' },
+		autoPointLabel: { type: 'string', valueStyle: 'string' },
+		color: { type: 'color', valueStyle: 'string' },
+		domain: { type: 'string', valueStyle: 'string' },
+		expr: { type: 'string', valueStyle: 'string' },
+		inverse: { type: 'boolean', valueStyle: 'expression' },
+		label: { type: 'string', valueStyle: 'string' },
+		pointEveryX: { type: 'string', valueStyle: 'string' },
+		pointEveryY: { type: 'string', valueStyle: 'string' }
+	};
+}
+
+function applyRecipeEnhancements(tags: Record<string, GuideNhTagSchema>): void {
+	const recipeFilterAttributes: Record<string, GuideNhAttributeSchema> = {
+		input: { type: 'string', valueStyle: 'string' as const },
+		output: { type: 'string', valueStyle: 'string' as const }
+	};
+	for (const name of ['Recipe', 'RecipeFor', 'RecipeUsage', 'RecipesFor']) {
+		mergeAttributes(tags[name], recipeFilterAttributes);
+	}
+}
+
+function applyReferenceEnhancements(tags: Record<string, GuideNhTagSchema>): void {
+	mergeAttributes(tags.Block, {
+		ore: { type: 'ore', valueStyle: 'string' }
+	});
+	if (tags.Block?.attributes.id) {
+		tags.Block.attributes.id.requiredWhenMissing = ['ore'];
+	}
+	mergeAttributes(tags.BlockImage, {
+		ore: { type: 'ore', valueStyle: 'string' }
+	});
+	if (tags.BlockImage?.attributes.id) {
+		tags.BlockImage.attributes.id.requiredWhenMissing = ['ore'];
+	}
+	if (tags.ItemImage?.attributes.id && tags.ItemImage.attributes.ore) {
+		tags.ItemImage.attributes.id.requiredWhenMissing = ['ore'];
+	}
+	for (const name of ['BlockImage', 'Recipe', 'Column']) {
+		mergeAttributes(tags[name], {
+			align: { type: 'string', valueStyle: 'string' },
+			wrap: { type: 'string', valueStyle: 'string' }
+		});
+	}
+	mergeAttributes(tags.ItemImage, {
+		align: { type: 'string', valueStyle: 'string' },
+		noTooltip: { type: 'boolean', valueStyle: 'expression' },
+		showTooltip: { type: 'boolean', valueStyle: 'expression' },
+		tooltip: { type: 'string', valueStyle: 'string' }
+	});
+	mergeAttributes(tags.FloatingImage, {
+		height: { type: 'number', valueStyle: 'string' },
+		sound: { type: 'string', valueStyle: 'string' },
+		src: { type: 'resource', valueStyle: 'string' },
+		trigger: { type: 'string', valueStyle: 'string' },
+		volume: { type: 'number', valueStyle: 'expression' },
+		wrap: { type: 'string', valueStyle: 'string' },
+		width: { type: 'number', valueStyle: 'string' }
+	});
+	mergeAttributes(tags.SoundLink, {
+		cooldown: { type: 'number', valueStyle: 'string' },
+		minVolume: { type: 'number', valueStyle: 'expression' },
+		pitch: { type: 'number', valueStyle: 'expression' },
+		radius: { type: 'number', valueStyle: 'expression' },
+		sound: { type: 'string', valueStyle: 'string' },
+		src: { type: 'resource', valueStyle: 'string' },
+		volume: { type: 'number', valueStyle: 'expression' },
+		x: { type: 'number', valueStyle: 'expression' },
+		y: { type: 'number', valueStyle: 'expression' },
+		z: { type: 'number', valueStyle: 'expression' }
+	});
+	tags.ImageAnnotation = {
+		name: 'ImageAnnotation',
+		kind: 'block',
+		description: 'Generated from GuideNH floating image annotation support.',
+		attributes: sortAttributes({
+			border: { type: 'boolean', valueStyle: 'bare' },
+			borderColor: { type: 'color', valueStyle: 'string' },
+			borderThickness: { type: 'number', valueStyle: 'string' },
+			h: { type: 'number', valueStyle: 'string' },
+			sound: { type: 'string', valueStyle: 'string' },
+			src: { type: 'resource', valueStyle: 'string' },
+			trigger: { type: 'string', valueStyle: 'string' },
+			volume: { type: 'number', valueStyle: 'expression' },
+			w: { type: 'number', valueStyle: 'string' },
+			x: { type: 'number', valueStyle: 'string' },
+			y: { type: 'number', valueStyle: 'string' }
+		}),
+		children: [],
+		snippets: []
+	};
+	tags.SoundArea = {
+		name: 'SoundArea',
+		kind: 'block',
+		description: 'Generated from GuideNH floating image sound area support.',
+		attributes: sortAttributes({
+			cooldown: { type: 'number', valueStyle: 'string' },
+			h: { type: 'number', valueStyle: 'string' },
+			minVolume: { type: 'number', valueStyle: 'expression' },
+			pitch: { type: 'number', valueStyle: 'expression' },
+			radius: { type: 'number', valueStyle: 'expression' },
+			sound: { type: 'string', valueStyle: 'string' },
+			src: { type: 'resource', valueStyle: 'string' },
+			trigger: { type: 'string', valueStyle: 'string' },
+			volume: { type: 'number', valueStyle: 'expression' },
+			w: { type: 'number', valueStyle: 'string' },
+			x: { type: 'number', valueStyle: 'string' },
+			y: { type: 'number', valueStyle: 'string' }
+		}),
+		children: [],
+		snippets: []
+	};
+	setChildren(tags.FloatingImage, ['ImageAnnotation', 'SoundArea']);
+}
+
+function collectAttributesFromClass(sources: JavaSourceFile[], className: string): Record<string, GuideNhAttributeSchema> {
+	const source = findSourceByClassName(sources, className);
+	return source ? extractCompilerAttributes(source.text) : {};
+}
+
+function collectChartAxisAttributesBySource(sources: JavaSourceFile[]): Map<string, Record<string, GuideNhAttributeSchema>> {
+	const result = new Map<string, Record<string, GuideNhAttributeSchema>>();
+	for (const source of sources) {
+		const attributes: Record<string, GuideNhAttributeSchema> = {};
+		for (const call of source.text.matchAll(/parseAxisOptions\([^;]*?"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"/gs)) {
+			Object.assign(attributes, createAxisAttributes(call[1], call[2], call[3]));
+		}
+		if (Object.keys(attributes).length > 0) {
+			result.set(source.path, sortAttributes(attributes));
+		}
+	}
+	return result;
+}
+
+function createAxisAttributes(prefix: string, gridFlagAttr: string, gridColorAttr: string): Record<string, GuideNhAttributeSchema> {
+	return {
+		[`${prefix}Label`]: { type: 'string', valueStyle: 'string' },
+		[`${prefix}Min`]: { type: 'number', valueStyle: 'expression' },
+		[`${prefix}Max`]: { type: 'number', valueStyle: 'expression' },
+		[`${prefix}Step`]: { type: 'number', valueStyle: 'expression' },
+		[`${prefix}Unit`]: { type: 'string', valueStyle: 'string' },
+		[`${prefix}TickFormat`]: { type: 'string', valueStyle: 'string' },
+		[gridFlagAttr]: { type: 'boolean', valueStyle: 'expression' },
+		[gridColorAttr]: { type: 'string', valueStyle: 'string' }
+	};
+}
+
+function createChartChildTagDefinitions(source: string): ChartChildTagDefinition[] {
+	const definitions: ChartChildTagDefinition[] = [];
+	if (source.includes('"Series"')) {
+		definitions.push({
+			name: 'Series',
+			description: 'Generated from GuideNH Series chart child parser source.',
+			attributes: {
+				color: { type: 'string', valueStyle: 'string' },
+				data: { type: 'string', valueStyle: 'string' },
+				icon: { type: 'string', valueStyle: 'string' },
+				iconImage: { type: 'string', valueStyle: 'string' },
+				name: { type: 'string', valueStyle: 'string' },
+				points: { type: 'string', valueStyle: 'string' },
+				tooltip: { type: 'string', valueStyle: 'string' }
+			},
+			children: ['Point']
+		});
+	}
+	if (source.includes('"LineSeries"')) {
+		definitions.push({
+			name: 'LineSeries',
+			description: 'Generated from GuideNH LineSeries chart child parser source.',
+			attributes: {
+				color: { type: 'string', valueStyle: 'string' },
+				data: { type: 'string', valueStyle: 'string' },
+				icon: { type: 'string', valueStyle: 'string' },
+				iconImage: { type: 'string', valueStyle: 'string' },
+				name: { type: 'string', valueStyle: 'string' },
+				tooltip: { type: 'string', valueStyle: 'string' }
+			},
+			children: []
+		});
+	}
+	if (source.includes('"Slice"')) {
+		definitions.push({
+			name: 'Slice',
+			description: 'Generated from GuideNH Slice chart child parser source.',
+			attributes: {
+				color: { type: 'string', valueStyle: 'string' },
+				icon: { type: 'string', valueStyle: 'string' },
+				iconImage: { type: 'string', valueStyle: 'string' },
+				label: { type: 'string', valueStyle: 'string' },
+				name: { type: 'string', valueStyle: 'string' },
+				tooltip: { type: 'string', valueStyle: 'string' },
+				value: { type: 'number', valueStyle: 'expression' }
+			},
+			children: []
+		});
+	}
+	if (source.includes('"PieInset"')) {
+		definitions.push({
+			name: 'PieInset',
+			description: 'Generated from GuideNH PieInset chart child parser source.',
+			attributes: {
+				direction: { type: 'string', valueStyle: 'string' },
+				height: { type: 'number', valueStyle: 'expression' },
+				position: { type: 'string', valueStyle: 'string' },
+				size: { type: 'number', valueStyle: 'expression' },
+				startAngleDeg: { type: 'number', valueStyle: 'expression' },
+				title: { type: 'string', valueStyle: 'string' },
+				titleColor: { type: 'string', valueStyle: 'string' },
+				width: { type: 'number', valueStyle: 'expression' }
+			},
+			children: ['Slice']
+		});
+	}
+	definitions.push({
+		name: 'Point',
+		description: 'Generated from GuideNH point child parser source.',
+		attributes: {
+			atX: { type: 'number', valueStyle: 'expression' },
+			atY: { type: 'number', valueStyle: 'expression' },
+			color: { type: 'string', valueStyle: 'string' },
+			label: { type: 'string', valueStyle: 'string' },
+			plot: { type: 'number', valueStyle: 'expression' },
+			x: { type: 'number', valueStyle: 'expression' },
+			y: { type: 'number', valueStyle: 'expression' }
+		},
+		children: []
+	});
+	return definitions;
+}
+
+function applyChartParentChildren(tags: Record<string, GuideNhTagSchema>): void {
+	for (const name of ['ColumnChart', 'BarChart']) {
+		setChildren(tags[name], ['Series', 'LineSeries', 'PieInset']);
+	}
+	for (const name of ['LineChart', 'ScatterChart']) {
+		setChildren(tags[name], ['Series']);
+	}
+	setChildren(tags.PieChart, ['Slice']);
+	setChildren(tags.FunctionGraph, ['Plot', 'Function', 'Point']);
+}
+
+function setChildren(tag: GuideNhTagSchema | undefined, children: string[]): void {
+	if (!tag) {
+		return;
+	}
+	tag.children = mergeChildren(tag.children, children);
+}
+
+function mergeChildren(existing: string[], incoming: string[]): string[] {
+	return Array.from(new Set([...existing, ...incoming])).sort((left, right) => left.localeCompare(right));
+}
+
+function findSourceByClassName(sources: JavaSourceFile[], className: string): JavaSourceFile | undefined {
+	return sources.find((source) => {
+		return source.path.replace(/\\/g, '/').endsWith(`/${className}.java`);
+	});
+}
+
+function mergeAttributes(tag: GuideNhTagSchema | undefined, attributes: Record<string, GuideNhAttributeSchema>): void {
+	if (!tag) {
+		return;
+	}
+	tag.attributes = sortAttributes({
+		...attributes,
+		...tag.attributes
+	});
 }
 
 function extractQuotedStrings(value: string): string[] {
@@ -296,32 +910,79 @@ export async function generateSchema(guideNhRoot: string): Promise<void> {
 	const javaFiles = await collectJavaFiles(guideNhRoot);
 	const tagNames = new Set<string>();
 	const generatedTags: Record<string, GuideNhTagSchema> = {};
+	const sources: JavaSourceFile[] = [];
 	for (const file of javaFiles) {
 		const text = await fs.readFile(file, 'utf8');
+		sources.push({ path: file, text });
 		const scan = scanJavaCompilerSource(text);
 		for (const tag of scan.tagNames) {
 			tagNames.add(tag);
 		}
 		Object.assign(generatedTags, scan.tags);
 	}
-	await mergeGeneratedTags(generatedTags);
+	await mergeGeneratedTags(enhanceGeneratedTagsFromJavaSources(generatedTags, sources));
 	console.log(`GuideNH schema scan found ${tagNames.size} explicit tag names`);
 }
 
 async function mergeGeneratedTags(generatedTags: Record<string, GuideNhTagSchema>): Promise<void> {
 	const schemaPath = path.join(__dirname, '..', '..', 'src', 'schema', 'tags.json');
 	const existing = JSON.parse(await fs.readFile(schemaPath, 'utf8')) as GuideNhTagsFile;
-	const handwrittenTags = Object.fromEntries(
-		Object.entries(existing.tags).filter(([, tag]) => !tag.description.startsWith('Generated from GuideNH '))
-	);
 	const merged: GuideNhTagsFile = {
 		...existing,
-		tags: {
-			...generatedTags,
-			...handwrittenTags
-		}
+		tags: mergeTagMaps(generatedTags, existing.tags)
 	};
 	await fs.writeFile(schemaPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
+}
+
+function mergeTagMaps(
+	generatedTags: Record<string, GuideNhTagSchema>,
+	existingTags: Record<string, GuideNhTagSchema>
+): Record<string, GuideNhTagSchema> {
+	const mergedNames = new Set([...Object.keys(generatedTags), ...Object.keys(existingTags)]);
+	const merged: Record<string, GuideNhTagSchema> = {};
+	for (const name of Array.from(mergedNames).sort((left, right) => left.localeCompare(right))) {
+		const generated = generatedTags[name];
+		const existing = existingTags[name];
+		if (!generated) {
+			merged[name] = existing;
+			continue;
+		}
+		if (!existing) {
+			merged[name] = generated;
+			continue;
+		}
+		merged[name] = mergeTagSchema(generated, existing);
+	}
+	return merged;
+}
+
+function mergeTagSchema(generated: GuideNhTagSchema, existing: GuideNhTagSchema): GuideNhTagSchema {
+	const preserveExistingDescription = !existing.description.startsWith('Generated from GuideNH ');
+	const preserveExistingChildren = !existing.description.startsWith('Generated from GuideNH ') && generated.children.length === 0;
+	const mergedChildren = preserveExistingChildren ? existing.children : mergeChildren(generated.children, existing.children);
+	return {
+		...generated,
+		...existing,
+		description: preserveExistingDescription ? existing.description : generated.description,
+		attributes: mergeAttributesMap(generated.attributes, existing.attributes),
+		children: mergedChildren,
+		snippets: mergeChildren(generated.snippets, existing.snippets)
+	};
+}
+
+function mergeAttributesMap(
+	generated: Record<string, GuideNhAttributeSchema>,
+	existing: Record<string, GuideNhAttributeSchema>
+): Record<string, GuideNhAttributeSchema> {
+	const names = new Set([...Object.keys(generated), ...Object.keys(existing)]);
+	const merged: Record<string, GuideNhAttributeSchema> = {};
+	for (const name of Array.from(names).sort((left, right) => left.localeCompare(right))) {
+		merged[name] = {
+			...(generated[name] ?? {}),
+			...(existing[name] ?? {})
+		} as GuideNhAttributeSchema;
+	}
+	return merged;
 }
 
 if (require.main === module) {

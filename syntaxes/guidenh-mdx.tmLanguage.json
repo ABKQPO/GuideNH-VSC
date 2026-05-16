@@ -1,0 +1,96 @@
+{
+  "scopeName": "guidenh.mdx.injection",
+  "injectionSelector": "L:text.html.markdown, L:source.gfm",
+  "patterns": [
+    {
+      "include": "#guidenh-tag"
+    }
+  ],
+  "repository": {
+    "guidenh-tag": {
+      "begin": "(</?)([A-Z][A-Za-z0-9]*)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.guidenh"
+        },
+        "2": {
+          "name": "entity.name.tag.guidenh"
+        }
+      },
+      "end": "(/?>)",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.end.guidenh"
+        }
+      },
+      "name": "meta.tag.guidenh",
+      "patterns": [
+        {
+          "match": "\\b[A-Za-z_][A-Za-z0-9_.-]*(?=\\s*=)",
+          "name": "entity.other.attribute-name.guidenh"
+        },
+        {
+          "begin": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.guidenh"
+            }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.guidenh"
+            }
+          },
+          "name": "string.quoted.double.guidenh",
+          "patterns": [
+            {
+              "match": "#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?",
+              "name": "constant.other.color.guidenh"
+            }
+          ]
+        },
+        {
+          "begin": "'",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.guidenh"
+            }
+          },
+          "end": "'",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.guidenh"
+            }
+          },
+          "name": "string.quoted.single.guidenh"
+        },
+        {
+          "begin": "\\{",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.embedded.begin.guidenh"
+            }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.embedded.end.guidenh"
+            }
+          },
+          "name": "meta.embedded.expression.guidenh",
+          "patterns": [
+            {
+              "match": "\\b(?:true|false)\\b",
+              "name": "constant.language.boolean.guidenh"
+            },
+            {
+              "match": "-?\\d+(?:\\.\\d+)?",
+              "name": "constant.numeric.guidenh"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

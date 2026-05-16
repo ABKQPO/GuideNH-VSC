@@ -15,10 +15,32 @@ export async function indexGuideNhWorkspaceFolders(folders: WorkspaceFolder[], i
 
 export async function indexGuideNhWorkspaceFolder(folderUri: string, index: GuideNhWorkspaceIndex): Promise<void> {
 	const folderPath = URI.parse(folderUri).fsPath;
-	const filePaths = await findGuideNhMarkdownFiles(folderPath);
-	await runLimited(filePaths, WorkspaceScanReadConcurrency, async (filePath) => {
-		await indexGuideNhMarkdownFile(filePath, index);
-	});
+	const runner = new LimitedTaskRunner(WorkspaceScanReadConcurrency);
+	await visitDirectory(folderPath, runner, index);
+	await runner.waitForIdle();
+}
+
+async function visitDirectory(dir: string, runner: LimitedTaskRunner, index: GuideNhWorkspaceIndex): Promise<void> {
+	let entries: Dirent[];
+	try {
+		entries = await fs.readdir(dir, { withFileTypes: true });
+	} catch {
+		return;
+	}
+	entries.sort((left, right) => left.name.localeCompare(right.name));
+	for (const entry of entries) {
+		const fullPath = path.join(dir, entry.name);
+		if (entry.isDirectory()) {
+			if (shouldSkipDirectory(entry.name)) {
+				continue;
+			}
+			await visitDirectory(fullPath, runner, index);
+		} else if (isGuideNhMarkdownPath(fullPath)) {
+			runner.schedule(async () => {
+				await indexGuideNhMarkdownFile(fullPath, index);
+			});
+		}
+	}
 }
 
 async function indexGuideNhMarkdownFile(filePath: string, index: GuideNhWorkspaceIndex): Promise<void> {
@@ -30,50 +52,77 @@ async function indexGuideNhMarkdownFile(filePath: string, index: GuideNhWorkspac
 	}
 }
 
-async function findGuideNhMarkdownFiles(root: string): Promise<string[]> {
-	const files: string[] = [];
-	await visitDirectory(root, files);
-	return files.sort((left, right) => left.localeCompare(right));
-}
-
-async function visitDirectory(dir: string, files: string[]): Promise<void> {
-	let entries: Dirent[];
-	try {
-		entries = await fs.readdir(dir, { withFileTypes: true });
-	} catch {
-		return;
-	}
-	for (const entry of entries) {
-		const fullPath = path.join(dir, entry.name);
-		if (entry.isDirectory()) {
-			if (shouldSkipDirectory(entry.name)) {
-				continue;
-			}
-			await visitDirectory(fullPath, files);
-		} else if (isGuideNhMarkdownPath(fullPath)) {
-			files.push(fullPath);
-		}
-	}
-}
-
 function shouldSkipDirectory(name: string): boolean {
 	return name === 'node_modules' || name === '.git' || name === '.vscode-test' || name === 'out' || name === 'dist';
 }
 
 function isGuideNhMarkdownPath(filePath: string): boolean {
 	const normalized = filePath.replace(/\\/g, '/');
-	return /\/assets\/[^/]+\/guidenh\/_[a-z]{2}_[a-z]{2}\/.+\.md$/i.test(normalized);
+	return /\/assets\/[^/]+\/guidenh\/(?:guidenh\/)?_[a-z]{2}_[a-z]{2}\/.+\.md$/i.test(normalized);
 }
 
-async function runLimited<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> {
-	let nextIndex = 0;
-	const workerCount = Math.min(concurrency, items.length);
-	const workers = Array.from({ length: workerCount }, async () => {
-		while (nextIndex < items.length) {
-			const item = items[nextIndex];
-			nextIndex++;
-			await worker(item);
+class LimitedTaskRunner {
+	private active = 0;
+	private queueOffset = 0;
+	private readonly queue: Array<() => void> = [];
+	private readonly idleResolvers: Array<() => void> = [];
+
+	public constructor(private readonly concurrency: number) {}
+
+	schedule(task: () => Promise<void>): void {
+		const run = () => {
+			this.active++;
+			void task()
+				.catch(() => undefined)
+				.finally(() => {
+					this.active--;
+					this.startNext();
+					this.resolveIdleIfDone();
+				});
+		};
+		if (this.active < this.concurrency) {
+			run();
+			return;
 		}
-	});
-	await Promise.all(workers);
+		this.queue.push(run);
+	}
+
+	waitForIdle(): Promise<void> {
+		if (this.isIdle()) {
+			return Promise.resolve();
+		}
+		return new Promise((resolve) => {
+			this.idleResolvers.push(resolve);
+		});
+	}
+
+	private startNext(): void {
+		const next = this.queue[this.queueOffset];
+		if (next) {
+			this.queueOffset++;
+			this.compactQueueIfNeeded();
+			next();
+		}
+	}
+
+	private compactQueueIfNeeded(): void {
+		if (this.queueOffset < 256 || this.queueOffset * 2 < this.queue.length) {
+			return;
+		}
+		this.queue.splice(0, this.queueOffset);
+		this.queueOffset = 0;
+	}
+
+	private resolveIdleIfDone(): void {
+		if (!this.isIdle()) {
+			return;
+		}
+		while (this.idleResolvers.length > 0) {
+			this.idleResolvers.shift()?.();
+		}
+	}
+
+	private isIdle(): boolean {
+		return this.active === 0 && this.queueOffset >= this.queue.length;
+	}
 }

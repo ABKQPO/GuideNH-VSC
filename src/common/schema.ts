@@ -1,8 +1,10 @@
 export interface GuideNhAttributeSchema {
 	type: 'string' | 'number' | 'boolean' | 'enum' | 'item' | 'ore' | 'resource' | 'page' | 'color';
 	required?: boolean;
+	requiredWhenMissing?: string[];
 	values?: string[];
 	description?: string;
+	valueStyle?: 'string' | 'expression' | 'bare';
 }
 
 export interface GuideNhTagSchema {

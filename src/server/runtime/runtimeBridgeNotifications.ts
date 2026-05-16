@@ -20,6 +20,10 @@ export interface RuntimeBridgeStatusSender {
 	sendNotification(method: string, payload: unknown): void;
 }
 
+export interface RuntimeBridgeLogSender {
+	info(message: string): void;
+}
+
 export function createRuntimeBridgeNotificationHandlers(
 	controller: RuntimeBridgeConnectionController
 ): Record<string, RuntimeBridgeNotificationHandler> {
@@ -39,5 +43,11 @@ export function createRuntimeBridgeNotificationHandlers(
 export function wireRuntimeBridgeStatus(sender: RuntimeBridgeStatusSender): (status: RuntimeBridgeStatusParams) => void {
 	return (status) => {
 		sender.sendNotification(RuntimeBridgeStatusNotification, status);
+	};
+}
+
+export function wireRuntimeBridgeLogs(sender: RuntimeBridgeLogSender): (message: string) => void {
+	return (message) => {
+		sender.info(message);
 	};
 }

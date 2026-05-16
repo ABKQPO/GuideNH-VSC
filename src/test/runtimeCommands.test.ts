@@ -11,6 +11,7 @@ import {
 suite('GuideNH runtime bridge commands', () => {
 	test('sends explicit runtime bridge settings to the language server', async () => {
 		const notifications: Array<{ method: string; payload: unknown }> = [];
+		const logs: string[] = [];
 		const sender: RuntimeBridgeNotificationSender = {
 			sendNotification: async (method, payload) => {
 				notifications.push({ method, payload });
@@ -26,6 +27,11 @@ suite('GuideNH runtime bridge commands', () => {
 				runtimeAllowRemote: false
 			}),
 			sender,
+			logger: {
+				appendLine: (message) => {
+					logs.push(message);
+				}
+			},
 			activeTextEditor: () => undefined,
 			showInformationMessage: async () => undefined,
 			showErrorMessage: async () => undefined
@@ -37,6 +43,7 @@ suite('GuideNH runtime bridge commands', () => {
 			method: RuntimeBridgeConnectNotification,
 			payload: { host: 'localhost', port: 8765, token: 'secret', allowRemote: false }
 		}]);
+		assert.deepStrictEqual(logs, ['GuideNH runtime bridge connect requested: localhost:8765']);
 	});
 
 	test('rejects runtime bridge hosts with url syntax', async () => {
@@ -55,6 +62,7 @@ suite('GuideNH runtime bridge commands', () => {
 				},
 				onNotification: () => ({ dispose: () => undefined })
 			},
+			logger: { appendLine: () => undefined },
 			activeTextEditor: () => undefined,
 			showInformationMessage: async () => undefined,
 			showErrorMessage: async (message) => {
@@ -85,6 +93,7 @@ suite('GuideNH runtime bridge commands', () => {
 				},
 				onNotification: () => ({ dispose: () => undefined })
 			},
+			logger: { appendLine: () => undefined },
 			activeTextEditor: () => undefined,
 			showInformationMessage: async () => undefined,
 			showErrorMessage: async (message) => {
@@ -115,6 +124,7 @@ suite('GuideNH runtime bridge commands', () => {
 				},
 				onNotification: () => ({ dispose: () => undefined })
 			},
+			logger: { appendLine: () => undefined },
 			activeTextEditor: () => undefined,
 			showInformationMessage: async () => undefined,
 			showErrorMessage: async () => undefined
@@ -144,6 +154,7 @@ suite('GuideNH runtime bridge commands', () => {
 				},
 				onNotification: () => ({ dispose: () => undefined })
 			},
+			logger: { appendLine: () => undefined },
 			activeTextEditor: () => undefined,
 			showInformationMessage: async () => undefined,
 			showErrorMessage: async (message) => {
@@ -174,6 +185,7 @@ suite('GuideNH runtime bridge commands', () => {
 				},
 				onNotification: () => ({ dispose: () => undefined })
 			},
+			logger: { appendLine: () => undefined },
 			activeTextEditor: () => ({
 				uri: 'file:///repo/page.md',
 				languageId: 'markdown',
@@ -211,6 +223,7 @@ suite('GuideNH runtime bridge commands', () => {
 				},
 				onNotification: () => ({ dispose: () => undefined })
 			},
+			logger: { appendLine: () => undefined },
 			activeTextEditor: () => undefined,
 			showInformationMessage: async () => undefined,
 			showErrorMessage: async (message) => {
@@ -241,6 +254,7 @@ suite('GuideNH runtime bridge commands', () => {
 				},
 				onNotification: () => ({ dispose: () => undefined })
 			},
+			logger: { appendLine: () => undefined },
 			activeTextEditor: () => ({
 				uri: 'file:///repo/page.txt',
 				languageId: 'plaintext',
@@ -275,6 +289,7 @@ suite('GuideNH runtime bridge commands', () => {
 				},
 				onNotification: () => ({ dispose: () => undefined })
 			},
+			logger: { appendLine: () => undefined },
 			activeTextEditor: () => ({
 				uri: 'file:///repo/large.md',
 				languageId: 'markdown',

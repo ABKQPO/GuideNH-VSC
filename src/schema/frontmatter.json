@@ -23,6 +23,7 @@
     "author": { "type": "string", "description": "Page author." },
     "authors": { "type": "list", "description": "Page authors." },
     "date": { "type": "date", "description": "Creation date." },
+    "title": { "type": "string", "description": "Page title override." },
     "updated": { "type": "date", "description": "Updated date." },
     "zoom": { "type": "number", "description": "Page content zoom." }
   }

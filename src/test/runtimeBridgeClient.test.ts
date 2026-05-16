@@ -3,6 +3,8 @@ import { WebSocketServer } from 'ws';
 import { RuntimeBridgeClient, RuntimeBridgeStatus } from '../server/runtime/runtimeBridgeClient';
 import { SemanticCache } from '../server/runtime/semanticCache';
 
+const DefaultCapabilities = ['categories', 'commands', 'items', 'keybinds', 'mods', 'ores', 'pages', 'quests', 'recipes', 'sounds'];
+
 suite('GuideNH runtime bridge client', () => {
 	test('queries semantic pages after hello succeeds', async () => {
 		const server = new WebSocketServer({ port: 0 });
@@ -26,6 +28,10 @@ suite('GuideNH runtime bridge client', () => {
 							limits: { maxPageSize: 200 }
 						}
 					}));
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
 					return;
 				}
 				if (message.method === 'semantic.query') {
@@ -53,7 +59,7 @@ suite('GuideNH runtime bridge client', () => {
 			assert.strictEqual(cache.queryPrefix('items', 'minecraft:s')[0]?.label, 'Stone');
 			assert.deepStrictEqual(
 				Array.from(queriedCapabilities).sort(),
-				['categories', 'items', 'keybinds', 'mods', 'ores', 'pages', 'quests', 'recipes', 'sounds']
+				['categories', 'commands', 'items', 'keybinds', 'mods', 'ores', 'pages', 'quests', 'recipes', 'sounds']
 			);
 		} finally {
 			client.disconnect();
@@ -72,6 +78,10 @@ suite('GuideNH runtime bridge client', () => {
 				const message = JSON.parse(data.toString()) as { id: string; method: string; payload: { capability: string; cursor: string } };
 				if (message.method === 'hello') {
 					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
 					return;
 				}
 				if (message.method === 'semantic.query' && message.payload.capability === 'items') {
@@ -108,6 +118,10 @@ suite('GuideNH runtime bridge client', () => {
 				const message = JSON.parse(data.toString()) as { id: string; method: string };
 				if (message.method === 'hello') {
 					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
 				}
 			});
 		});
@@ -117,6 +131,46 @@ suite('GuideNH runtime bridge client', () => {
 			await waitFor(() => statuses.some((status) => status.state === 'connected'));
 			assert.strictEqual(statuses[0].state, 'connecting');
 			assert.ok(statuses.some((status) => status.state === 'connected'));
+		} finally {
+			client.disconnect();
+			await closeServer(server);
+		}
+	});
+
+	test('uses server-reported capabilities before bootstrapping semantic queries', async () => {
+		const server = new WebSocketServer({ port: 0 });
+		const port = await listenPort(server);
+		const cache = new SemanticCache();
+		const client = new RuntimeBridgeClient(cache);
+		const queriedCapabilities: string[] = [];
+
+		server.on('connection', (socket) => {
+			socket.on('message', (data) => {
+				const message = JSON.parse(data.toString()) as { id: string; method: string; payload?: { capability?: string } };
+				if (message.method === 'hello') {
+					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: ['items', 'pages'] })));
+					return;
+				}
+				if (message.method === 'semantic.query' && message.payload?.capability) {
+					queriedCapabilities.push(message.payload.capability);
+					socket.send(JSON.stringify(response(message.id, 'semantic.query', {
+						capability: message.payload.capability,
+						version: 1,
+						entries: [],
+						nextCursor: null
+					})));
+				}
+			});
+		});
+
+		try {
+			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
+			await waitFor(() => queriedCapabilities.length === 2);
+			assert.deepStrictEqual(queriedCapabilities.sort(), ['items', 'pages']);
 		} finally {
 			client.disconnect();
 			await closeServer(server);
@@ -179,6 +233,10 @@ suite('GuideNH runtime bridge client', () => {
 					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
 					return;
 				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
+					return;
+				}
 				if (message.method === 'semantic.query' && message.payload?.capability === 'items') {
 					socket.send(JSON.stringify(response(message.id, 'semantic.query', {
 						capability: 'items',
@@ -223,6 +281,10 @@ suite('GuideNH runtime bridge client', () => {
 						entries: [{ id: 'bad:value' }],
 						nextCursor: null
 					})));
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
 				}
 			});
 		});
@@ -254,6 +316,10 @@ suite('GuideNH runtime bridge client', () => {
 				if (message.method === 'hello') {
 					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
 					socket.send('x'.repeat(262145));
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
 				}
 			});
 		});
@@ -262,6 +328,35 @@ suite('GuideNH runtime bridge client', () => {
 			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
 			await waitFor(() => statuses.some((status) => status.state === 'error'));
 			assert.ok(statuses.find((status) => status.state === 'error')?.message?.includes('too large'));
+		} finally {
+			client.disconnect();
+			await closeServer(server);
+		}
+	});
+
+	test('limits websocket payloads before dispatching messages', async () => {
+		const server = new WebSocketServer({ port: 0 });
+		const port = await listenPort(server);
+		const statuses: RuntimeBridgeStatus[] = [];
+		const client = new RuntimeBridgeClient(new SemanticCache(), {
+			onStatus: (status) => {
+				statuses.push(status);
+			}
+		});
+
+		server.on('connection', (socket) => {
+			socket.on('message', (data) => {
+				const message = JSON.parse(data.toString()) as { method: string };
+				if (message.method === 'hello') {
+					socket.send('x'.repeat(262145));
+				}
+			});
+		});
+
+		try {
+			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
+			await waitFor(() => statuses.some((status) => status.state === 'error'));
+			assert.ok(statuses.find((status) => status.state === 'error')?.message);
 		} finally {
 			client.disconnect();
 			await closeServer(server);
@@ -311,6 +406,10 @@ suite('GuideNH runtime bridge client', () => {
 					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
 					return;
 				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
+					return;
+				}
 				if (message.method === 'document.validate') {
 					validationRequests.push(message.payload);
 					socket.send(JSON.stringify(response(message.id, 'document.validate', { diagnostics: [] })));
@@ -345,6 +444,10 @@ suite('GuideNH runtime bridge client', () => {
 				const message = JSON.parse(data.toString()) as { id: string; method: string };
 				if (message.method === 'hello') {
 					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
 					return;
 				}
 				if (message.method === 'document.validate') {
@@ -383,6 +486,10 @@ suite('GuideNH runtime bridge client', () => {
 				if (message.method === 'hello') {
 					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
 					socket.send(JSON.stringify(response('document.validate.999', 'document.validate', { diagnostics: [] })));
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
 				}
 			});
 		});

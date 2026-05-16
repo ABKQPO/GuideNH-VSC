@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { extractTagNamesFromJavaSource, scanJavaCompilerSource } from '../scripts/generateSchema';
+import { enhanceGeneratedTagsFromJavaSources, extractTagNamesFromJavaSource, scanJavaCompilerSource } from '../scripts/generateSchema';
 
 suite('GuideNH schema generator', () => {
 	test('extracts registered compiler tag names', () => {
@@ -88,10 +88,10 @@ suite('GuideNH schema generator', () => {
 		`;
 		const result = scanJavaCompilerSource(source);
 		assert.deepStrictEqual(result.tags.Latex.attributes, {
-			color: { type: 'color' },
-			formula: { type: 'string' },
-			scale: { type: 'number' },
-			showTooltip: { type: 'boolean' }
+			color: { type: 'color', valueStyle: 'string' },
+			formula: { type: 'string', valueStyle: 'string' },
+			scale: { type: 'number', valueStyle: 'expression' },
+			showTooltip: { type: 'boolean', valueStyle: 'expression' }
 		});
 	});
 
@@ -110,11 +110,11 @@ suite('GuideNH schema generator', () => {
 		`;
 		const result = scanJavaCompilerSource(source);
 		assert.deepStrictEqual(result.tags.ImportStructure.attributes, {
-			linksTo: { type: 'page' },
-			src: { type: 'resource' },
-			title: { type: 'string' },
-			visible: { type: 'boolean' },
-			width: { type: 'number' }
+			linksTo: { type: 'page', valueStyle: 'string' },
+			src: { type: 'resource', valueStyle: 'string' },
+			title: { type: 'string', valueStyle: 'string' },
+			visible: { type: 'boolean', valueStyle: 'expression' },
+			width: { type: 'number', valueStyle: 'string' }
 		});
 	});
 
@@ -130,7 +130,139 @@ suite('GuideNH schema generator', () => {
 		`;
 		const result = scanJavaCompilerSource(source);
 		assert.deepStrictEqual(result.tags.Scene.attributes, {
-			maxHeight: { type: 'number' }
+			maxHeight: { type: 'number', valueStyle: 'string' }
+		});
+	});
+
+	test('extracts implicit item id and ore attributes from item stack helpers', () => {
+		const source = `
+			public Set<String> getTagNames() {
+				return Collections.singleton("ItemImage");
+			}
+			protected void compile(PageCompiler compiler, LytErrorSink errorSink, MdxJsxElementFields el) {
+				var stack = MdxAttrs.getRequiredItemStack(compiler, errorSink, el);
+			}
+		`;
+		const result = scanJavaCompilerSource(source);
+		assert.deepStrictEqual(result.tags.ItemImage.attributes, {
+			id: { type: 'item', valueStyle: 'string' },
+			ore: { type: 'ore', valueStyle: 'string' }
+		});
+	});
+
+	test('extracts block references as item-like ids', () => {
+		const source = `
+			public Set<String> getTagNames() {
+				return Collections.singleton("BlockImage");
+			}
+			protected void compile(PageCompiler compiler, LytErrorSink errorSink, MdxJsxElementFields el) {
+				var blockReference = MdxAttrs.getRequiredBlockReference(compiler, errorSink, el, "id");
+			}
+		`;
+		const result = scanJavaCompilerSource(source);
+		assert.deepStrictEqual(result.tags.BlockImage.attributes, {
+			id: { type: 'item', valueStyle: 'string' }
+		});
+	});
+
+	test('merges common chart and axis attributes into chart compilers', () => {
+		const commonChartAttrs = `
+			public class CommonChartAttrs {
+				public static void apply(LytChartBase chart, PageCompiler compiler, LytErrorSink errorSink, MdxJsxElementFields el) {
+					chart.setTitle(MdxAttrs.getString(compiler, errorSink, el, "title", null));
+					int w = MdxAttrs.getInt(compiler, errorSink, el, "width", -1);
+					int h = MdxAttrs.getInt(compiler, errorSink, el, "height", -1);
+					String titleColor = MdxAttrs.getString(compiler, errorSink, el, "titleColor", null);
+				}
+			}
+		`;
+		const columnChart = `
+			public class ColumnChartCompiler extends BlockTagCompiler {
+				public Set<String> getTagNames() {
+					return Collections.singleton("ColumnChart");
+				}
+				protected void compile(PageCompiler compiler, LytBlockContainer parent, MdxJsxElementFields el) {
+					CommonChartAttrs.apply(chart, compiler, parent, el);
+					ChartAttrParser.parseAxisOptions(compiler, parent, el, "yAxis", "showYGrid", "yGridColor");
+					String categories = MdxAttrs.getString(compiler, parent, el, "categories", null);
+				}
+			}
+		`;
+		const scanned = scanJavaCompilerSource(columnChart).tags;
+		const enhanced = enhanceGeneratedTagsFromJavaSources(scanned, [
+			{ path: '/chart/CommonChartAttrs.java', text: commonChartAttrs },
+			{ path: '/chart/ColumnChartCompiler.java', text: columnChart }
+		]);
+
+		assert.deepStrictEqual(enhanced.ColumnChart.attributes, {
+			categories: { type: 'string', valueStyle: 'string' },
+			height: { type: 'number', valueStyle: 'string' },
+			showYGrid: { type: 'boolean', valueStyle: 'expression' },
+			title: { type: 'string', valueStyle: 'string' },
+			titleColor: { type: 'string', valueStyle: 'string' },
+			width: { type: 'number', valueStyle: 'string' },
+			yAxisLabel: { type: 'string', valueStyle: 'string' },
+			yAxisMax: { type: 'number', valueStyle: 'expression' },
+			yAxisMin: { type: 'number', valueStyle: 'expression' },
+			yAxisStep: { type: 'number', valueStyle: 'expression' },
+			yAxisTickFormat: { type: 'string', valueStyle: 'string' },
+			yAxisUnit: { type: 'string', valueStyle: 'string' },
+			yGridColor: { type: 'string', valueStyle: 'string' }
+		});
+	});
+
+	test('creates chart child tag schemas from shared child parser', () => {
+		const childParser = `
+			public class ChartChildParser {
+				private static void parseSeriesInternal(PageCompiler compiler, LytErrorSink errorSink, MdxJsxElementFields childEl) {
+					if (!"Series".equals(name)) return;
+					String seriesName = MdxAttrs.getString(compiler, errorSink, childEl, "name", "");
+					String colorStr = MdxAttrs.getString(compiler, errorSink, childEl, "color", null);
+					String data = MdxAttrs.getString(compiler, errorSink, childEl, "data", "");
+				}
+				public static List<PieSlice> parseSlices(PageCompiler compiler, LytErrorSink errorSink, MdxJsxElementFields parentEl) {
+					if (!"Slice".equals(name)) return;
+				}
+				public static PieInsetSpec parsePieInset(PageCompiler compiler, LytErrorSink errorSink, MdxJsxElementFields parentEl) {
+					if (!"PieInset".equals(name)) return;
+				}
+				public static List<ChartSeries> parseLineOverlays(PageCompiler compiler, LytErrorSink errorSink, MdxJsxElementFields parentEl) {
+					if (!"LineSeries".equals(name)) return;
+				}
+			}
+		`;
+		const enhanced = enhanceGeneratedTagsFromJavaSources({}, [
+			{ path: '/chart/ChartChildParser.java', text: childParser }
+		]);
+
+		assert.deepStrictEqual(enhanced.Series.attributes, {
+			color: { type: 'string', valueStyle: 'string' },
+			data: { type: 'string', valueStyle: 'string' },
+			icon: { type: 'string', valueStyle: 'string' },
+			iconImage: { type: 'string', valueStyle: 'string' },
+			name: { type: 'string', valueStyle: 'string' },
+			points: { type: 'string', valueStyle: 'string' },
+			tooltip: { type: 'string', valueStyle: 'string' }
+		});
+		assert.deepStrictEqual(enhanced.Series.children, ['Point']);
+		assert.deepStrictEqual(enhanced.Point.attributes, {
+			atX: { type: 'number', valueStyle: 'expression' },
+			atY: { type: 'number', valueStyle: 'expression' },
+			color: { type: 'string', valueStyle: 'string' },
+			label: { type: 'string', valueStyle: 'string' },
+			plot: { type: 'number', valueStyle: 'expression' },
+			x: { type: 'number', valueStyle: 'expression' },
+			y: { type: 'number', valueStyle: 'expression' }
+		});
+		assert.deepStrictEqual(enhanced.Slice.attributes, {
+			color: { type: 'string', valueStyle: 'string' },
+			icon: { type: 'string', valueStyle: 'string' },
+			iconImage: { type: 'string', valueStyle: 'string' },
+			label: { type: 'string', valueStyle: 'string' },
+			name: { type: 'string', valueStyle: 'string' }
+			,
+			tooltip: { type: 'string', valueStyle: 'string' },
+			value: { type: 'number', valueStyle: 'expression' }
 		});
 	});
 });

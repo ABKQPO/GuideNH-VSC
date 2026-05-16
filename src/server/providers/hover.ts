@@ -1,5 +1,6 @@
 import { Hover, MarkupKind } from 'vscode-languageserver/node';
 import { GuideNhFrontmatterKey, GuideNhSchemaBundle } from '../../common/schema';
+import { maskIgnoredMarkdownRanges } from '../parser/documentParser';
 import { extractFrontmatter } from '../parser/frontmatter';
 
 interface TagContext {
@@ -14,11 +15,12 @@ interface FrontmatterKeyContext {
 }
 
 export function createGuideNhHover(text: string, offset: number, schema: GuideNhSchemaBundle): Hover | undefined {
+	const maskedText = maskIgnoredMarkdownRanges(text);
 	const frontmatterHover = createFrontmatterHover(text, offset, schema);
 	if (frontmatterHover) {
 		return frontmatterHover;
 	}
-	const tagContext = findTagContext(text, offset);
+	const tagContext = findTagContext(maskedText, offset);
 	if (!tagContext) {
 		return undefined;
 	}

@@ -1,6 +1,7 @@
 import { Diagnostic, DiagnosticSeverity, Position } from 'vscode-languageserver/node';
 import { GuideNhAttributeSchema, GuideNhFrontmatterKey, GuideNhSchemaBundle } from '../../common/schema';
 import { GuideNhWorkspaceIndex } from '../index/workspaceIndex';
+import { localizeServer } from '../localization';
 import { findPageReferences } from '../navigation/pageReferences';
 import { GuideNhParsedTag, parseGuideNhDocument } from '../parser/documentParser';
 
@@ -30,36 +31,36 @@ export function createGuideNhDiagnostics(text: string, schema: GuideNhSchemaBund
 		if (tag.closing) {
 			const parentTag = parentStack[parentStack.length - 1];
 			if (parentTag && parentTag.name !== tag.name) {
-				diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Closing tag ${tag.name} does not match ${parentTag.name}`));
+				diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.closingTagMismatch', tag.name, parentTag.name)));
 			}
 			popParentTag(parentStack, tag.name);
 			continue;
 		}
 		const tagSchema = schema.tags.tags[tag.name];
 		if (!tagSchema) {
-			diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Unknown GuideNH tag ${tag.name}`));
+			diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.unknownTag', tag.name)));
 			continue;
 		}
 		const parentTag = parentStack[parentStack.length - 1];
 		const parentSchema = parentTag ? schema.tags.tags[parentTag.name] : undefined;
 		if (parentTag && parentSchema && parentSchema.children.length > 0 && !parentSchema.children.includes(tag.name)) {
-			diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Tag ${tag.name} is not allowed inside ${parentTag.name}`));
+			diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.tagNotAllowed', tag.name, parentTag.name)));
 		}
 		for (const attributeName of Object.keys(tag.attributes)) {
 			const attributeSchema = tagSchema.attributes[attributeName];
 			if (!attributeSchema) {
-				diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Unknown attribute ${attributeName} on ${tag.name}`));
+				diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.unknownAttribute', attributeName, tag.name)));
 				continue;
 			}
-			const typeError = validateAttributeValueType(attributeSchema, tag.attributes[attributeName]);
+			const typeError = validateAttributeValueType(attributeSchema, tag.attributes[attributeName], tag.attributeValueStyles[attributeName]);
 			if (typeError) {
 				const range = tag.attributeRanges[attributeName] ?? { start: tag.start, end: tag.end };
-				diagnostics.push(createDiagnostic(text, range.start, range.end, `Attribute ${attributeName} on ${tag.name} expects ${typeError} value`));
+				diagnostics.push(createDiagnostic(text, range.start, range.end, localizeServer('diagnostic.attributeExpects', attributeName, tag.name, typeError)));
 			}
 		}
 		for (const [attributeName, attribute] of Object.entries(tagSchema.attributes)) {
-			if (attribute.required && tag.attributes[attributeName] === undefined) {
-				diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Missing required attribute ${attributeName} on ${tag.name}`));
+			if (isAttributeMissing(tag.attributes, attributeName, attribute)) {
+				diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.missingAttribute', attributeName, tag.name)));
 			}
 		}
 		if (!tag.selfClosing) {
@@ -67,7 +68,7 @@ export function createGuideNhDiagnostics(text: string, schema: GuideNhSchemaBund
 		}
 	}
 	for (const tag of parentStack) {
-		diagnostics.push(createDiagnostic(text, tag.start, tag.end, `Unclosed GuideNH tag ${tag.name}`));
+		diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.unclosedTag', tag.name)));
 	}
 	return diagnostics;
 }
@@ -75,7 +76,21 @@ export function createGuideNhDiagnostics(text: string, schema: GuideNhSchemaBund
 function createPageReferenceDiagnostics(text: string, index: GuideNhWorkspaceIndex): Diagnostic[] {
 	return findPageReferences(text)
 		.filter((reference) => !index.findPageByRelativePath(reference.target))
-		.map((reference) => createDiagnostic(text, reference.start, reference.end, `Unknown GuideNH page ${reference.target}`));
+		.map((reference) => createDiagnostic(text, reference.start, reference.end, localizeServer('diagnostic.unknownPage', reference.target)));
+}
+
+function isAttributeMissing(
+	attributes: Record<string, string | true>,
+	attributeName: string,
+	attribute: GuideNhAttributeSchema
+): boolean {
+	if (attributes[attributeName] !== undefined) {
+		return false;
+	}
+	if (attribute.requiredWhenMissing && attribute.requiredWhenMissing.some((name) => attributes[name] !== undefined)) {
+		return false;
+	}
+	return attribute.required === true;
 }
 
 function popParentTag(parentStack: GuideNhParsedTag[], tagName: string): void {
@@ -121,7 +136,7 @@ function createFrontmatterDiagnostics(text: string, frontmatter: string, schema:
 			if (!keySchema) {
 				const qualifiedKey = [...parentPath, key].join('.');
 				const start = lineStart + indent;
-				diagnostics.push(createDiagnostic(text, start, start + key.length, `Unknown frontmatter key ${qualifiedKey}`));
+				diagnostics.push(createDiagnostic(text, start, start + key.length, localizeServer('diagnostic.unknownFrontmatterKey', qualifiedKey)));
 				unknownParentIndents.add(indent);
 			} else {
 				const qualifiedKey = [...parentPath, key].join('.');
@@ -129,7 +144,7 @@ function createFrontmatterDiagnostics(text: string, frontmatter: string, schema:
 				const valueStart = lineStart + line.indexOf(match[3]) + match[3].search(/\S/);
 				const typeError = validateFrontmatterValueType(keySchema, value);
 				if (typeError && value.length > 0) {
-					diagnostics.push(createDiagnostic(text, valueStart, valueStart + value.length, `Frontmatter key ${qualifiedKey} expects ${typeError} value`));
+					diagnostics.push(createDiagnostic(text, valueStart, valueStart + value.length, localizeServer('diagnostic.frontmatterExpects', qualifiedKey, typeError)));
 				}
 			}
 			parentByIndent.set(indent, key);
@@ -170,9 +185,18 @@ function validateFrontmatterValueType(key: GuideNhFrontmatterKey, value: string)
 	return undefined;
 }
 
-function validateAttributeValueType(attribute: GuideNhAttributeSchema, value: string | true): string | undefined {
+function validateAttributeValueType(attribute: GuideNhAttributeSchema, value: string | true, valueStyle?: string): string | undefined {
 	if (value === true) {
 		return attribute.type === 'boolean' ? undefined : attribute.type;
+	}
+	if (acceptsBooleanLikeString(attribute, value)) {
+		return undefined;
+	}
+	if (attribute.type === 'boolean' && attribute.valueStyle === 'expression' && valueStyle === 'string') {
+		return 'boolean';
+	}
+	if (attribute.valueStyle === 'string' && valueStyle === 'expression') {
+		return attribute.type;
 	}
 	if (attribute.type === 'number') {
 		return /^-?\d+(?:\.\d+)?$/.test(value) ? undefined : 'number';
@@ -181,7 +205,9 @@ function validateAttributeValueType(attribute: GuideNhAttributeSchema, value: st
 		return /^(?:true|false)$/i.test(value) ? undefined : 'boolean';
 	}
 	if (attribute.type === 'color') {
-		return /^(?:#[0-9a-fA-F]{6}|0x[0-9a-fA-F]{6}|[A-Za-z_][\w.-]*)$/.test(value) ? undefined : 'color';
+		return /^(?:#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8}|0x[0-9a-fA-F]{6}|0x[0-9a-fA-F]{8}|[A-Za-z_][\w.-]*)$/.test(value)
+			? undefined
+			: 'color';
 	}
 	if (attribute.type === 'enum') {
 		return !attribute.values || attribute.values.includes(value) ? undefined : 'enum';
@@ -190,6 +216,13 @@ function validateAttributeValueType(attribute: GuideNhAttributeSchema, value: st
 		return value.trim().length > 0 ? undefined : attribute.type;
 	}
 	return undefined;
+}
+
+function acceptsBooleanLikeString(attribute: GuideNhAttributeSchema, value: string): boolean {
+	if (attribute.type !== 'string') {
+		return false;
+	}
+	return /^(?:true|false)$/i.test(value);
 }
 
 function offsetToPosition(text: string, offset: number): Position {

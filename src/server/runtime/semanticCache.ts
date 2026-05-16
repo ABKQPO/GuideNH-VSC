@@ -5,6 +5,8 @@ interface CapabilityCache {
 	stale: boolean;
 	entries: SemanticEntry[];
 	keys: string[];
+	labels: string[];
+	details: string[];
 }
 
 export class SemanticCache {
@@ -18,6 +20,8 @@ export class SemanticCache {
 			version,
 			entries: indexedEntries,
 			keys: indexedEntries.map((entry) => entry.id.toLowerCase()),
+			labels: indexedEntries.map((entry) => (entry.label ?? '').toLowerCase()),
+			details: indexedEntries.map((entry) => (entry.detail ?? '').toLowerCase()),
 			stale: false
 		});
 	}
@@ -34,14 +38,31 @@ export class SemanticCache {
 		if (!cache) {
 			return [];
 		}
+		if (prefix.length === 0) {
+			return cache.entries.slice(0, limit);
+		}
 		const lowered = prefix.toLowerCase();
 		const start = lowerBound(cache.keys, lowered);
 		const matches: SemanticEntry[] = [];
+		const seenKeys = new Set<string>();
 		for (let index = start; index < cache.entries.length && matches.length < limit; index++) {
 			if (!cache.keys[index].startsWith(lowered)) {
 				break;
 			}
 			matches.push(cache.entries[index]);
+			seenKeys.add(cache.keys[index]);
+		}
+		if (matches.length >= limit) {
+			return matches;
+		}
+		for (let index = 0; index < cache.entries.length && matches.length < limit; index++) {
+			if (seenKeys.has(cache.keys[index])) {
+				continue;
+			}
+			if (cache.labels[index].startsWith(lowered) || cache.details[index].startsWith(lowered)) {
+				matches.push(cache.entries[index]);
+				seenKeys.add(cache.keys[index]);
+			}
 		}
 		return matches;
 	}

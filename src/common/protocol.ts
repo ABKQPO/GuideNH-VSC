@@ -40,6 +40,11 @@ export interface RuntimeBridgeStatusParams {
 	message?: string;
 }
 
+export interface GuideNhInitializationOptions {
+	locale?: string;
+	resourcePackPath?: string;
+}
+
 export interface BridgeError {
 	code: string;
 	message: string;
@@ -65,6 +70,10 @@ export interface SemanticQueryResultPayload {
 	version: number;
 	entries: SemanticEntry[];
 	nextCursor?: string | null;
+}
+
+export interface RuntimeCapabilitiesPayload {
+	capabilities: string[];
 }
 
 export interface RuntimeDocumentValidationPayload {
@@ -105,6 +114,16 @@ export function createSemanticQueryMessage(
 			prefix: '',
 			filters: {}
 		}
+	};
+}
+
+export function createCapabilitiesMessage(id = 'capabilities'): BridgeEnvelope<Record<string, never>> {
+	return {
+		id,
+		type: 'request',
+		method: 'capabilities',
+		protocol: 1,
+		payload: {}
 	};
 }
 

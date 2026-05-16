@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { CompletionItem, CompletionItemKind, InsertTextFormat } from 'vscode-languageserver/node';
+import { shouldTriggerGuideNhSuggest } from '../client/completionAssist';
 import { GuideNhWorkspaceIndex } from '../server/index/workspaceIndex';
 import { createGuideNhCompletions, GuideNhCompletionTriggerCharacters } from '../server/providers/completion';
 import { SemanticCache } from '../server/runtime/semanticCache';
@@ -16,13 +17,109 @@ suite('GuideNH completion provider', () => {
 	test('completes tags after opening angle bracket', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const items = createGuideNhCompletions('<', 1, schema, undefined);
-		assert.ok(items.some((item: CompletionItem) => item.label === 'GameScene' && item.kind === CompletionItemKind.Class));
+		const gameScene = items.find((item: CompletionItem) => item.label === 'GameScene' && item.kind === CompletionItemKind.Class);
+		assert.ok(gameScene);
+		assert.strictEqual(gameScene?.insertTextFormat, InsertTextFormat.Snippet);
+		assert.strictEqual(gameScene?.insertText, '<GameScene>$0</GameScene>');
+	});
+
+	test('completes inline tags as self-closing snippets after opening angle bracket', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const items = createGuideNhCompletions('<ItemI', 6, schema, undefined);
+		const itemImage = items.find((item: CompletionItem) => item.label === 'ItemImage' && item.kind === CompletionItemKind.Class);
+		assert.ok(itemImage);
+		assert.strictEqual(itemImage?.insertTextFormat, InsertTextFormat.Snippet);
+		assert.strictEqual(itemImage?.insertText, '<ItemImage $0 />');
 	});
 
 	test('completes GameScene attributes', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const items = createGuideNhCompletions('<GameScene ', 11, schema, undefined);
-		assert.ok(items.some((item: CompletionItem) => item.label === 'interactive'));
+		const width = items.find((item: CompletionItem) => item.label === 'width');
+		const zoom = items.find((item: CompletionItem) => item.label === 'zoom');
+		const interactive = items.find((item: CompletionItem) => item.label === 'interactive');
+		assert.strictEqual(width?.insertText, 'width="${1:0}"');
+		assert.strictEqual(zoom?.insertText, 'zoom={${1:0}}');
+		assert.strictEqual(interactive?.insertText, 'interactive={${1:true}}');
+		assert.strictEqual(width?.insertTextFormat, InsertTextFormat.Snippet);
+	});
+
+	test('completes integer scene coordinates as string attributes', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const items = createGuideNhCompletions('<Block ', 7, schema, 'GameScene');
+		const x = items.find((item: CompletionItem) => item.label === 'x');
+		const y = items.find((item: CompletionItem) => item.label === 'y');
+		const z = items.find((item: CompletionItem) => item.label === 'z');
+		assert.strictEqual(x?.insertText, 'x="${1:0}"');
+		assert.strictEqual(y?.insertText, 'y="${1:0}"');
+		assert.strictEqual(z?.insertText, 'z="${1:0}"');
+	});
+
+	test('completes tag snippets before typing an opening angle bracket', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const items = createGuideNhCompletions('GameSc', 6, schema, undefined);
+		const gameScene = items.find((item: CompletionItem) => item.label === 'GameScene');
+		assert.strictEqual(gameScene?.insertTextFormat, InsertTextFormat.Snippet);
+		assert.match(String(gameScene?.insertText), /^<GameScene>/);
+	});
+
+	test('completes partial tag names after opening angle bracket', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const items = createGuideNhCompletions('<GameSc', 7, schema, undefined);
+		const gameScene = items.find((item: CompletionItem) => item.label === 'GameScene' && item.kind === CompletionItemKind.Class);
+		assert.ok(gameScene);
+		assert.ok(gameScene.textEdit && 'range' in gameScene.textEdit);
+		assert.deepStrictEqual(gameScene.textEdit.range, {
+			start: { line: 0, character: 0 },
+			end: { line: 0, character: 7 }
+		});
+	});
+
+	test('reoffers partial tag completions after deleting and retyping the prefix', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const items = createGuideNhCompletions('<B', 2, schema, undefined);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'Block'));
+		assert.ok(items.some((item: CompletionItem) => item.label === 'BlockImage'));
+	});
+
+	test('triggers VS Code suggest for GuideNH open-tag typing and single-character deletion', () => {
+		const base = {
+			languageId: 'markdown',
+			uriScheme: 'file',
+			fileName: 'E:/Github/GuideNH/wiki/resourcepack/assets/guidenh/guidenh/_zh_cn/images.md',
+			selectionEmpty: true
+		};
+
+		assert.strictEqual(shouldTriggerGuideNhSuggest({
+			...base,
+			linePrefix: '<',
+			changeText: '<',
+			rangeLength: 0
+		}), true);
+		assert.strictEqual(shouldTriggerGuideNhSuggest({
+			...base,
+			linePrefix: '<',
+			changeText: '<>',
+			rangeLength: 0
+		}), true);
+		assert.strictEqual(shouldTriggerGuideNhSuggest({
+			...base,
+			linePrefix: '<B',
+			changeText: 'B',
+			rangeLength: 0
+		}), true);
+		assert.strictEqual(shouldTriggerGuideNhSuggest({
+			...base,
+			linePrefix: '<',
+			changeText: '',
+			rangeLength: 1
+		}), true);
+		assert.strictEqual(shouldTriggerGuideNhSuggest({
+			...base,
+			linePrefix: 'plain text',
+			changeText: '<',
+			rangeLength: 0
+		}), false);
 	});
 
 	test('completes enum attribute values from schema', async () => {
@@ -184,5 +281,17 @@ suite('GuideNH completion provider', () => {
 		const items = createGuideNhCompletions('```f', 4, schema, undefined);
 		assert.ok(items.some((item: CompletionItem) => item.label === 'filetree' && item.kind === CompletionItemKind.Value));
 		assert.ok(items.some((item: CompletionItem) => item.label === 'funcgraph' && item.detail === 'GuideNH fenced block'));
+	});
+
+	test('ignores inline code tags when offering later tag completions', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = [
+			'`<Recipe>` and `<RecipeFor>` examples.',
+			'',
+			'<B'
+		].join('\n');
+		const items = createGuideNhCompletions(text, text.length, schema, undefined);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'Block'));
+		assert.ok(items.some((item: CompletionItem) => item.label === 'BlockStats'));
 	});
 });

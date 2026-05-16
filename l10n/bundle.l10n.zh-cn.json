@@ -1,0 +1,14 @@
+{
+  "GuideNH schema generation is available from npm run generate:schema.": "GuideNH schema 生成可通过 npm run generate:schema 使用。",
+  "GuideNH runtime bridge host, port, and token must be configured explicitly.": "必须显式配置 GuideNH 运行时桥接主机、端口和 token。",
+  "GuideNH runtime bridge connection requested.": "已请求连接 GuideNH 运行时桥接。",
+  "GuideNH runtime bridge disconnected.": "GuideNH 运行时桥接已断开。",
+  "Open a GuideNH Markdown document before requesting runtime validation.": "请求运行时校验前，请先打开 GuideNH Markdown 文档。",
+  "GuideNH runtime document validation payload is too large: {0} bytes.": "GuideNH 运行时文档校验负载过大：{0} 字节。",
+  "GuideNH runtime document validation requested.": "已请求 GuideNH 运行时文档校验。",
+  "GuideNH {0}.": "GuideNH {0}。",
+  "GuideNH runtime bridge host is invalid.": "GuideNH 运行时桥接主机无效。",
+  "GuideNH runtime bridge connected.": "GuideNH 运行时桥接已连接。",
+  "GuideNH runtime bridge error: {0}": "GuideNH 运行时桥接错误：{0}",
+  "Unknown error": "未知错误"
+}

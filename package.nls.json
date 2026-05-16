@@ -1,0 +1,14 @@
+{
+  "extension.displayName": "GuideVSC",
+  "extension.description": "GuideNH authoring support for Visual Studio Code.",
+  "configuration.guideNhSourcePath.description": "Path to the GuideNH source repository used by schema generation.",
+  "configuration.resourcePackPath.description": "Default GuideNH resource pack workspace path used for local workspace indexing.",
+  "configuration.runtimeBridge.host.description": "GuideNH runtime bridge host. No default is provided for safety.",
+  "configuration.runtimeBridge.port.description": "GuideNH runtime bridge port. No default is provided for safety.",
+  "configuration.runtimeBridge.token.description": "GuideNH runtime bridge token. No default is provided for safety.",
+  "configuration.runtimeBridge.allowRemote.description": "Allow runtime bridge connections to non-loopback hosts. Keep disabled unless the bridge transport is secured externally.",
+  "command.generateSchema.title": "GuideNH: Generate Schema",
+  "command.connectRuntimeBridge.title": "GuideNH: Connect Runtime Bridge",
+  "command.disconnectRuntimeBridge.title": "GuideNH: Disconnect Runtime Bridge",
+  "command.validateRuntimeDocument.title": "GuideNH: Validate Current Document With Runtime"
+}

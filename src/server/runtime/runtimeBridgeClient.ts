@@ -1,10 +1,12 @@
 import WebSocket from 'ws';
 import {
 	BridgeEnvelope,
+	createCapabilitiesMessage,
 	createRuntimeDocumentValidateMessage,
 	createHelloMessage,
 	createSemanticQueryMessage,
 	MaxRuntimeDocumentBytes,
+	RuntimeCapabilitiesPayload,
 	SemanticEntry,
 	SemanticQueryResultPayload,
 	RuntimeDocumentValidateParams,
@@ -19,6 +21,7 @@ import {
 } from './semanticPayloadGuard';
 import { validateBridgeEnvelope } from './runtimeBridgeEnvelopeGuard';
 import { createRuntimeBridgeWebSocketUrl, resolveRuntimeBridgeConnectionParams } from '../../common/runtimeBridgeSecurity';
+import { localizeServer } from '../localization';
 
 export interface RuntimeBridgeConnectionOptions {
 	host: string;
@@ -32,16 +35,18 @@ export type RuntimeBridgeStatus = RuntimeBridgeStatusParams;
 
 export interface RuntimeBridgeClientEvents {
 	onStatus?: (status: RuntimeBridgeStatus) => void;
+	onLog?: (message: string) => void;
 }
 
 const MaxRuntimeBridgeMessageBytes = 262144;
 
 export class RuntimeBridgeClient {
-	private static readonly bootstrapCapabilities = [
+	private static readonly preferredBootstrapCapabilities = [
 		'items',
 		'ores',
 		'categories',
 		'mods',
+		'commands',
 		'sounds',
 		'keybinds',
 		'recipes',
@@ -54,7 +59,7 @@ export class RuntimeBridgeClient {
 	private readonly pendingEntries = new Map<string, SemanticEntry[]>();
 	private readonly pendingPayloadStates = new Map<string, SemanticPayloadGuardState>();
 	private readonly pendingDocumentValidations = new Set<string>();
-	private readonly allowedCapabilities = new Set(RuntimeBridgeClient.bootstrapCapabilities);
+	private readonly allowedCapabilities = new Set(RuntimeBridgeClient.preferredBootstrapCapabilities);
 	private documentValidationSequence = 0;
 
 	public constructor(
@@ -65,26 +70,51 @@ export class RuntimeBridgeClient {
 	connect(options: RuntimeBridgeConnectionOptions): void {
 		const resolvedOptions = resolveRuntimeBridgeConnectionParams(options);
 		this.closeSocket();
+		this.pendingEntries.clear();
+		this.pendingPayloadStates.clear();
+		const url = createRuntimeBridgeWebSocketUrl(resolvedOptions);
+		this.log(`GuideNH runtime bridge connecting to ${url}`);
 		this.publishStatus({ state: 'connecting' });
-		this.socket = new WebSocket(createRuntimeBridgeWebSocketUrl(resolvedOptions));
-		this.socket.on('open', () => {
+		const socket = new WebSocket(url, {
+			maxPayload: MaxRuntimeBridgeMessageBytes
+		});
+		this.socket = socket;
+		socket.on('open', () => {
+			if (this.socket !== socket) {
+				return;
+			}
+			this.log('GuideNH runtime bridge socket opened, sending hello.');
 			this.send(createHelloMessage(resolvedOptions.token));
 		});
-		this.socket.on('message', (data) => {
+		socket.on('message', (data) => {
+			if (this.socket !== socket) {
+				return;
+			}
 			this.handleMessage(data.toString());
 		});
-		this.socket.on('error', (error) => {
+		socket.on('error', (error) => {
+			if (this.socket !== socket) {
+				return;
+			}
 			this.connected = false;
-			this.publishStatus({ state: 'error', message: error.message });
+			this.log(`GuideNH runtime bridge socket error: ${formatRuntimeBridgeError(error)}`);
+			this.publishStatus({ state: 'error', message: formatRuntimeBridgeError(error) });
 		});
-		this.socket.on('close', () => {
+		socket.on('close', () => {
+			if (this.socket !== socket) {
+				return;
+			}
 			this.connected = false;
+			this.pendingEntries.clear();
+			this.pendingPayloadStates.clear();
 			this.cache.markStale();
+			this.log('GuideNH runtime bridge socket closed.');
 			this.publishStatus({ state: 'disconnected' });
 		});
 	}
 
 	disconnect(): void {
+		this.log('GuideNH runtime bridge disconnect requested.');
 		this.closeSocket();
 		this.cache.markStale();
 		this.publishStatus({ state: 'disconnected' });
@@ -92,13 +122,13 @@ export class RuntimeBridgeClient {
 
 	validateDocument(document: RuntimeDocumentValidateParams): void {
 		if (!this.connected) {
-			const message = 'Runtime bridge must be connected before document validation.';
+			const message = localizeServer('runtime.bridge.mustConnectBeforeValidation');
 			this.publishStatus({ state: 'error', message });
 			throw new Error(message);
 		}
 		const byteLength = Buffer.byteLength(document.text, 'utf8');
 		if (byteLength > MaxRuntimeDocumentBytes) {
-			throw new Error(`Runtime document validation payload is too large: ${byteLength} bytes`);
+			throw new Error(localizeServer('runtime.document.payloadTooLarge', byteLength));
 		}
 		const requestId = this.createDocumentValidationRequestId();
 		this.pendingDocumentValidations.add(requestId);
@@ -111,7 +141,7 @@ export class RuntimeBridgeClient {
 
 	private handleMessage(data: string): void {
 		if (Buffer.byteLength(data, 'utf8') > MaxRuntimeBridgeMessageBytes) {
-			this.publishStatus({ state: 'error', message: 'Runtime bridge message is too large.' });
+			this.publishStatus({ state: 'error', message: localizeServer('runtime.bridge.messageTooLarge') });
 			return;
 		}
 		const message = this.parseMessage(data);
@@ -119,13 +149,18 @@ export class RuntimeBridgeClient {
 			return;
 		}
 		if (message.type === 'error') {
-			this.publishStatus({ state: 'error', message: 'Runtime bridge rejected the request.' });
+			this.publishStatus({ state: 'error', message: localizeServer('runtime.bridge.rejected') });
 			return;
 		}
 		if (message.method === 'hello' && message.type === 'response') {
 			this.connected = true;
+			this.log('GuideNH runtime bridge hello acknowledged.');
 			this.publishStatus({ state: 'connected' });
-			this.refreshBootstrapCapabilities();
+			this.send(createCapabilitiesMessage());
+			return;
+		}
+		if (message.method === 'capabilities' && message.type === 'response') {
+			this.handleCapabilitiesResult(message.payload);
 			return;
 		}
 		if (message.method === 'semantic.query' && message.type === 'response') {
@@ -138,11 +173,24 @@ export class RuntimeBridgeClient {
 	}
 
 	private refreshBootstrapCapabilities(): void {
-		for (const capability of RuntimeBridgeClient.bootstrapCapabilities) {
+		for (const capability of this.allowedCapabilities) {
 			this.pendingEntries.set(capability, []);
 			this.pendingPayloadStates.set(capability, createSemanticPayloadGuardState());
 			this.send(createSemanticQueryMessage(`semantic.${capability}.0`, capability));
 		}
+	}
+
+	private handleCapabilitiesResult(value: unknown): void {
+		const capabilities = this.parseCapabilities(value);
+		if (!capabilities) {
+			this.refreshBootstrapCapabilities();
+			return;
+		}
+		this.allowedCapabilities.clear();
+		for (const capability of capabilities) {
+			this.allowedCapabilities.add(capability);
+		}
+		this.refreshBootstrapCapabilities();
 	}
 
 	private handleSemanticQueryResult(value: unknown): void {
@@ -154,7 +202,7 @@ export class RuntimeBridgeClient {
 			const capability = typeof rawCapability === 'string' ? rawCapability : '';
 			const state = this.pendingPayloadStates.get(capability);
 			if (!state) {
-				throw new Error('Runtime semantic payload was not requested.');
+				throw new Error(localizeServer('runtime.semantic.notRequested'));
 			}
 			const result = validateSemanticPayload(value, this.allowedCapabilities, state);
 			payload = result.payload;
@@ -162,7 +210,7 @@ export class RuntimeBridgeClient {
 			totalEntries = result.totalEntries;
 			this.pendingPayloadStates.set(payload.capability, state);
 		} catch (error) {
-			this.publishStatus({ state: 'error', message: error instanceof Error ? error.message : 'Runtime semantic payload is invalid.' });
+			this.publishStatus({ state: 'error', message: error instanceof Error ? error.message : localizeServer('runtime.semantic.invalidPayload') });
 			return;
 		}
 		const existing = this.pendingEntries.get(payload.capability) ?? [];
@@ -184,7 +232,7 @@ export class RuntimeBridgeClient {
 
 	private handleDocumentValidationResult(id: string | undefined): void {
 		if (!id || !this.pendingDocumentValidations.has(id)) {
-			this.publishStatus({ state: 'error', message: 'Runtime document validation response was not requested.' });
+			this.publishStatus({ state: 'error', message: localizeServer('runtime.validation.notRequested') });
 			return;
 		}
 		this.pendingDocumentValidations.delete(id);
@@ -196,25 +244,51 @@ export class RuntimeBridgeClient {
 		} catch (error) {
 			this.publishStatus({
 				state: 'error',
-				message: error instanceof Error ? error.message : 'Runtime bridge returned invalid JSON.'
+				message: error instanceof Error ? error.message : localizeServer('runtime.bridge.invalidJson')
 			});
 			return undefined;
 		}
+	}
+
+	private parseCapabilities(value: unknown): string[] | undefined {
+		if (!value || typeof value !== 'object') {
+			return undefined;
+		}
+		const payload = value as Partial<RuntimeCapabilitiesPayload>;
+		if (!Array.isArray(payload.capabilities)) {
+			return undefined;
+		}
+		const capabilities = payload.capabilities.filter((candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0);
+		return capabilities.length > 0 ? capabilities : undefined;
 	}
 
 	private publishStatus(status: RuntimeBridgeStatus): void {
 		this.events.onStatus?.(status);
 	}
 
+	private log(message: string): void {
+		this.events.onLog?.(message);
+	}
+
 	private closeSocket(): void {
 		this.connected = false;
+		this.pendingEntries.clear();
+		this.pendingPayloadStates.clear();
 		this.pendingDocumentValidations.clear();
-		this.socket?.close();
+		const socket = this.socket;
 		this.socket = undefined;
+		socket?.close();
 	}
 
 	private createDocumentValidationRequestId(): string {
 		this.documentValidationSequence++;
 		return `document.validate.${this.documentValidationSequence}`;
 	}
+}
+
+function formatRuntimeBridgeError(error: Error): string {
+	if (error.message.toLowerCase().includes('max payload')) {
+		return localizeServer('runtime.bridge.messageTooLarge');
+	}
+	return error.message;
 }

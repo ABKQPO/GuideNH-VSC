@@ -24,4 +24,11 @@ suite('GuideNH hover provider', () => {
 		assert.match(JSON.stringify(hover?.contents), /navigation\.title/);
 		assert.match(JSON.stringify(hover?.contents), /Navigation title/);
 	});
+
+	test('does not treat inline markdown markers as GuideNH tags', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '| `*Italic*` | `_Italic_` |';
+		const hover = createGuideNhHover(text, text.indexOf('Italic') + 1, schema);
+		assert.strictEqual(hover, undefined);
+	});
 });

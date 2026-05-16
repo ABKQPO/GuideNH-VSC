@@ -4,9 +4,12 @@ docs/**
 ROADMAP.zh-CN.md
 **/ROADMAP.zh-CN.md
 src/**
+l10n/**
+!l10n/bundle.l10n*.json
 out/**
 !out/extension.js
 !out/server.js
+!out/schema/**
 out/test/**
 .gitignore
 .yarnrc

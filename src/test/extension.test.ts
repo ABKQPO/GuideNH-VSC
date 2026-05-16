@@ -54,7 +54,22 @@ suite('GuideNH extension automation', () => {
 		assert.match(vscodeIgnore, /^out\/\*\*$/m);
 		assert.match(vscodeIgnore, /^!out\/extension\.js$/m);
 		assert.match(vscodeIgnore, /^!out\/server\.js$/m);
+		assert.match(vscodeIgnore, /^!out\/schema\/\*\*$/m);
 		assert.match(vscodeIgnore, /^node_modules\/\*\*$/m);
+	});
+
+	test('provides bilingual manifest localization entries', () => {
+		const root = path.join(__dirname, '..', '..');
+		const packageJsonText = fs.readFileSync(path.join(root, 'package.json'), 'utf8');
+		const englishMessages = JSON.parse(fs.readFileSync(path.join(root, 'package.nls.json'), 'utf8')) as Record<string, string>;
+		const chineseMessages = JSON.parse(fs.readFileSync(path.join(root, 'package.nls.zh-cn.json'), 'utf8')) as Record<string, string>;
+		const keys = Array.from(packageJsonText.matchAll(/%([^%]+)%/g)).map((match) => match[1]);
+
+		assert.ok(keys.length > 0);
+		for (const key of keys) {
+			assert.strictEqual(typeof englishMessages[key], 'string');
+			assert.strictEqual(typeof chineseMessages[key], 'string');
+		}
 	});
 
 	test('keeps runtime validation command registered in the extension manifest', () => {
@@ -64,6 +79,18 @@ suite('GuideNH extension automation', () => {
 		};
 		assert.ok(packageJson.activationEvents.includes('onCommand:guide-vsc.validateRuntimeDocument'));
 		assert.ok(packageJson.contributes.commands.some((command) => command.command === 'guide-vsc.validateRuntimeDocument'));
+	});
+
+	test('contributes GuideNH markdown syntax injection grammar', () => {
+		const root = path.join(__dirname, '..', '..');
+		const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
+			contributes: { grammars?: Array<{ scopeName: string; path: string; injectTo?: string[] }> };
+		};
+		const grammar = packageJson.contributes.grammars?.find((item) => item.scopeName === 'guidenh.mdx.injection');
+
+		assert.ok(grammar);
+		assert.deepStrictEqual(grammar.injectTo, ['text.html.markdown', 'source.gfm']);
+		assert.strictEqual(fs.existsSync(path.join(root, grammar.path)), true);
 	});
 
 	test('resolves the bundled language server module from the extension root', () => {

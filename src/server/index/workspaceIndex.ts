@@ -274,7 +274,7 @@ function lowerBound(values: string[], target: string): number {
 
 function resolveGuideNhRelativePath(uri: string): string {
 	const normalized = uri.replace(/\\/g, '/');
-	const localeMatch = normalized.match(/\/guidenh\/_[a-z]{2}_[a-z]{2}\/(.+\.md)$/i);
+	const localeMatch = normalized.match(/\/guidenh\/(?:guidenh\/)?_[a-z]{2}_[a-z]{2}\/(.+\.md)$/i);
 	if (localeMatch) {
 		return decodeURIComponent(localeMatch[1]);
 	}

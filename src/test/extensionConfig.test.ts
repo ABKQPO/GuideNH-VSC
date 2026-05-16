@@ -15,4 +15,9 @@ suite('GuideNH extension configuration', () => {
 		assert.strictEqual(defaults.runtimeToken, '');
 		assert.strictEqual(defaults.runtimeAllowRemote, false);
 	});
+
+	test('uses the wiki resource pack as the default local index path', () => {
+		const defaults = readGuideNhDefaults();
+		assert.strictEqual(defaults.resourcePackPath, 'E:\\Github\\GuideNH\\wiki\\resourcepack');
+	});
 });
