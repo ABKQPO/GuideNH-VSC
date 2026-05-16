@@ -156,6 +156,17 @@ categories:
 		assert.deepStrictEqual(index.queryPagesByPrefix('missing/'), []);
 	});
 
+	test('keeps page prefix queries isolated from listed page snapshots', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/intro/a.md', '# A');
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/intro/b.md', '# B');
+		const listed = index.listPages();
+
+		listed.splice(0);
+
+		assert.deepStrictEqual(index.queryPagesByPrefix('intro/').map((page) => page.relativePath), ['intro/a.md', 'intro/b.md']);
+	});
+
 	test('finds references by uri', () => {
 		const index = new GuideNhWorkspaceIndex();
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md', '[B](b.md)');

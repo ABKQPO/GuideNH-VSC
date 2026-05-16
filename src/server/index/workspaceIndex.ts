@@ -16,6 +16,7 @@ export class GuideNhWorkspaceIndex {
 	private readonly sourceUrisByLinkedPage = new Map<string, Set<string>>();
 	private readonly valueCountsByFrontmatterPath = new Map<string, Map<string, number>>();
 	private sortedPages: GuideNhIndexedPage[] = [];
+	private sortedPageKeys: string[] = [];
 	private sortedPagesDirty = true;
 	private readonly sortedFrontmatterValues = new Map<string, string[]>();
 	private readonly dirtyFrontmatterPaths = new Set<string>();
@@ -73,8 +74,7 @@ export class GuideNhWorkspaceIndex {
 		}
 		this.refreshSortedPages();
 		const normalizedPrefix = normalizePagePrefix(prefix);
-		const keys = this.sortedPages.map((page) => page.relativePath);
-		const start = lowerBound(keys, normalizedPrefix);
+		const start = lowerBound(this.sortedPageKeys, normalizedPrefix);
 		const matches: GuideNhIndexedPage[] = [];
 		for (let index = start; index < this.sortedPages.length && matches.length < limit; index++) {
 			const page = this.sortedPages[index];
@@ -163,6 +163,7 @@ export class GuideNhWorkspaceIndex {
 		this.sortedPages = Array.from(this.pages.values()).sort((left, right) => {
 			return left.relativePath.localeCompare(right.relativePath);
 		});
+		this.sortedPageKeys = this.sortedPages.map((page) => page.relativePath);
 		this.sortedPagesDirty = false;
 	}
 
