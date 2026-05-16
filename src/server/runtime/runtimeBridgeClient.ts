@@ -38,6 +38,13 @@ export interface RuntimeBridgeClientEvents {
 	onLog?: (message: string) => void;
 }
 
+export interface RuntimeSemanticQueryOptions {
+	capability: string;
+	prefix?: string;
+	limit?: number;
+	filters?: Record<string, string>;
+}
+
 const MaxRuntimeBridgeMessageBytes = 262144;
 
 export class RuntimeBridgeClient {
@@ -51,6 +58,7 @@ export class RuntimeBridgeClient {
 		'keybinds',
 		'recipes',
 		'quests',
+		'structurelib',
 		'pages'
 	];
 
@@ -59,8 +67,10 @@ export class RuntimeBridgeClient {
 	private readonly pendingEntries = new Map<string, SemanticEntry[]>();
 	private readonly pendingPayloadStates = new Map<string, SemanticPayloadGuardState>();
 	private readonly pendingDocumentValidations = new Set<string>();
+	private readonly pendingSemanticQueries = new Map<string, { resolve: (entries: SemanticEntry[]) => void; reject: (error: Error) => void }>();
 	private readonly allowedCapabilities = new Set(RuntimeBridgeClient.preferredBootstrapCapabilities);
 	private documentValidationSequence = 0;
+	private semanticQuerySequence = 0;
 
 	public constructor(
 		private readonly cache: SemanticCache,
@@ -120,6 +130,21 @@ export class RuntimeBridgeClient {
 		this.publishStatus({ state: 'disconnected' });
 	}
 
+	querySemanticEntries(options: RuntimeSemanticQueryOptions): Promise<SemanticEntry[]> {
+		if (!this.connected) {
+			return Promise.resolve([]);
+		}
+		const requestId = this.createSemanticQueryRequestId();
+		const capability = options.capability;
+		const prefix = options.prefix ?? '';
+		const limit = options.limit ?? 200;
+		const filters = options.filters ?? {};
+		return new Promise<SemanticEntry[]>((resolve, reject) => {
+			this.pendingSemanticQueries.set(requestId, { resolve, reject });
+			this.send(createSemanticQueryMessage(requestId, capability, '', limit, prefix, filters));
+		});
+	}
+
 	validateDocument(document: RuntimeDocumentValidateParams): void {
 		if (!this.connected) {
 			const message = localizeServer('runtime.bridge.mustConnectBeforeValidation');
@@ -164,7 +189,7 @@ export class RuntimeBridgeClient {
 			return;
 		}
 		if (message.method === 'semantic.query' && message.type === 'response') {
-			this.handleSemanticQueryResult(message.payload);
+			this.handleSemanticQueryResult(message.id, message.payload);
 			return;
 		}
 		if (message.method === 'document.validate' && message.type === 'response') {
@@ -193,7 +218,11 @@ export class RuntimeBridgeClient {
 		this.refreshBootstrapCapabilities();
 	}
 
-	private handleSemanticQueryResult(value: unknown): void {
+	private handleSemanticQueryResult(id: string | undefined, value: unknown): void {
+		if (id && this.pendingSemanticQueries.has(id)) {
+			this.handleOneShotSemanticQueryResult(id, value);
+			return;
+		}
 		let payload: SemanticQueryResultPayload;
 		let nextCursor: string | undefined;
 		let totalEntries: number;
@@ -228,6 +257,23 @@ export class RuntimeBridgeClient {
 		this.pendingEntries.delete(payload.capability);
 		this.pendingPayloadStates.delete(payload.capability);
 		this.cache.replace(payload.capability, payload.version, entries);
+	}
+
+	private handleOneShotSemanticQueryResult(id: string, value: unknown): void {
+		const pending = this.pendingSemanticQueries.get(id);
+		if (!pending) {
+			return;
+		}
+		this.pendingSemanticQueries.delete(id);
+		try {
+			const payload = value as Partial<SemanticQueryResultPayload>;
+			if (!payload || !Array.isArray(payload.entries)) {
+				throw new Error(localizeServer('runtime.semantic.invalidPayload'));
+			}
+			pending.resolve(payload.entries);
+		} catch (error) {
+			pending.reject(error instanceof Error ? error : new Error(localizeServer('runtime.semantic.invalidPayload')));
+		}
 	}
 
 	private handleDocumentValidationResult(id: string | undefined): void {
@@ -275,6 +321,10 @@ export class RuntimeBridgeClient {
 		this.pendingEntries.clear();
 		this.pendingPayloadStates.clear();
 		this.pendingDocumentValidations.clear();
+		for (const pending of this.pendingSemanticQueries.values()) {
+			pending.reject(new Error(localizeServer('runtime.bridge.rejected')));
+		}
+		this.pendingSemanticQueries.clear();
 		const socket = this.socket;
 		this.socket = undefined;
 		socket?.close();
@@ -283,6 +333,11 @@ export class RuntimeBridgeClient {
 	private createDocumentValidationRequestId(): string {
 		this.documentValidationSequence++;
 		return `document.validate.${this.documentValidationSequence}`;
+	}
+
+	private createSemanticQueryRequestId(): string {
+		this.semanticQuerySequence++;
+		return `semantic.query.dynamic.${this.semanticQuerySequence}`;
 	}
 }
 

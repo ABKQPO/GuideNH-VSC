@@ -16,6 +16,7 @@ type LocaleKey =
 	| 'diagnostic.missingAttribute'
 	| 'diagnostic.unclosedTag'
 	| 'diagnostic.unknownPage'
+	| 'diagnostic.unknownResource'
 	| 'diagnostic.unknownFrontmatterKey'
 	| 'diagnostic.frontmatterExpects';
 
@@ -39,30 +40,32 @@ const EnglishMessages: LocaleMessages = {
 	'diagnostic.missingAttribute': 'Missing required attribute {0} on {1}',
 	'diagnostic.unclosedTag': 'Unclosed GuideNH tag {0}',
 	'diagnostic.unknownPage': 'Unknown GuideNH page {0}',
+	'diagnostic.unknownResource': 'Unknown GuideNH resource {0}',
 	'diagnostic.unknownFrontmatterKey': 'Unknown frontmatter key {0}',
 	'diagnostic.frontmatterExpects': 'Frontmatter key {0} expects {1} value'
 };
 
 const ChineseMessages: LocaleMessages = {
-	'runtime.bridge.mustConnectBeforeValidation': '运行时桥接必须先连接，然后才能进行文档校验。',
-	'runtime.document.payloadTooLarge': '运行时文档校验负载过大：{0} 字节',
-	'runtime.bridge.messageTooLarge': '运行时桥接消息过大。',
-	'runtime.bridge.rejected': '运行时桥接拒绝了请求。',
-	'runtime.semantic.notRequested': '运行时语义负载未被请求。',
-	'runtime.semantic.invalidPayload': '运行时语义负载无效。',
-	'runtime.validation.notRequested': '运行时文档校验响应未被请求。',
-	'runtime.bridge.invalidJson': '运行时桥接返回了无效 JSON。',
+	'runtime.bridge.mustConnectBeforeValidation': 'Runtime bridge 必须先连接后才能验证文档。',
+	'runtime.document.payloadTooLarge': 'Runtime 文档验证负载过大: {0} 字节',
+	'runtime.bridge.messageTooLarge': 'Runtime bridge 消息过大。',
+	'runtime.bridge.rejected': 'Runtime bridge 拒绝了该请求。',
+	'runtime.semantic.notRequested': 'Runtime 语义负载并非已请求的数据。',
+	'runtime.semantic.invalidPayload': 'Runtime 语义负载无效。',
+	'runtime.validation.notRequested': 'Runtime 文档验证响应并非已请求的数据。',
+	'runtime.bridge.invalidJson': 'Runtime bridge 返回了无效 JSON。',
 	'runtime.schema.loadFailed': '无法加载 GuideNH schema。',
-	'diagnostic.closingTagMismatch': '闭合标签 {0} 与 {1} 不匹配',
+	'diagnostic.closingTagMismatch': '结束标签 {0} 与 {1} 不匹配',
 	'diagnostic.unknownTag': '未知 GuideNH 标签 {0}',
-	'diagnostic.tagNotAllowed': '标签 {0} 不允许出现在 {1} 内',
+	'diagnostic.tagNotAllowed': '标签 {0} 不允许出现在 {1} 内部',
 	'diagnostic.unknownAttribute': '{1} 上存在未知属性 {0}',
-	'diagnostic.attributeExpects': '{1} 上的属性 {0} 需要 {2} 值',
+	'diagnostic.attributeExpects': '{1} 上的属性 {0} 需要 {2} 类型的值',
 	'diagnostic.missingAttribute': '{1} 缺少必填属性 {0}',
-	'diagnostic.unclosedTag': 'GuideNH 标签 {0} 未闭合',
+	'diagnostic.unclosedTag': '未闭合的 GuideNH 标签 {0}',
 	'diagnostic.unknownPage': '未知 GuideNH 页面 {0}',
+	'diagnostic.unknownResource': '未知 GuideNH 资源 {0}',
 	'diagnostic.unknownFrontmatterKey': '未知 frontmatter 键 {0}',
-	'diagnostic.frontmatterExpects': 'Frontmatter 键 {0} 需要 {1} 值'
+	'diagnostic.frontmatterExpects': 'frontmatter 键 {0} 需要 {1} 类型的值'
 };
 
 let activeMessages = EnglishMessages;

@@ -3,7 +3,7 @@ import { WebSocketServer } from 'ws';
 import { RuntimeBridgeClient, RuntimeBridgeStatus } from '../server/runtime/runtimeBridgeClient';
 import { SemanticCache } from '../server/runtime/semanticCache';
 
-const DefaultCapabilities = ['categories', 'commands', 'items', 'keybinds', 'mods', 'ores', 'pages', 'quests', 'recipes', 'sounds'];
+const DefaultCapabilities = ['categories', 'commands', 'items', 'keybinds', 'mods', 'ores', 'pages', 'quests', 'recipes', 'sounds', 'structurelib'];
 
 suite('GuideNH runtime bridge client', () => {
 	test('queries semantic pages after hello succeeds', async () => {
@@ -59,7 +59,7 @@ suite('GuideNH runtime bridge client', () => {
 			assert.strictEqual(cache.queryPrefix('items', 'minecraft:s')[0]?.label, 'Stone');
 			assert.deepStrictEqual(
 				Array.from(queriedCapabilities).sort(),
-				['categories', 'commands', 'items', 'keybinds', 'mods', 'ores', 'pages', 'quests', 'recipes', 'sounds']
+				['categories', 'commands', 'items', 'keybinds', 'mods', 'ores', 'pages', 'quests', 'recipes', 'sounds', 'structurelib']
 			);
 		} finally {
 			client.disconnect();
@@ -171,6 +171,140 @@ suite('GuideNH runtime bridge client', () => {
 			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
 			await waitFor(() => queriedCapabilities.length === 2);
 			assert.deepStrictEqual(queriedCapabilities.sort(), ['items', 'pages']);
+		} finally {
+			client.disconnect();
+			await closeServer(server);
+		}
+	});
+
+	test('sends filtered semantic query payloads for dynamic structurelib requests', async () => {
+		const server = new WebSocketServer({ port: 0 });
+		const port = await listenPort(server);
+		const client = new RuntimeBridgeClient(new SemanticCache());
+		const semanticPayloads: Array<{ capability?: string; prefix?: string; filters?: Record<string, string> }> = [];
+
+		server.on('connection', (socket) => {
+			socket.on('message', (data) => {
+				const message = JSON.parse(data.toString()) as { id: string; method: string; payload?: { capability?: string; prefix?: string; filters?: Record<string, string> } };
+				if (message.method === 'hello') {
+					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
+					return;
+				}
+				if (message.method === 'semantic.query' && message.id.startsWith('semantic.query.dynamic.')) {
+					semanticPayloads.push(message.payload ?? {});
+					socket.send(JSON.stringify(response(message.id, 'semantic.query', {
+						capability: 'structurelib',
+						version: 1,
+						entries: [{ id: '3', label: 'main', detail: 'Channel main for gregtech:machine:1' }],
+						nextCursor: null
+					})));
+					return;
+				}
+				if (message.method === 'semantic.query') {
+					socket.send(JSON.stringify(response(message.id, 'semantic.query', {
+						capability: message.payload?.capability,
+						version: 1,
+						entries: [],
+						nextCursor: null
+					})));
+				}
+			});
+		});
+
+		try {
+			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
+			await waitFor(() => semanticPayloads.length === 0);
+			const entries = await client.querySemanticEntries({
+				capability: 'structurelib',
+				prefix: '3',
+				filters: {
+					attribute: 'channel',
+					controller: 'gregtech:machine:1'
+				}
+			});
+			assert.strictEqual(entries[0]?.id, '3');
+			assert.deepStrictEqual(semanticPayloads, [{
+				capability: 'structurelib',
+				cursor: '',
+				limit: 200,
+				prefix: '3',
+				filters: {
+					attribute: 'channel',
+					controller: 'gregtech:machine:1'
+				}
+			}]);
+		} finally {
+			client.disconnect();
+			await closeServer(server);
+		}
+	});
+
+	test('supports dynamic hover semantic queries for structurelib orientation values', async () => {
+		const server = new WebSocketServer({ port: 0 });
+		const port = await listenPort(server);
+		const client = new RuntimeBridgeClient(new SemanticCache());
+		const semanticPayloads: Array<{ capability?: string; prefix?: string; filters?: Record<string, string> }> = [];
+
+		server.on('connection', (socket) => {
+			socket.on('message', (data) => {
+				const message = JSON.parse(data.toString()) as { id: string; method: string; payload?: { capability?: string; prefix?: string; filters?: Record<string, string> } };
+				if (message.method === 'hello') {
+					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
+					return;
+				}
+				if (message.method === 'semantic.query' && message.id.startsWith('semantic.query.dynamic.')) {
+					semanticPayloads.push(message.payload ?? {});
+					socket.send(JSON.stringify(response(message.id, 'semantic.query', {
+						capability: 'structurelib',
+						version: 1,
+						entries: [{ id: 'north', label: 'North', detail: 'Allowed orientation for gregtech:machine:1' }],
+						nextCursor: null
+					})));
+					return;
+				}
+				if (message.method === 'semantic.query') {
+					socket.send(JSON.stringify(response(message.id, 'semantic.query', {
+						capability: message.payload?.capability,
+						version: 1,
+						entries: [],
+						nextCursor: null
+					})));
+				}
+			});
+		});
+
+		try {
+			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
+			await waitFor(() => semanticPayloads.length === 0);
+			const entries = await client.querySemanticEntries({
+				capability: 'structurelib',
+				prefix: 'north',
+				filters: {
+					attribute: 'facing',
+					controller: 'gregtech:machine:1',
+					rotation: 'clockwise'
+				}
+			});
+			assert.strictEqual(entries[0]?.id, 'north');
+			assert.deepStrictEqual(semanticPayloads, [{
+				capability: 'structurelib',
+				cursor: '',
+				limit: 200,
+				prefix: 'north',
+				filters: {
+					attribute: 'facing',
+					controller: 'gregtech:machine:1',
+					rotation: 'clockwise'
+				}
+			}]);
 		} finally {
 			client.disconnect();
 			await closeServer(server);

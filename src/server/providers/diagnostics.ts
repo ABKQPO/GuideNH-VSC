@@ -1,9 +1,11 @@
 import { Diagnostic, DiagnosticSeverity, Position } from 'vscode-languageserver/node';
 import { GuideNhAttributeSchema, GuideNhFrontmatterKey, GuideNhSchemaBundle } from '../../common/schema';
+import { GuideNhResourceIndex } from '../index/resourceIndex';
 import { GuideNhWorkspaceIndex } from '../index/workspaceIndex';
 import { localizeServer } from '../localization';
-import { findPageReferences } from '../navigation/pageReferences';
+import { createGuideNhDocumentModel } from '../parser/documentModel';
 import { GuideNhParsedTag, parseGuideNhDocument } from '../parser/documentParser';
+import { findAttributeSchema, findTagSchema, hasAttributeValue, isChildTagAllowed, matchesTagName } from '../schema/schemaLookup';
 
 function createDiagnostic(text: string, start: number, end: number, message: string): Diagnostic {
 	return {
@@ -17,37 +19,45 @@ function createDiagnostic(text: string, start: number, end: number, message: str
 	};
 }
 
-export function createGuideNhDiagnostics(text: string, schema: GuideNhSchemaBundle, index?: GuideNhWorkspaceIndex): Diagnostic[] {
-	const parsed = parseGuideNhDocument(text);
+export function createGuideNhDiagnostics(
+	text: string,
+	schema: GuideNhSchemaBundle,
+	index?: GuideNhWorkspaceIndex,
+	resourceIndex?: GuideNhResourceIndex
+): Diagnostic[] {
+	const model = createGuideNhDocumentModel(text);
+	const parsed = model.parsed;
 	const diagnostics: Diagnostic[] = [];
 	if (parsed.frontmatter) {
 		diagnostics.push(...createFrontmatterDiagnostics(text, parsed.frontmatter.text, schema));
 	}
 	if (index) {
-		diagnostics.push(...createPageReferenceDiagnostics(text, index));
+		diagnostics.push(...createPageReferenceDiagnostics(model, text, index));
+	}
+	if (resourceIndex) {
+		diagnostics.push(...createResourceReferenceDiagnostics(model, text, resourceIndex));
 	}
 	const parentStack: GuideNhParsedTag[] = [];
 	for (const tag of parsed.tags) {
 		if (tag.closing) {
 			const parentTag = parentStack[parentStack.length - 1];
-			if (parentTag && parentTag.name !== tag.name) {
+			if (parentTag && !matchesTagName(parentTag.name, tag.name)) {
 				diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.closingTagMismatch', tag.name, parentTag.name)));
 			}
 			popParentTag(parentStack, tag.name);
 			continue;
 		}
-		const tagSchema = schema.tags.tags[tag.name];
+		const tagSchema = findTagSchema(schema, tag.name);
 		if (!tagSchema) {
 			diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.unknownTag', tag.name)));
 			continue;
 		}
 		const parentTag = parentStack[parentStack.length - 1];
-		const parentSchema = parentTag ? schema.tags.tags[parentTag.name] : undefined;
-		if (parentTag && parentSchema && parentSchema.children.length > 0 && !parentSchema.children.includes(tag.name)) {
+		if (parentTag && !isChildTagAllowed(schema, parentTag.name, tag.name)) {
 			diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.tagNotAllowed', tag.name, parentTag.name)));
 		}
 		for (const attributeName of Object.keys(tag.attributes)) {
-			const attributeSchema = tagSchema.attributes[attributeName];
+			const attributeSchema = findAttributeSchema(schema, tag.name, attributeName);
 			if (!attributeSchema) {
 				diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.unknownAttribute', attributeName, tag.name)));
 				continue;
@@ -73,10 +83,24 @@ export function createGuideNhDiagnostics(text: string, schema: GuideNhSchemaBund
 	return diagnostics;
 }
 
-function createPageReferenceDiagnostics(text: string, index: GuideNhWorkspaceIndex): Diagnostic[] {
-	return findPageReferences(text)
-		.filter((reference) => !index.findPageByRelativePath(reference.target))
-		.map((reference) => createDiagnostic(text, reference.start, reference.end, localizeServer('diagnostic.unknownPage', reference.target)));
+function createPageReferenceDiagnostics(
+	model: ReturnType<typeof createGuideNhDocumentModel>,
+	text: string,
+	index: GuideNhWorkspaceIndex
+): Diagnostic[] {
+	return model.references
+		.filter((reference) => reference.kind === 'page' && reference.normalizedTarget && !index.findPageByRelativePath(reference.normalizedTarget))
+		.map((reference) => createDiagnostic(text, reference.start, reference.end, localizeServer('diagnostic.unknownPage', String(reference.normalizedTarget))));
+}
+
+function createResourceReferenceDiagnostics(
+	model: ReturnType<typeof createGuideNhDocumentModel>,
+	text: string,
+	resourceIndex: GuideNhResourceIndex
+): Diagnostic[] {
+	return model.references
+		.filter((reference) => reference.kind === 'resource' && reference.normalizedTarget && !resourceIndex.findResourceByRelativePath(reference.normalizedTarget))
+		.map((reference) => createDiagnostic(text, reference.start, reference.end, localizeServer('diagnostic.unknownResource', String(reference.normalizedTarget))));
 }
 
 function isAttributeMissing(
@@ -84,10 +108,10 @@ function isAttributeMissing(
 	attributeName: string,
 	attribute: GuideNhAttributeSchema
 ): boolean {
-	if (attributes[attributeName] !== undefined) {
+	if (hasAttributeValue(attributes, attributeName)) {
 		return false;
 	}
-	if (attribute.requiredWhenMissing && attribute.requiredWhenMissing.some((name) => attributes[name] !== undefined)) {
+	if (attribute.requiredWhenMissing && attribute.requiredWhenMissing.some((name) => hasAttributeValue(attributes, name))) {
 		return false;
 	}
 	return attribute.required === true;
@@ -95,7 +119,7 @@ function isAttributeMissing(
 
 function popParentTag(parentStack: GuideNhParsedTag[], tagName: string): void {
 	for (let index = parentStack.length - 1; index >= 0; index--) {
-		if (parentStack[index].name === tagName) {
+		if (matchesTagName(parentStack[index].name, tagName)) {
 			parentStack.splice(index);
 			return;
 		}

@@ -5,14 +5,14 @@ export interface GuideNhCompletionAssistContext {
 	languageId: string;
 	uriScheme: string;
 	fileName: string;
-	linePrefix: string;
+	textBeforeCursor: string;
 	changeText: string;
 	rangeLength: number;
 	selectionEmpty: boolean;
 }
 
-const GuideNhOpenTagPrefixPattern = /<([A-Z][A-Za-z0-9]*)?$/;
-const GuideNhCompletionAssistTextPattern = /^[A-Za-z0-9]$/;
+const GuideNhCompletionAssistWindowSize = 4096;
+const GuideNhCompletionAssistTextPattern = /^[A-Za-z0-9._:/-]$/;
 
 export function registerGuideNhCompletionAssist(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
@@ -21,16 +21,16 @@ export function registerGuideNhCompletionAssist(context: vscode.ExtensionContext
 			return;
 		}
 		const selection = editor.selection;
-		const linePrefix = editor.document.lineAt(selection.active.line).text.slice(0, selection.active.character);
 		const change = event.contentChanges[0];
 		if (!change) {
 			return;
 		}
+		const textBeforeCursor = readGuideNhCompletionAssistPrefix(editor.document, selection.active);
 		if (!shouldTriggerGuideNhSuggest({
 			languageId: event.document.languageId,
 			uriScheme: event.document.uri.scheme,
 			fileName: event.document.uri.fsPath,
-			linePrefix,
+			textBeforeCursor,
 			changeText: change.text,
 			rangeLength: change.rangeLength,
 			selectionEmpty: selection.isEmpty
@@ -46,8 +46,8 @@ export function registerGuideNhCompletionAssist(context: vscode.ExtensionContext
 			if (!activeSelection.isEmpty) {
 				return;
 			}
-			const activeLinePrefix = activeEditor.document.lineAt(activeSelection.active.line).text.slice(0, activeSelection.active.character);
-			if (!GuideNhOpenTagPrefixPattern.test(activeLinePrefix)) {
+			const activeTextBeforeCursor = readGuideNhCompletionAssistPrefix(activeEditor.document, activeSelection.active);
+			if (!isGuideNhSuggestContext(activeTextBeforeCursor)) {
 				return;
 			}
 			void vscode.commands.executeCommand('editor.action.triggerSuggest');
@@ -65,7 +65,7 @@ export function shouldTriggerGuideNhSuggest(context: GuideNhCompletionAssistCont
 	if (!isGuideNhCompletionAssistChange(context.changeText, context.rangeLength)) {
 		return false;
 	}
-	return GuideNhOpenTagPrefixPattern.test(context.linePrefix);
+	return isGuideNhSuggestContext(context.textBeforeCursor);
 }
 
 function isGuideNhCompletionAssistDocument(context: GuideNhCompletionAssistContext): boolean {
@@ -86,4 +86,33 @@ function isGuideNhCompletionAssistChange(text: string, rangeLength: number): boo
 		return true;
 	}
 	return text.length === 1 && GuideNhCompletionAssistTextPattern.test(text);
+}
+
+function readGuideNhCompletionAssistPrefix(document: vscode.TextDocument, position: vscode.Position): string {
+	const offset = document.offsetAt(position);
+	const start = Math.max(0, offset - GuideNhCompletionAssistWindowSize);
+	return document.getText(new vscode.Range(document.positionAt(start), position));
+}
+
+function isGuideNhSuggestContext(textBeforeCursor: string): boolean {
+	const openTag = findGuideNhOpenTagPrefix(textBeforeCursor);
+	if (!openTag) {
+		return false;
+	}
+	return /^<$/.test(openTag)
+		|| /<[A-Za-z][A-Za-z0-9]*$/.test(openTag)
+		|| /<[A-Za-z][A-Za-z0-9]*\s+[A-Za-z_][\w.-]*$/.test(openTag)
+		|| /<[A-Za-z][A-Za-z0-9]*[\s\S]*\s[A-Za-z_][\w.-]*\s*=\s*(?:"[^"]*|'[^']*|\{[^}]*|[^\s"'=<>`]*)$/.test(openTag);
+}
+
+function findGuideNhOpenTagPrefix(textBeforeCursor: string): string | undefined {
+	const openTagStart = textBeforeCursor.lastIndexOf('<');
+	if (openTagStart < 0) {
+		return undefined;
+	}
+	const openTag = textBeforeCursor.slice(openTagStart);
+	if (openTag.startsWith('</') || openTag.includes('>')) {
+		return undefined;
+	}
+	return openTag;
 }

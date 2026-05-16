@@ -208,4 +208,26 @@ navigation:
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/crafting.md', '# Crafting');
 		assert.strictEqual(index.findReferencesToPage('crafting.md').length, 1);
 	});
+
+	test('indexes resource references from GuideNH attributes', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/source.md', '<FloatingImage src="./images/test1.png" />');
+		assert.strictEqual(index.findReferencesToResource('images/test1.png').length, 1);
+	});
+
+	test('indexes runtime-backed item and ore attribute references', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/source.md', [
+			'---',
+			'item_ids:',
+			'  - minecraft:stone',
+			'ore_ids:',
+			'  - oreIron',
+			'---',
+			'<ItemImage id="minecraft:stone" />',
+			'<Block ore="oreIron" />'
+		].join('\n'));
+		assert.strictEqual(index.findReferencesToItem('minecraft:stone').length, 1);
+		assert.strictEqual(index.findReferencesToOre('oreIron').length, 1);
+	});
 });

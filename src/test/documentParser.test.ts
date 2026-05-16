@@ -59,4 +59,12 @@ navigation:
 			interactive: 'bare'
 		});
 	});
+
+	test('parses lowercase GuideNH tags', () => {
+		const parsed = parseGuideNhDocument('<details open><summary>More</summary><br /></details>');
+		assert.deepStrictEqual(
+			parsed.tags.map((tag) => tag.name),
+			['details', 'summary', 'summary', 'br', 'details']
+		);
+	});
 });

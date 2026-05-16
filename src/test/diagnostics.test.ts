@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { Diagnostic } from 'vscode-languageserver/node';
+import { GuideNhResourceIndex } from '../server/index/resourceIndex';
 import { GuideNhWorkspaceIndex } from '../server/index/workspaceIndex';
 import { createGuideNhDiagnostics } from '../server/providers/diagnostics';
 import { loadGuideNhSchema } from '../server/schema/schemaLoader';
@@ -207,6 +208,31 @@ suite('GuideNH diagnostics', () => {
 		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown GuideNH page')), false);
 	});
 
+	test('reports unresolved GuideNH resource references', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const resourceIndex = new GuideNhResourceIndex();
+		const text = [
+			'<FloatingImage src="./images/missing.png" />',
+			'<ImportStructure src="icons/missing.png" />'
+		].join('\n');
+		const diagnostics = createGuideNhDiagnostics(text, schema, undefined, resourceIndex);
+		assert.deepStrictEqual(
+			diagnostics.map((item: Diagnostic) => item.message),
+			[
+				'Unknown GuideNH resource images/missing.png',
+				'Unknown GuideNH resource icons/missing.png'
+			]
+		);
+	});
+
+	test('accepts resolved GuideNH resource references', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const resourceIndex = new GuideNhResourceIndex();
+		resourceIndex.updateResource('file:///repo/assets/mod/guidenh/_en_us/images/test1.png');
+		const diagnostics = createGuideNhDiagnostics('<FloatingImage src="./images/test1.png" />', schema, undefined, resourceIndex);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown GuideNH resource')), false);
+	});
+
 	test('accepts chart common attributes and series children', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const text = [
@@ -363,5 +389,12 @@ suite('GuideNH diagnostics', () => {
 		index.updatePage('file:///E:/Github/GuideNH/wiki/resourcepack/assets/guidenh/guidenh/_zh_cn/index.md', '# Index');
 		const diagnostics = createGuideNhDiagnostics('---\nnavigation:\n  parent: index.md\n---\n', schema, index);
 		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown GuideNH page')), false);
+	});
+
+	test('accepts lowercase GuideNH tags and attributes against mixed-case schema entries', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('<importstructurelib controller="gregtech:gt.blockmachines:1000" />', schema);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown GuideNH tag')), false);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown attribute')), false);
 	});
 });

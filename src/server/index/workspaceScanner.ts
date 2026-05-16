@@ -3,24 +3,38 @@ import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { WorkspaceFolder } from 'vscode-languageserver/node';
 import { URI } from 'vscode-uri';
+import { GuideNhResourceIndex } from './resourceIndex';
 import { GuideNhWorkspaceIndex } from './workspaceIndex';
 
 const WorkspaceScanReadConcurrency = 8;
 
-export async function indexGuideNhWorkspaceFolders(folders: WorkspaceFolder[], index: GuideNhWorkspaceIndex): Promise<void> {
+export async function indexGuideNhWorkspaceFolders(
+	folders: WorkspaceFolder[],
+	index: GuideNhWorkspaceIndex,
+	resourceIndex?: GuideNhResourceIndex
+): Promise<void> {
 	for (const folder of folders) {
-		await indexGuideNhWorkspaceFolder(folder.uri, index);
+		await indexGuideNhWorkspaceFolder(folder.uri, index, resourceIndex);
 	}
 }
 
-export async function indexGuideNhWorkspaceFolder(folderUri: string, index: GuideNhWorkspaceIndex): Promise<void> {
+export async function indexGuideNhWorkspaceFolder(
+	folderUri: string,
+	index: GuideNhWorkspaceIndex,
+	resourceIndex?: GuideNhResourceIndex
+): Promise<void> {
 	const folderPath = URI.parse(folderUri).fsPath;
 	const runner = new LimitedTaskRunner(WorkspaceScanReadConcurrency);
-	await visitDirectory(folderPath, runner, index);
+	await visitDirectory(folderPath, runner, index, resourceIndex);
 	await runner.waitForIdle();
 }
 
-async function visitDirectory(dir: string, runner: LimitedTaskRunner, index: GuideNhWorkspaceIndex): Promise<void> {
+async function visitDirectory(
+	dir: string,
+	runner: LimitedTaskRunner,
+	index: GuideNhWorkspaceIndex,
+	resourceIndex?: GuideNhResourceIndex
+): Promise<void> {
 	let entries: Dirent[];
 	try {
 		entries = await fs.readdir(dir, { withFileTypes: true });
@@ -34,11 +48,13 @@ async function visitDirectory(dir: string, runner: LimitedTaskRunner, index: Gui
 			if (shouldSkipDirectory(entry.name)) {
 				continue;
 			}
-			await visitDirectory(fullPath, runner, index);
+			await visitDirectory(fullPath, runner, index, resourceIndex);
 		} else if (isGuideNhMarkdownPath(fullPath)) {
 			runner.schedule(async () => {
 				await indexGuideNhMarkdownFile(fullPath, index);
 			});
+		} else if (resourceIndex && isGuideNhResourcePath(fullPath)) {
+			resourceIndex.updateResource(pathToFileURL(fullPath).toString());
 		}
 	}
 }
@@ -59,6 +75,14 @@ function shouldSkipDirectory(name: string): boolean {
 function isGuideNhMarkdownPath(filePath: string): boolean {
 	const normalized = filePath.replace(/\\/g, '/');
 	return /\/assets\/[^/]+\/guidenh\/(?:guidenh\/)?_[a-z]{2}_[a-z]{2}\/.+\.md$/i.test(normalized);
+}
+
+function isGuideNhResourcePath(filePath: string): boolean {
+	const normalized = filePath.replace(/\\/g, '/');
+	if (!/\/assets\/[^/]+\/guidenh\/(?:guidenh\/)?_[a-z]{2}_[a-z]{2}\//i.test(normalized)) {
+		return false;
+	}
+	return !normalized.toLowerCase().endsWith('.md');
 }
 
 class LimitedTaskRunner {

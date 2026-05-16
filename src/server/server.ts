@@ -1,7 +1,9 @@
 import * as path from 'path';
 import {
+	CompletionItemKind,
 	createConnection,
 	InitializeParams,
+	MarkupKind,
 	ProposedFeatures,
 	TextDocumentSyncKind,
 	TextDocuments,
@@ -10,10 +12,14 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { pathToFileURL } from 'url';
 import { GuideNhInitializationOptions } from '../common/protocol';
+import { GuideNhResourceIndex } from './index/resourceIndex';
 import { GuideNhWorkspaceIndex } from './index/workspaceIndex';
 import { indexGuideNhWorkspaceFolders } from './index/workspaceScanner';
 import { localizeServer, setServerLocale } from './localization';
-import { createGuideNhCompletions, GuideNhCompletionTriggerCharacters } from './providers/completion';
+import {
+	createGuideNhCompletionResult,
+	GuideNhCompletionTriggerCharacters
+} from './providers/completion';
 import { createGuideNhDiagnostics } from './providers/diagnostics';
 import { createGuideNhDefinition } from './providers/definition';
 import { createGuideNhHover } from './providers/hover';
@@ -31,6 +37,7 @@ const schemaPromise = loadGuideNhSchemaFromCandidates([
 	path.join(__dirname, '..', 'src', 'schema')
 ]);
 const workspaceIndex = new GuideNhWorkspaceIndex();
+const resourceIndex = new GuideNhResourceIndex();
 const semanticCache = new SemanticCache();
 const runtimeBridgeClient = new RuntimeBridgeClient(semanticCache, {
 	onStatus: wireRuntimeBridgeStatus(connection),
@@ -58,7 +65,7 @@ connection.onInitialize((params: InitializeParams) => {
 
 connection.onInitialized(() => {
 	const folders = resolveInitialWorkspaceFolders(workspaceFolders, configuredResourcePackPath);
-	void indexGuideNhWorkspaceFolders(folders, workspaceIndex).catch((error: unknown) => {
+	void indexGuideNhWorkspaceFolders(folders, workspaceIndex, resourceIndex).catch((error: unknown) => {
 		connection.console.warn(`GuideNH workspace scan failed: ${error instanceof Error ? error.message : String(error)}`);
 	}).finally(() => {
 		void refreshOpenDocumentDiagnostics();
@@ -77,7 +84,32 @@ connection.onCompletion(async (params) => {
 	}
 	const schema = await schemaPromise;
 	const offset = document.offsetAt(params.position);
-	return createGuideNhCompletions(document.getText(), offset, schema, undefined, semanticCache, workspaceIndex);
+	const text = document.getText();
+	const completionResult = createGuideNhCompletionResult(
+		text,
+		offset,
+		schema,
+		undefined,
+		semanticCache,
+		workspaceIndex,
+		resourceIndex
+	);
+	if (!completionResult.dynamicRequest) {
+		return completionResult.items;
+	}
+	const runtimeEntries = await runtimeBridgeClient.querySemanticEntries({
+		capability: completionResult.dynamicRequest.capability,
+		prefix: completionResult.dynamicRequest.prefix,
+		filters: completionResult.dynamicRequest.filters
+	});
+	const runtimeItems = runtimeEntries.map((entry) => ({
+		label: entry.id,
+		kind: CompletionItemKind.Value,
+		detail: entry.label,
+		documentation: entry.detail,
+		insertText: entry.id
+	}));
+	return deduplicateCompletionItems(completionResult.items, runtimeItems);
 });
 
 connection.onHover(async (params) => {
@@ -87,7 +119,18 @@ connection.onHover(async (params) => {
 	}
 	const schema = await schemaPromise;
 	const offset = document.offsetAt(params.position);
-	return createGuideNhHover(document.getText(), offset, schema);
+	const hoverResult = createGuideNhHover(document.getText(), offset, schema, workspaceIndex, resourceIndex, semanticCache);
+	if (hoverResult.hover || !hoverResult.dynamicRequest) {
+		return hoverResult.hover;
+	}
+	const runtimeEntries = await runtimeBridgeClient.querySemanticEntries({
+		capability: hoverResult.dynamicRequest.capability,
+		prefix: hoverResult.dynamicRequest.prefix,
+		filters: hoverResult.dynamicRequest.filters,
+		limit: 20
+	});
+	const runtimeHover = createRuntimeSemanticHover(runtimeEntries, hoverResult.dynamicRequest.prefix);
+	return runtimeHover ?? hoverResult.hover;
 });
 
 connection.onDefinition((params) => {
@@ -95,7 +138,7 @@ connection.onDefinition((params) => {
 	if (!document) {
 		return undefined;
 	}
-	return createGuideNhDefinition(document.getText(), document.offsetAt(params.position), workspaceIndex);
+	return createGuideNhDefinition(document.getText(), document.offsetAt(params.position), workspaceIndex, resourceIndex);
 });
 
 connection.onReferences((params) => {
@@ -122,8 +165,46 @@ async function refreshOpenDocumentDiagnostics(): Promise<void> {
 
 async function publishDiagnostics(document: TextDocument): Promise<void> {
 	const schema = await schemaPromise;
-	const diagnostics = createGuideNhDiagnostics(document.getText(), schema, workspaceIndex);
+	const diagnostics = createGuideNhDiagnostics(document.getText(), schema, workspaceIndex, resourceIndex);
 	connection.sendDiagnostics({ uri: document.uri, diagnostics });
+}
+
+function deduplicateCompletionItems<T extends { label: string }>(primary: T[], secondary: T[]): T[] {
+	const seen = new Set(primary.map((item) => item.label));
+	const merged = primary.slice();
+	for (const item of secondary) {
+		if (seen.has(item.label)) {
+			continue;
+		}
+		seen.add(item.label);
+		merged.push(item);
+	}
+	return merged;
+}
+
+function createRuntimeSemanticHover(
+	entries: Array<{ id: string; label?: string; detail?: string }>,
+	targetValue: string
+) {
+	const entry = entries.find((candidate) => candidate.id === targetValue) ?? entries[0];
+	if (!entry) {
+		return undefined;
+	}
+	const lines = [
+		`**${entry.id}**`
+	];
+	if (entry.label) {
+		lines.push('', entry.label);
+	}
+	if (entry.detail && entry.detail !== entry.id) {
+		lines.push('', entry.detail);
+	}
+	return {
+		contents: {
+			kind: MarkupKind.Markdown,
+			value: lines.join('\n')
+		}
+	};
 }
 
 function readInitializationOptions(value: unknown): GuideNhInitializationOptions {

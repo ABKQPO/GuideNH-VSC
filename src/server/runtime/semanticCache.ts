@@ -67,6 +67,25 @@ export class SemanticCache {
 		return matches;
 	}
 
+	findEntry(capability: string, query: string): SemanticEntry | undefined {
+		const normalizedQuery = query.toLowerCase();
+		const cache = this.capabilities.get(capability);
+		if (!cache || normalizedQuery.length === 0) {
+			return undefined;
+		}
+		for (let index = 0; index < cache.entries.length; index++) {
+			if (cache.keys[index] === normalizedQuery) {
+				return cache.entries[index];
+			}
+		}
+		for (let index = 0; index < cache.entries.length; index++) {
+			if (cache.labels[index] === normalizedQuery || cache.details[index] === normalizedQuery) {
+				return cache.entries[index];
+			}
+		}
+		return undefined;
+	}
+
 	markStale(): void {
 		for (const cache of this.capabilities.values()) {
 			cache.stale = true;

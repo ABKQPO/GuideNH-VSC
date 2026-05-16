@@ -2,8 +2,13 @@ import * as assert from 'assert';
 import * as path from 'path';
 import { CompletionItem, CompletionItemKind, InsertTextFormat } from 'vscode-languageserver/node';
 import { shouldTriggerGuideNhSuggest } from '../client/completionAssist';
+import { GuideNhResourceIndex } from '../server/index/resourceIndex';
 import { GuideNhWorkspaceIndex } from '../server/index/workspaceIndex';
-import { createGuideNhCompletions, GuideNhCompletionTriggerCharacters } from '../server/providers/completion';
+import {
+	createGuideNhCompletionResult,
+	createGuideNhCompletions,
+	GuideNhCompletionTriggerCharacters
+} from '../server/providers/completion';
 import { SemanticCache } from '../server/runtime/semanticCache';
 import { loadGuideNhSchema } from '../server/schema/schemaLoader';
 
@@ -44,6 +49,20 @@ suite('GuideNH completion provider', () => {
 		assert.strictEqual(width?.insertTextFormat, InsertTextFormat.Snippet);
 	});
 
+	test('completes partial attribute names inside an open tag', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '<GameScene wid';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined);
+		const width = items.find((item: CompletionItem) => item.label === 'width');
+		assert.ok(width);
+		assert.strictEqual(width?.insertText, 'width="${1:0}"');
+		assert.ok(width?.textEdit && 'range' in width.textEdit);
+		assert.deepStrictEqual(width?.textEdit.range, {
+			start: { line: 0, character: 11 },
+			end: { line: 0, character: 14 }
+		});
+	});
+
 	test('completes integer scene coordinates as string attributes', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const items = createGuideNhCompletions('<Block ', 7, schema, 'GameScene');
@@ -82,6 +101,12 @@ suite('GuideNH completion provider', () => {
 		assert.ok(items.some((item: CompletionItem) => item.label === 'BlockImage'));
 	});
 
+	test('completes lowercase GuideNH tags after opening angle bracket', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const items = createGuideNhCompletions('<de', 3, schema, undefined);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'details'));
+	});
+
 	test('triggers VS Code suggest for GuideNH open-tag typing and single-character deletion', () => {
 		const base = {
 			languageId: 'markdown',
@@ -92,34 +117,62 @@ suite('GuideNH completion provider', () => {
 
 		assert.strictEqual(shouldTriggerGuideNhSuggest({
 			...base,
-			linePrefix: '<',
+			textBeforeCursor: '<',
 			changeText: '<',
 			rangeLength: 0
 		}), true);
 		assert.strictEqual(shouldTriggerGuideNhSuggest({
 			...base,
-			linePrefix: '<',
+			textBeforeCursor: '<',
 			changeText: '<>',
 			rangeLength: 0
 		}), true);
 		assert.strictEqual(shouldTriggerGuideNhSuggest({
 			...base,
-			linePrefix: '<B',
+			textBeforeCursor: '<B',
 			changeText: 'B',
 			rangeLength: 0
 		}), true);
 		assert.strictEqual(shouldTriggerGuideNhSuggest({
 			...base,
-			linePrefix: '<',
+			textBeforeCursor: '<d',
+			changeText: 'd',
+			rangeLength: 0
+		}), true);
+		assert.strictEqual(shouldTriggerGuideNhSuggest({
+			...base,
+			textBeforeCursor: '<',
 			changeText: '',
 			rangeLength: 1
 		}), true);
 		assert.strictEqual(shouldTriggerGuideNhSuggest({
 			...base,
-			linePrefix: 'plain text',
+			textBeforeCursor: 'plain text',
 			changeText: '<',
 			rangeLength: 0
 		}), false);
+	});
+
+	test('triggers VS Code suggest while editing open-tag attributes and values', () => {
+		const base = {
+			languageId: 'markdown',
+			uriScheme: 'file',
+			fileName: 'E:/Github/GuideNH/wiki/resourcepack/assets/guidenh/guidenh/_zh_cn/images.md',
+			selectionEmpty: true
+		};
+
+		assert.strictEqual(shouldTriggerGuideNhSuggest({
+			...base,
+			textBeforeCursor: '<GameScene wid',
+			changeText: 'd',
+			rangeLength: 0
+		}), true);
+		assert.strictEqual(shouldTriggerGuideNhSuggest({
+			...base,
+			textBeforeCursor: '<ImportStructureLib controller="greg" facing="n',
+			changeText: 'n',
+			rangeLength: 0
+		}), true);
 	});
 
 	test('completes enum attribute values from schema', async () => {
@@ -265,6 +318,125 @@ suite('GuideNH completion provider', () => {
 			items.map((item: CompletionItem) => item.label),
 			['crafting.md']
 		);
+	});
+
+	test('completes resource attribute values from indexed resources', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const resourceIndex = new GuideNhResourceIndex();
+		resourceIndex.updateResource('file:///repo/assets/mod/guidenh/_en_us/images/test1.png');
+		resourceIndex.updateResource('file:///repo/assets/mod/guidenh/_en_us/images/test2.png');
+		const text = '<FloatingImage src="./images/t';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined, undefined, undefined, resourceIndex);
+		assert.deepStrictEqual(
+			items.map((item: CompletionItem) => item.label),
+			['images/test1.png', 'images/test2.png']
+		);
+	});
+
+	test('completes ImportStructureLib controller values from runtime semantic cache', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const cache = new SemanticCache();
+		cache.replace('structurelib', 1, [
+			{
+				id: 'gregtech:gt.blockmachines:1000',
+				label: 'Basic Machine Hull',
+				detail: 'gregtech:gt.blockmachines:1000'
+			}
+		]);
+		const text = '<ImportStructureLib controller="greg';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined, cache);
+		assert.deepStrictEqual(
+			items.map((item: CompletionItem) => item.label),
+			['gregtech:gt.blockmachines:1000']
+		);
+		assert.strictEqual(items[0].detail, 'Basic Machine Hull');
+		assert.strictEqual(items[0].documentation, 'gregtech:gt.blockmachines:1000');
+	});
+
+	test('completes ImportStructureLib orientation values from schema context', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const facingItems = createGuideNhCompletions('<ImportStructureLib facing="n', 29, schema, undefined);
+		const rotationItems = createGuideNhCompletions('<ImportStructureLib rotation="c', 31, schema, undefined);
+		const flipItems = createGuideNhCompletions('<ImportStructureLib flip="h', 27, schema, undefined);
+
+		assert.ok(facingItems.some((item: CompletionItem) => item.label === 'north'));
+		assert.ok(rotationItems.some((item: CompletionItem) => item.label === 'clockwise'));
+		assert.ok(flipItems.some((item: CompletionItem) => item.label === 'horizontal'));
+	});
+
+	test('completes lowercase ImportStructureLib orientation values from schema context', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const facingItems = createGuideNhCompletions('<importstructurelib facing="n', 29, schema, undefined);
+		assert.ok(facingItems.some((item: CompletionItem) => item.label === 'north'));
+	});
+
+	test('creates a dynamic runtime query for ImportStructureLib channel values', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const result = createGuideNhCompletionResult(
+			'<ImportStructureLib controller="gregtech:gt.blockmachines:1000" channel="3',
+			74,
+			schema,
+			undefined
+		);
+
+		assert.deepStrictEqual(result.items, []);
+		assert.deepStrictEqual(result.dynamicRequest, {
+			capability: 'structurelib',
+			prefix: '3',
+			filters: {
+				attribute: 'channel',
+				controller: 'gregtech:gt.blockmachines:1000'
+			}
+		});
+	});
+
+	test('creates a controller-aware dynamic runtime query for ImportStructureLib orientation values', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '<ImportStructureLib controller="gregtech:gt.blockmachines:1000" facing="n" rotation="clockwise" ';
+		const result = createGuideNhCompletionResult(
+			text,
+			text.indexOf('facing="n') + 'facing="n'.length,
+			schema,
+			undefined
+		);
+
+		assert.deepStrictEqual(result.items, []);
+		assert.deepStrictEqual(result.dynamicRequest, {
+			capability: 'structurelib',
+			prefix: 'n',
+			filters: {
+				attribute: 'facing',
+				controller: 'gregtech:gt.blockmachines:1000',
+				rotation: 'clockwise'
+			}
+		});
+	});
+
+	test('creates dynamic runtime queries for generic runtime-backed attribute values', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const soundResult = createGuideNhCompletionResult(
+			'<PlaySound sound="guidenh:guide.sample',
+			38,
+			schema,
+			undefined
+		);
+		const pageResult = createGuideNhCompletionResult(
+			'<ItemLink linksTo="intro',
+			24,
+			schema,
+			undefined
+		);
+
+		assert.deepStrictEqual(soundResult.dynamicRequest, {
+			capability: 'sounds',
+			prefix: 'guidenh:guide.sample',
+			filters: {}
+		});
+		assert.deepStrictEqual(pageResult.dynamicRequest, {
+			capability: 'pages',
+			prefix: 'intro',
+			filters: {}
+		});
 	});
 
 	test('completes GuideNH inline markdown markers', async () => {

@@ -100,7 +100,9 @@ export function createSemanticQueryMessage(
 	id: string,
 	capability: string,
 	cursor = '',
-	limit = 200
+	limit = 200,
+	prefix = '',
+	filters: Record<string, string> = {}
 ): BridgeEnvelope<SemanticQueryPayload> {
 	return {
 		id,
@@ -111,8 +113,8 @@ export function createSemanticQueryMessage(
 			capability,
 			cursor,
 			limit,
-			prefix: '',
-			filters: {}
+			prefix,
+			filters
 		}
 	};
 }

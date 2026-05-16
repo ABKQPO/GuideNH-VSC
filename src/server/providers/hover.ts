@@ -1,88 +1,95 @@
 import { Hover, MarkupKind } from 'vscode-languageserver/node';
+import { GuideNhResourceIndex } from '../index/resourceIndex';
+import { GuideNhWorkspaceIndex } from '../index/workspaceIndex';
 import { GuideNhFrontmatterKey, GuideNhSchemaBundle } from '../../common/schema';
-import { maskIgnoredMarkdownRanges } from '../parser/documentParser';
+import { createGuideNhDocumentModel, findReferenceAtOffset, findTagContextAtOffset } from '../parser/documentModel';
 import { extractFrontmatter } from '../parser/frontmatter';
-
-interface TagContext {
-	source: string;
-	start: number;
-	tagName: string;
-}
+import { findIndexedFrontmatterValueAtOffset } from '../parser/frontmatterIndexing';
+import { SemanticCache } from '../runtime/semanticCache';
+import { DynamicHoverRequest, resolveDynamicHoverRequest } from '../runtime/runtimeHover';
+import { resolveRuntimeAttributeSource } from '../runtime/runtimeAttributeSources';
+import { findAttributeSchema, findTagSchema, matchesTagName } from '../schema/schemaLookup';
 
 interface FrontmatterKeyContext {
 	path: string[];
 	key: GuideNhFrontmatterKey;
 }
 
-export function createGuideNhHover(text: string, offset: number, schema: GuideNhSchemaBundle): Hover | undefined {
-	const maskedText = maskIgnoredMarkdownRanges(text);
-	const frontmatterHover = createFrontmatterHover(text, offset, schema);
-	if (frontmatterHover) {
-		return frontmatterHover;
-	}
-	const tagContext = findTagContext(maskedText, offset);
-	if (!tagContext) {
-		return undefined;
-	}
-	const attributeHover = createAttributeHover(tagContext, offset, schema);
-	if (attributeHover) {
-		return attributeHover;
-	}
-	return createTagHover(tagContext, schema);
+export interface GuideNhHoverResult {
+	hover?: Hover;
+	dynamicRequest?: DynamicHoverRequest;
 }
 
-function createTagHover(context: TagContext, schema: GuideNhSchemaBundle): Hover | undefined {
-	const tagSchema = schema.tags.tags[context.tagName];
+export function createGuideNhHover(
+	text: string,
+	offset: number,
+	schema: GuideNhSchemaBundle,
+	index?: GuideNhWorkspaceIndex,
+	resourceIndex?: GuideNhResourceIndex,
+	cache?: SemanticCache
+): GuideNhHoverResult {
+	const frontmatterValueHover = createIndexedFrontmatterValueHover(text, offset, index);
+	if (frontmatterValueHover) {
+		return { hover: frontmatterValueHover };
+	}
+	const frontmatterHover = createFrontmatterHover(text, offset, schema);
+	if (frontmatterHover) {
+		return { hover: frontmatterHover };
+	}
+	const model = createGuideNhDocumentModel(text);
+	const referenceHover = createReferenceHover(model, offset, index, resourceIndex);
+	if (referenceHover) {
+		return { hover: referenceHover };
+	}
+	const tagContext = findTagContextAtOffset(model, offset);
+	if (!tagContext) {
+		return {};
+	}
+	const runtimeAttributeHover = createRuntimeAttributeHover(
+		tagContext.tag.name,
+		tagContext.attribute?.name,
+		tagContext.attribute?.value,
+		index,
+		cache
+	);
+	if (runtimeAttributeHover) {
+		return { hover: runtimeAttributeHover };
+	}
+	const dynamicRequest = resolveDynamicHoverRequest(
+		text,
+		offset,
+		tagContext.tag.name,
+		tagContext.attribute?.name,
+		tagContext.attribute?.value
+	);
+	if (dynamicRequest) {
+		return { dynamicRequest };
+	}
+	const attributeHover = createAttributeHover(tagContext.tag.name, tagContext.attribute?.name, schema);
+	if (attributeHover) {
+		return { hover: attributeHover };
+	}
+	return { hover: createTagHover(tagContext.tag.name, schema) };
+}
+
+function createTagHover(tagName: string, schema: GuideNhSchemaBundle): Hover | undefined {
+	const tagSchema = findTagSchema(schema, tagName);
 	if (!tagSchema) {
 		return undefined;
 	}
 	return createMarkdownHover(`**${tagSchema.name}**\n\n${tagSchema.description}`);
 }
 
-function createAttributeHover(context: TagContext, offset: number, schema: GuideNhSchemaBundle): Hover | undefined {
-	const attributeName = findAttributeNameAtOffset(context, offset);
+function createAttributeHover(tagName: string, attributeName: string | undefined, schema: GuideNhSchemaBundle): Hover | undefined {
 	if (!attributeName) {
 		return undefined;
 	}
-	const attribute = schema.tags.tags[context.tagName]?.attributes[attributeName];
+	const tagSchema = findTagSchema(schema, tagName);
+	const attribute = findAttributeSchema(schema, tagName, attributeName);
 	if (!attribute) {
 		return undefined;
 	}
-	return createMarkdownHover(`**${context.tagName}.${attributeName}**\n\n${attribute.type}\n\n${attribute.description ?? ''}`.trim());
-}
-
-function findTagContext(text: string, offset: number): TagContext | undefined {
-	const before = text.slice(0, offset);
-	const after = text.slice(offset);
-	const start = before.lastIndexOf('<');
-	const end = after.indexOf('>');
-	if (start < 0 || end < 0) {
-		return undefined;
-	}
-	const source = text.slice(start, offset + end + 1);
-	const tagMatch = source.match(/^<([A-Z][A-Za-z0-9]*)/);
-	if (!tagMatch) {
-		return undefined;
-	}
-	return {
-		source,
-		start,
-		tagName: tagMatch[1]
-	};
-}
-
-function findAttributeNameAtOffset(context: TagContext, offset: number): string | undefined {
-	const sourceOffset = offset - context.start;
-	const pattern = /\s([A-Za-z_][\w.-]*)(?=\s*=|\s|\/?>)/g;
-	let match: RegExpExecArray | null;
-	while ((match = pattern.exec(context.source)) !== null) {
-		const start = match.index + 1;
-		const end = start + match[1].length;
-		if (sourceOffset >= start && sourceOffset <= end) {
-			return match[1];
-		}
-	}
-	return undefined;
+	return createMarkdownHover(`**${tagSchema?.name ?? tagName}.${attributeName}**\n\n${attribute.type}\n\n${attribute.description ?? ''}`.trim());
 }
 
 function createFrontmatterHover(text: string, offset: number, schema: GuideNhSchemaBundle): Hover | undefined {
@@ -95,6 +102,67 @@ function createFrontmatterHover(text: string, offset: number, schema: GuideNhSch
 		return undefined;
 	}
 	return createMarkdownHover(`**${context.path.join('.')}**\n\n${context.key.type}\n\n${context.key.description}`);
+}
+
+function createIndexedFrontmatterValueHover(
+	text: string,
+	offset: number,
+	index: GuideNhWorkspaceIndex | undefined
+): Hover | undefined {
+	const context = findIndexedFrontmatterValueAtOffset(text, offset);
+	if (!context) {
+		return undefined;
+	}
+	const page = context.path === 'item_ids'
+		? index?.findItemReference(context.value)
+		: context.path === 'ore_ids'
+			? index?.findOreReference(context.value)
+			: undefined;
+	const kind = context.path === 'item_ids'
+		? 'GuideNH item id'
+		: context.path === 'ore_ids'
+			? 'GuideNH ore id'
+			: undefined;
+	if (!kind) {
+		return undefined;
+	}
+	const lines = [
+		`**${kind}**`,
+		'',
+		`\`${context.value}\``
+	];
+	if (page) {
+		lines.push('', `Defined in ${page.relativePath}`);
+	}
+	return createMarkdownHover(lines.join('\n'));
+}
+
+function createReferenceHover(
+	model: ReturnType<typeof createGuideNhDocumentModel>,
+	offset: number,
+	index?: GuideNhWorkspaceIndex,
+	resourceIndex?: GuideNhResourceIndex
+): Hover | undefined {
+	const reference = findReferenceAtOffset(model, offset);
+	if (!reference || !reference.normalizedTarget) {
+		return undefined;
+	}
+	if (reference.kind === 'page') {
+		const page = index?.findPageByRelativePath(reference.normalizedTarget);
+		const status = page ? 'Resolved page' : 'Unresolved page';
+		const location = page?.uri ?? reference.normalizedTarget;
+		return createMarkdownHover(`**GuideNH page reference**\n\n${status}\n\n\`${reference.normalizedTarget}\`\n\n${location}`);
+	}
+	if (matchesTagName(reference.tagName, 'ImportStructureLib') && reference.attributeName === 'controller') {
+		return createMarkdownHover(`**GuideNH structure controller**\n\n\`${reference.target}\`\n\nResolved by runtime semantic data.`);
+	}
+	if (matchesTagName(reference.tagName, 'ImportStructureLib') && reference.attributeName === 'piece') {
+		return createMarkdownHover('**GuideNH structure piece**\n\nUsed by runtime import, but no standalone semantic candidates are exposed.');
+	}
+	const resource = resourceIndex?.findResourceByRelativePath(reference.normalizedTarget);
+	const status = resource ? 'Resolved resource' : 'Unresolved resource';
+	const location = resource?.uri ?? reference.normalizedTarget;
+	return createMarkdownHover(`**GuideNH resource reference**\n\n${status}\n\n\`${reference.normalizedTarget}\`\n\n${location}`);
 }
 
 function findFrontmatterKeyContext(frontmatter: string, offset: number, schema: GuideNhSchemaBundle): FrontmatterKeyContext | undefined {
@@ -140,6 +208,80 @@ function resolveFrontmatterKey(keys: Record<string, GuideNhFrontmatterKey>, path
 		currentKeys = currentKey.children ?? {};
 	}
 	return currentKey;
+}
+
+function createRuntimeAttributeHover(
+	tagName: string,
+	attributeName: string | undefined,
+	attributeValue: string | undefined,
+	index: GuideNhWorkspaceIndex | undefined,
+	cache: SemanticCache | undefined
+): Hover | undefined {
+	if (!attributeName || !attributeValue) {
+		return undefined;
+	}
+	if (matchesTagName(tagName, 'ImportStructureLib') && attributeName === 'piece') {
+		return createMarkdownHover(`**GuideNH structure piece**\n\n\`${attributeValue}\`\n\nUsed by runtime import, but no standalone semantic candidates are exposed.`);
+	}
+	const source = resolveRuntimeAttributeSource(tagName, attributeName);
+	if (!source) {
+		return undefined;
+	}
+	const entry = cache?.findEntry(source.capability, attributeValue);
+	if (!entry) {
+		return createLocalSemanticAttributeHover(tagName, attributeName, attributeValue, source.capability, index);
+	}
+	const title = `**${tagName}.${attributeName}**`;
+	const lines = [
+		title,
+		'',
+		`\`${entry.id}\``
+	];
+	if (entry.label) {
+		lines.push('', entry.label);
+	}
+	if (entry.detail && entry.detail !== entry.id) {
+		lines.push('', entry.detail);
+	}
+	return createMarkdownHover(lines.join('\n'));
+}
+
+function createLocalSemanticAttributeHover(
+	tagName: string,
+	attributeName: string,
+	attributeValue: string,
+	capability: string,
+	index: GuideNhWorkspaceIndex | undefined
+): Hover | undefined {
+	if (!index) {
+		return undefined;
+	}
+	const page = capability === 'items'
+		? index.findItemReference(attributeValue)
+		: capability === 'ores'
+			? index.findOreReference(attributeValue)
+			: undefined;
+	if (!page) {
+		return undefined;
+	}
+	const title = `**${tagName}.${attributeName}**`;
+	const semanticKind = capability === 'items'
+		? 'GuideNH item id'
+		: capability === 'ores'
+			? 'GuideNH ore id'
+			: undefined;
+	if (!semanticKind) {
+		return undefined;
+	}
+	return createMarkdownHover([
+		title,
+		'',
+		`\`${attributeValue}\``,
+		'',
+		semanticKind,
+		'',
+		`Defined in ${page.relativePath}`
+	].join('\n'));
 }
 
 function createMarkdownHover(value: string): Hover {

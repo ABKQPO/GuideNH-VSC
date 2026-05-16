@@ -65,4 +65,20 @@ suite('GuideNH runtime completion', () => {
 
 		assert.deepStrictEqual(completions.map((item) => item.label), []);
 	});
+
+	test('does not reuse controller cache entries for ImportStructureLib channel values', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const cache = new SemanticCache();
+		cache.replace('structurelib', 1, [{ id: 'gregtech:gt.blockmachines:1000', label: 'Basic Machine Hull' }]);
+
+		const completions = createGuideNhCompletions(
+			'<ImportStructureLib controller="gregtech:gt.blockmachines:1000" channel="1',
+			74,
+			schema,
+			undefined,
+			cache
+		);
+
+		assert.deepStrictEqual(completions.map((item) => item.label), []);
+	});
 });

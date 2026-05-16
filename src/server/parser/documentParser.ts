@@ -2,6 +2,7 @@ import { extractFrontmatter, FrontmatterBlock } from './frontmatter';
 
 export interface GuideNhParsedTag {
 	name: string;
+	source: string;
 	attributes: Record<string, string | true>;
 	attributeRanges: Record<string, { start: number; end: number }>;
 	attributeValueStyles: Record<string, GuideNhAttributeValueStyle>;
@@ -148,13 +149,14 @@ export function parseGuideNhDocument(text: string): GuideNhParsedDocument {
 	const masked = maskIgnoredMarkdownRanges(text);
 	const frontmatter = extractFrontmatter(masked);
 	const tags: GuideNhParsedTag[] = [];
-	const tagPattern = /<\/?([A-Z][A-Za-z0-9]*)(\s[^<>]*?)?(\/?)>/g;
+	const tagPattern = /<\/?([A-Za-z][A-Za-z0-9]*)(\s[^<>]*?)?(\/?)>/g;
 	let match: RegExpExecArray | null;
 	while ((match = tagPattern.exec(masked)) !== null) {
 		const closing = match[0].startsWith('</');
 		const parsedAttributes = closing ? { attributes: {}, ranges: {}, valueStyles: {} } : parseAttributes(match[2] ?? '', match.index + match[0].indexOf(match[2] ?? ''));
 		tags.push({
 			name: match[1],
+			source: text.slice(match.index, match.index + match[0].length),
 			attributes: parsedAttributes.attributes,
 			attributeRanges: parsedAttributes.ranges,
 			attributeValueStyles: parsedAttributes.valueStyles,

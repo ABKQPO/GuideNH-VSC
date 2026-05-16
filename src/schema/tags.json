@@ -795,11 +795,11 @@
           "type": "number",
           "valueStyle": "string"
         },
-        "height": {
+        "h": {
           "type": "number",
           "valueStyle": "string"
         },
-        "h": {
+        "height": {
           "type": "number",
           "valueStyle": "string"
         },
@@ -848,59 +848,6 @@
         "ImageAnnotation",
         "SoundArea"
       ],
-      "snippets": []
-    },
-    "ImageAnnotation": {
-      "name": "ImageAnnotation",
-      "kind": "block",
-      "description": "Generated from GuideNH floating image annotation support.",
-      "attributes": {
-        "border": {
-          "type": "boolean",
-          "valueStyle": "bare"
-        },
-        "borderColor": {
-          "type": "color",
-          "valueStyle": "string"
-        },
-        "borderThickness": {
-          "type": "number",
-          "valueStyle": "string"
-        },
-        "h": {
-          "type": "number",
-          "valueStyle": "string"
-        },
-        "sound": {
-          "type": "string",
-          "valueStyle": "string"
-        },
-        "src": {
-          "type": "resource",
-          "valueStyle": "string"
-        },
-        "trigger": {
-          "type": "string",
-          "valueStyle": "string"
-        },
-        "volume": {
-          "type": "number",
-          "valueStyle": "expression"
-        },
-        "w": {
-          "type": "number",
-          "valueStyle": "string"
-        },
-        "x": {
-          "type": "number",
-          "valueStyle": "string"
-        },
-        "y": {
-          "type": "number",
-          "valueStyle": "string"
-        }
-      },
-      "children": [],
       "snippets": []
     },
     "FootnoteList": {
@@ -1355,6 +1302,59 @@
       "snippets": [
         "guidenh.gameScene"
       ]
+    },
+    "ImageAnnotation": {
+      "name": "ImageAnnotation",
+      "kind": "block",
+      "description": "Generated from GuideNH floating image annotation support.",
+      "attributes": {
+        "border": {
+          "type": "boolean",
+          "valueStyle": "bare"
+        },
+        "borderColor": {
+          "type": "color",
+          "valueStyle": "string"
+        },
+        "borderThickness": {
+          "type": "number",
+          "valueStyle": "string"
+        },
+        "h": {
+          "type": "number",
+          "valueStyle": "string"
+        },
+        "sound": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "src": {
+          "type": "resource",
+          "valueStyle": "string"
+        },
+        "trigger": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "volume": {
+          "type": "number",
+          "valueStyle": "expression"
+        },
+        "w": {
+          "type": "number",
+          "valueStyle": "string"
+        },
+        "x": {
+          "type": "number",
+          "valueStyle": "string"
+        },
+        "y": {
+          "type": "number",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
     },
     "ImportPonder": {
       "name": "ImportPonder",

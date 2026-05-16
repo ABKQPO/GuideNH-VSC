@@ -1,19 +1,29 @@
-import { findPageReferences } from '../navigation/pageReferences';
+import { createGuideNhDocumentModel, GuideNhDocumentModel } from '../parser/documentModel';
+import { extractIndexedFrontmatterValues } from '../parser/frontmatterIndexing';
 import { extractFrontmatter } from '../parser/frontmatter';
+import { resolveRuntimeAttributeSource } from '../runtime/runtimeAttributeSources';
 
 export interface GuideNhIndexedPage {
 	uri: string;
 	relativePath: string;
 	itemIds: string[];
+	oreIds: string[];
 	frontmatterValues: Record<string, string[]>;
 	links: string[];
+	resourceLinks: string[];
+	itemLinks: string[];
+	oreLinks: string[];
 }
 
 export class GuideNhWorkspaceIndex {
 	private readonly pages = new Map<string, GuideNhIndexedPage>();
 	private readonly pageUriByRelativePath = new Map<string, string>();
 	private readonly pageUrisByItemId = new Map<string, Set<string>>();
+	private readonly pageUrisByOreId = new Map<string, Set<string>>();
 	private readonly sourceUrisByLinkedPage = new Map<string, Set<string>>();
+	private readonly sourceUrisByLinkedResource = new Map<string, Set<string>>();
+	private readonly sourceUrisByLinkedItem = new Map<string, Set<string>>();
+	private readonly sourceUrisByLinkedOre = new Map<string, Set<string>>();
 	private readonly valueCountsByFrontmatterPath = new Map<string, Map<string, number>>();
 	private sortedPages: GuideNhIndexedPage[] = [];
 	private sortedPageKeys: string[] = [];
@@ -25,15 +35,30 @@ export class GuideNhWorkspaceIndex {
 		this.removePage(uri);
 		const relativePath = resolveGuideNhRelativePath(uri);
 		const frontmatterValues = extractIndexedFrontmatterValues(text);
+		const model = createGuideNhDocumentModel(text);
 		const itemIds = frontmatterValues.item_ids ?? [];
-		const links = extractPageLinks(text);
-		this.pages.set(uri, { uri, relativePath, itemIds, frontmatterValues, links });
+		const oreIds = frontmatterValues.ore_ids ?? [];
+		const links = extractPageLinks(model);
+		const resourceLinks = extractResourceLinks(model);
+		const itemLinks = extractSemanticLinks(model, 'items');
+		const oreLinks = extractSemanticLinks(model, 'ores');
+		this.pages.set(uri, { uri, relativePath, itemIds, oreIds, frontmatterValues, links, resourceLinks, itemLinks, oreLinks });
 		this.pageUriByRelativePath.set(relativePath, uri);
 		this.addItemReferences(itemIds, uri);
+		this.addOreReferences(oreIds, uri);
 		this.sortedPagesDirty = true;
 		this.addFrontmatterValues(frontmatterValues);
 		for (const link of links) {
 			this.addPageReference(link, uri);
+		}
+		for (const resourceLink of resourceLinks) {
+			this.addResourceReference(resourceLink, uri);
+		}
+		for (const itemLink of itemLinks) {
+			this.addItemLink(itemLink, uri);
+		}
+		for (const oreLink of oreLinks) {
+			this.addOreLink(oreLink, uri);
 		}
 	}
 
@@ -45,10 +70,20 @@ export class GuideNhWorkspaceIndex {
 		this.pages.delete(uri);
 		this.pageUriByRelativePath.delete(page.relativePath);
 		this.removeItemReferences(page.itemIds, uri);
+		this.removeOreReferences(page.oreIds, uri);
 		this.sortedPagesDirty = true;
 		this.removeFrontmatterValues(page.frontmatterValues);
 		for (const link of page.links) {
 			this.removePageReference(link, uri);
+		}
+		for (const resourceLink of page.resourceLinks) {
+			this.removeResourceReference(resourceLink, uri);
+		}
+		for (const itemLink of page.itemLinks) {
+			this.removeItemLink(itemLink, uri);
+		}
+		for (const oreLink of page.oreLinks) {
+			this.removeOreLink(oreLink, uri);
 		}
 	}
 
@@ -60,6 +95,11 @@ export class GuideNhWorkspaceIndex {
 
 	findItemReference(itemId: string): GuideNhIndexedPage | undefined {
 		const uri = this.pageUrisByItemId.get(itemId)?.values().next().value;
+		return uri ? this.pages.get(uri) : undefined;
+	}
+
+	findOreReference(oreId: string): GuideNhIndexedPage | undefined {
+		const uri = this.pageUrisByOreId.get(oreId)?.values().next().value;
 		return uri ? this.pages.get(uri) : undefined;
 	}
 
@@ -116,6 +156,21 @@ export class GuideNhWorkspaceIndex {
 			.filter((page): page is GuideNhIndexedPage => page !== undefined);
 	}
 
+	findReferencesToResource(relativePath: string): GuideNhIndexedPage[] {
+		const normalized = relativePath.replace(/^\.\//, '');
+		return Array.from(this.sourceUrisByLinkedResource.get(normalized) ?? [])
+			.map((uri) => this.pages.get(uri))
+			.filter((page): page is GuideNhIndexedPage => page !== undefined);
+	}
+
+	findReferencesToItem(itemId: string): GuideNhIndexedPage[] {
+		return this.collectReferencedPages(itemId, this.pageUrisByItemId, this.sourceUrisByLinkedItem);
+	}
+
+	findReferencesToOre(oreId: string): GuideNhIndexedPage[] {
+		return this.collectReferencedPages(oreId, this.pageUrisByOreId, this.sourceUrisByLinkedOre);
+	}
+
 	private addPageReference(relativePath: string, sourceUri: string): void {
 		const normalized = relativePath.replace(/^\.\//, '');
 		const sourceUris = this.sourceUrisByLinkedPage.get(normalized) ?? new Set<string>();
@@ -132,6 +187,25 @@ export class GuideNhWorkspaceIndex {
 		sourceUris.delete(sourceUri);
 		if (sourceUris.size === 0) {
 			this.sourceUrisByLinkedPage.delete(normalized);
+		}
+	}
+
+	private addResourceReference(relativePath: string, sourceUri: string): void {
+		const normalized = relativePath.replace(/^\.\//, '');
+		const sourceUris = this.sourceUrisByLinkedResource.get(normalized) ?? new Set<string>();
+		sourceUris.add(sourceUri);
+		this.sourceUrisByLinkedResource.set(normalized, sourceUris);
+	}
+
+	private removeResourceReference(relativePath: string, sourceUri: string): void {
+		const normalized = relativePath.replace(/^\.\//, '');
+		const sourceUris = this.sourceUrisByLinkedResource.get(normalized);
+		if (!sourceUris) {
+			return;
+		}
+		sourceUris.delete(sourceUri);
+		if (sourceUris.size === 0) {
+			this.sourceUrisByLinkedResource.delete(normalized);
 		}
 	}
 
@@ -154,6 +228,82 @@ export class GuideNhWorkspaceIndex {
 				this.pageUrisByItemId.delete(itemId);
 			}
 		}
+	}
+
+	private addOreReferences(oreIds: string[], uri: string): void {
+		for (const oreId of oreIds) {
+			const uris = this.pageUrisByOreId.get(oreId) ?? new Set<string>();
+			uris.add(uri);
+			this.pageUrisByOreId.set(oreId, uris);
+		}
+	}
+
+	private removeOreReferences(oreIds: string[], uri: string): void {
+		for (const oreId of oreIds) {
+			const uris = this.pageUrisByOreId.get(oreId);
+			if (!uris) {
+				continue;
+			}
+			uris.delete(uri);
+			if (uris.size === 0) {
+				this.pageUrisByOreId.delete(oreId);
+			}
+		}
+	}
+
+	private addItemLink(itemId: string, sourceUri: string): void {
+		const sourceUris = this.sourceUrisByLinkedItem.get(itemId) ?? new Set<string>();
+		sourceUris.add(sourceUri);
+		this.sourceUrisByLinkedItem.set(itemId, sourceUris);
+	}
+
+	private removeItemLink(itemId: string, sourceUri: string): void {
+		const sourceUris = this.sourceUrisByLinkedItem.get(itemId);
+		if (!sourceUris) {
+			return;
+		}
+		sourceUris.delete(sourceUri);
+		if (sourceUris.size === 0) {
+			this.sourceUrisByLinkedItem.delete(itemId);
+		}
+	}
+
+	private addOreLink(oreId: string, sourceUri: string): void {
+		const sourceUris = this.sourceUrisByLinkedOre.get(oreId) ?? new Set<string>();
+		sourceUris.add(sourceUri);
+		this.sourceUrisByLinkedOre.set(oreId, sourceUris);
+	}
+
+	private removeOreLink(oreId: string, sourceUri: string): void {
+		const sourceUris = this.sourceUrisByLinkedOre.get(oreId);
+		if (!sourceUris) {
+			return;
+		}
+		sourceUris.delete(sourceUri);
+		if (sourceUris.size === 0) {
+			this.sourceUrisByLinkedOre.delete(oreId);
+		}
+	}
+
+	private collectReferencedPages(
+		value: string,
+		declarationUris: Map<string, Set<string>>,
+		referenceUris: Map<string, Set<string>>
+	): GuideNhIndexedPage[] {
+		const pages = new Map<string, GuideNhIndexedPage>();
+		for (const uri of declarationUris.get(value) ?? []) {
+			const page = this.pages.get(uri);
+			if (page) {
+				pages.set(uri, page);
+			}
+		}
+		for (const uri of referenceUris.get(value) ?? []) {
+			const page = this.pages.get(uri);
+			if (page) {
+				pages.set(uri, page);
+			}
+		}
+		return Array.from(pages.values());
 	}
 
 	private refreshSortedPages(): void {
@@ -210,48 +360,34 @@ export class GuideNhWorkspaceIndex {
 	}
 }
 
-function extractPageLinks(text: string): string[] {
-	return Array.from(new Set(findPageReferences(text).map((reference) => reference.target)));
+function extractPageLinks(model: GuideNhDocumentModel): string[] {
+	return Array.from(new Set(
+		model.references
+			.filter((reference) => reference.kind === 'page' && reference.normalizedTarget)
+			.map((reference) => String(reference.normalizedTarget))
+	));
 }
 
-function extractIndexedFrontmatterValues(text: string): Record<string, string[]> {
-	const frontmatter = extractFrontmatter(text);
-	if (!frontmatter) {
-		return {};
-	}
-	const values: Record<string, string[]> = {};
-	let currentPath: string | undefined;
-	for (const line of frontmatter.text.split(/\r?\n/)) {
-		const keyMatch = line.match(/^(\s*)([A-Za-z_][\w.-]*)\s*:\s*$/);
-		if (keyMatch) {
-			const path = resolveIndexedFrontmatterPath(keyMatch[1].length, keyMatch[2]);
-			currentPath = path;
-			continue;
-		}
-		const itemMatch = line.match(/^\s*-\s+(.+?)\s*$/);
-		if (!itemMatch || !currentPath) {
-			continue;
-		}
-		const normalized = normalizeIndexedFrontmatterValue(itemMatch[1]);
-		if (!normalized) {
-			continue;
-		}
-		const existing = values[currentPath] ?? [];
-		existing.push(normalized);
-		values[currentPath] = existing;
-	}
-	return values;
+function extractResourceLinks(model: GuideNhDocumentModel): string[] {
+	return Array.from(new Set(
+		model.references
+			.filter((reference) => reference.kind === 'resource' && reference.normalizedTarget)
+			.map((reference) => String(reference.normalizedTarget))
+	));
 }
 
-function resolveIndexedFrontmatterPath(indent: number, key: string): string {
-	if (indent > 0 && key === 'required_mods') {
-		return 'navigation.required_mods';
-	}
-	return key;
-}
-
-function normalizeIndexedFrontmatterValue(value: string): string {
-	return value.replace(/^['"]|['"]$/g, '').trim();
+function extractSemanticLinks(model: GuideNhDocumentModel, capability: 'items' | 'ores'): string[] {
+	return Array.from(new Set(
+		model.parsed.tags.flatMap((tag) => {
+			if (tag.closing) {
+				return [];
+			}
+			return Object.entries(tag.attributes)
+				.filter(([, value]) => typeof value === 'string')
+				.filter(([attributeName]) => resolveRuntimeAttributeSource(tag.name, attributeName)?.capability === capability)
+				.map(([, value]) => String(value));
+		})
+	));
 }
 
 function normalizePagePrefix(prefix: string): string {
