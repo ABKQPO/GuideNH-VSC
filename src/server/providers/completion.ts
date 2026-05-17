@@ -591,6 +591,7 @@ function createTagNameCompletions(schema: GuideNhSchemaBundle, allowed: string[]
 			label: tag.name,
 			kind: CompletionItemKind.Class,
 			detail: tag.kind,
+			filterText: '<' + tag.name,
 			documentation: tag.description
 		}));
 }
@@ -602,6 +603,7 @@ function createTagNameSnippetCompletions(schema: GuideNhSchemaBundle, allowed: s
 			label: tag.name,
 			kind: CompletionItemKind.Class,
 			detail: tag.kind,
+			filterText: '<' + tag.name,
 			documentation: tag.description,
 			insertText: createSelfContainedTagSnippet(tag),
 			insertTextFormat: InsertTextFormat.Snippet
@@ -615,6 +617,7 @@ function createSnippetCompletions(schema: GuideNhSchemaBundle, allowed: string[]
 			label: snippet.prefix,
 			kind: CompletionItemKind.Snippet,
 			detail: 'GuideNH snippet',
+			filterText: '<' + snippet.prefix,
 			documentation: snippet.description,
 			insertText: snippet.body.join('\n'),
 			insertTextFormat: InsertTextFormat.Snippet
@@ -685,6 +688,7 @@ function createTagSnippetCompletions(
 			label: tag.name,
 			kind: CompletionItemKind.Class,
 			detail: tag.kind,
+			filterText: '<' + tag.name,
 			documentation: tag.description,
 			insertText: createTagSnippet(tag),
 			insertTextFormat: InsertTextFormat.Snippet

@@ -35,8 +35,12 @@ const documents = new TextDocuments(TextDocument);
 const schemaPromise = loadGuideNhSchemaFromCandidates([
 	path.join(__dirname, 'schema'),
 	path.join(__dirname, '..', 'schema'),
-	path.join(__dirname, '..', 'src', 'schema')
-]);
+	path.join(__dirname, '..', 'src', 'schema'),
+	path.join(__dirname, '..', '..', 'src', 'schema')
+]).catch((error) => {
+	connection.console.error(`GuideNH schema load failed: ${error instanceof Error ? error.message : String(error)}`);
+	throw error;
+});
 const workspaceIndex = new GuideNhWorkspaceIndex();
 const resourceIndex = new GuideNhResourceIndex();
 const semanticCache = new SemanticCache();
@@ -79,60 +83,70 @@ documents.onDidChangeContent(async (change) => {
 });
 
 connection.onCompletion(async (params) => {
-	const document = documents.get(params.textDocument.uri);
-	if (!document) {
+	try {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return [];
+		}
+		const schema = await schemaPromise;
+		const requestedOffset = document.offsetAt(params.position);
+		const offset = resolveGuideNhCompletionOffset(document.getText(), requestedOffset);
+		const text = document.getText();
+		const completionResult = createGuideNhCompletionResult(
+			text,
+			offset,
+			schema,
+			undefined,
+			semanticCache,
+			workspaceIndex,
+			resourceIndex
+		);
+		if (!completionResult.dynamicRequest) {
+			return completionResult.items;
+		}
+		const runtimeEntries = await runtimeBridgeClient.querySemanticEntries({
+			capability: completionResult.dynamicRequest.capability,
+			prefix: completionResult.dynamicRequest.prefix,
+			filters: completionResult.dynamicRequest.filters
+		});
+		const runtimeItems = runtimeEntries.map((entry) => ({
+			label: entry.id,
+			kind: CompletionItemKind.Value,
+			detail: entry.label,
+			documentation: entry.detail,
+			insertText: entry.id
+		}));
+		return deduplicateCompletionItems(completionResult.items, runtimeItems);
+	} catch (error) {
+		connection.console.error(`onCompletion error: ${error instanceof Error ? error.message : String(error)}`);
 		return [];
 	}
-	const schema = await schemaPromise;
-	const requestedOffset = document.offsetAt(params.position);
-	const offset = resolveGuideNhCompletionOffset(document.getText(), requestedOffset);
-	const text = document.getText();
-	const completionResult = createGuideNhCompletionResult(
-		text,
-		offset,
-		schema,
-		undefined,
-		semanticCache,
-		workspaceIndex,
-		resourceIndex
-	);
-	if (!completionResult.dynamicRequest) {
-		return completionResult.items;
-	}
-	const runtimeEntries = await runtimeBridgeClient.querySemanticEntries({
-		capability: completionResult.dynamicRequest.capability,
-		prefix: completionResult.dynamicRequest.prefix,
-		filters: completionResult.dynamicRequest.filters
-	});
-	const runtimeItems = runtimeEntries.map((entry) => ({
-		label: entry.id,
-		kind: CompletionItemKind.Value,
-		detail: entry.label,
-		documentation: entry.detail,
-		insertText: entry.id
-	}));
-	return deduplicateCompletionItems(completionResult.items, runtimeItems);
 });
 
 connection.onHover(async (params) => {
-	const document = documents.get(params.textDocument.uri);
-	if (!document) {
+	try {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
+		}
+		const schema = await schemaPromise;
+		const offset = document.offsetAt(params.position);
+		const hoverResult = createGuideNhHover(document.getText(), offset, schema, workspaceIndex, resourceIndex, semanticCache);
+		if (hoverResult.hover || !hoverResult.dynamicRequest) {
+			return hoverResult.hover;
+		}
+		const runtimeEntries = await runtimeBridgeClient.querySemanticEntries({
+			capability: hoverResult.dynamicRequest.capability,
+			prefix: hoverResult.dynamicRequest.prefix,
+			filters: hoverResult.dynamicRequest.filters,
+			limit: 20
+		});
+		const runtimeHover = createRuntimeSemanticHover(runtimeEntries, hoverResult.dynamicRequest.prefix);
+		return runtimeHover ?? hoverResult.hover;
+	} catch (error) {
+		connection.console.error(`onHover error: ${error instanceof Error ? error.message : String(error)}`);
 		return undefined;
 	}
-	const schema = await schemaPromise;
-	const offset = document.offsetAt(params.position);
-	const hoverResult = createGuideNhHover(document.getText(), offset, schema, workspaceIndex, resourceIndex, semanticCache);
-	if (hoverResult.hover || !hoverResult.dynamicRequest) {
-		return hoverResult.hover;
-	}
-	const runtimeEntries = await runtimeBridgeClient.querySemanticEntries({
-		capability: hoverResult.dynamicRequest.capability,
-		prefix: hoverResult.dynamicRequest.prefix,
-		filters: hoverResult.dynamicRequest.filters,
-		limit: 20
-	});
-	const runtimeHover = createRuntimeSemanticHover(runtimeEntries, hoverResult.dynamicRequest.prefix);
-	return runtimeHover ?? hoverResult.hover;
 });
 
 connection.onDefinition((params) => {
@@ -166,9 +180,13 @@ async function refreshOpenDocumentDiagnostics(): Promise<void> {
 }
 
 async function publishDiagnostics(document: TextDocument): Promise<void> {
-	const schema = await schemaPromise;
-	const diagnostics = createGuideNhDiagnostics(document.getText(), schema, workspaceIndex, resourceIndex);
-	connection.sendDiagnostics({ uri: document.uri, diagnostics });
+	try {
+		const schema = await schemaPromise;
+		const diagnostics = createGuideNhDiagnostics(document.getText(), schema, workspaceIndex, resourceIndex);
+		connection.sendDiagnostics({ uri: document.uri, diagnostics });
+	} catch (error) {
+		connection.console.error(`publishDiagnostics error: ${error instanceof Error ? error.message : String(error)}`);
+	}
 }
 
 function deduplicateCompletionItems<T extends { label: string }>(primary: T[], secondary: T[]): T[] {

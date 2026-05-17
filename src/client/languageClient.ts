@@ -9,7 +9,14 @@ export interface ExtensionPathResolver {
 }
 
 export function resolveGuideNhServerModule(pathResolver: ExtensionPathResolver): string {
-	return pathResolver.asAbsolutePath(path.join('out', 'server.js'));
+	const bundled = pathResolver.asAbsolutePath(path.join('out', 'server.js'));
+	const compiled = pathResolver.asAbsolutePath(path.join('out', 'server', 'server.js'));
+	try {
+		require.resolve(bundled);
+		return bundled;
+	} catch {
+		return compiled;
+	}
 }
 
 export function createGuideNhLanguageClient(context: vscode.ExtensionContext): LanguageClient {
