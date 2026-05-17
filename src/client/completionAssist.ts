@@ -75,7 +75,7 @@ export function shouldTriggerGuideNhSuggest(context: GuideNhCompletionAssistCont
 	if (!isGuideNhCompletionAssistChange(context.changeText, context.rangeLength)) {
 		return false;
 	}
-	if (context.changeText === '<>' && isGuideNhSuggestContext(trimTrailingAutoClosedBracket(context.textBeforeCursor))) {
+	if (context.changeText === '<>') {
 		return true;
 	}
 	return isGuideNhSuggestContext(context.textBeforeCursor);
@@ -128,13 +128,6 @@ function findGuideNhOpenTagPrefix(textBeforeCursor: string): string | undefined 
 		return undefined;
 	}
 	return openTag;
-}
-
-function trimTrailingAutoClosedBracket(textBeforeCursor: string): string {
-	if (!textBeforeCursor.endsWith('>')) {
-		return textBeforeCursor;
-	}
-	return textBeforeCursor.slice(0, -1);
 }
 
 function scheduleGuideNhSuggest(
