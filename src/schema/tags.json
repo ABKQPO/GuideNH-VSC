@@ -227,6 +227,18 @@
           "type": "string",
           "valueStyle": "string"
         },
+        "showWhenChannels": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenStructure": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenTier": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "thickness": {
           "type": "number",
           "valueStyle": "expression"
@@ -241,6 +253,18 @@
       "description": "Generated from GuideNH BlockAnnotationTemplate compiler source.",
       "attributes": {
         "id": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenChannels": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenStructure": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenTier": {
           "type": "string",
           "valueStyle": "string"
         }
@@ -374,6 +398,18 @@
           "valueStyle": "string"
         },
         "min": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenChannels": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenStructure": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenTier": {
           "type": "string",
           "valueStyle": "string"
         },
@@ -670,6 +706,18 @@
           "valueStyle": "string"
         },
         "pos": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenChannels": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenStructure": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenTier": {
           "type": "string",
           "valueStyle": "string"
         }
@@ -1434,6 +1482,10 @@
           "type": "string",
           "valueStyle": "string"
         },
+        "name": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "offsetX": {
           "type": "number",
           "valueStyle": "string"
@@ -1714,6 +1766,18 @@
         "showPoints": {
           "type": "boolean",
           "valueStyle": "expression"
+        },
+        "showWhenChannels": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenStructure": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenTier": {
+          "type": "string",
+          "valueStyle": "string"
         },
         "size": {
           "type": "number",
@@ -2145,6 +2209,18 @@
         "radius": {
           "type": "number",
           "valueStyle": "expression"
+        },
+        "showWhenChannels": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenStructure": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenTier": {
+          "type": "string",
+          "valueStyle": "string"
         },
         "sound": {
           "type": "string",
@@ -3138,6 +3214,18 @@
           "valueStyle": "string"
         },
         "pos": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenChannels": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenStructure": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showWhenTier": {
           "type": "string",
           "valueStyle": "string"
         },

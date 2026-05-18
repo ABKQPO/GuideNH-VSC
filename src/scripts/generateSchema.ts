@@ -359,11 +359,13 @@ function applySceneTagEnhancements(tags: Record<string, GuideNhTagSchema>, sourc
 	const sceneTagCompiler = findSourceByClassName(sources, 'SceneTagCompiler');
 	if (!sceneTagCompiler) {
 		applySceneDocumentationEnhancements(tags);
+		applyStructureLibConditionEnhancements(tags);
 		return;
 	}
 	applySceneChildren(tags, sceneTagCompiler.text);
 	applySceneBlockStatsTags(tags);
 	applySceneDocumentationEnhancements(tags);
+	applyStructureLibConditionEnhancements(tags);
 }
 
 function applySceneChildren(tags: Record<string, GuideNhTagSchema>, source: string): void {
@@ -473,6 +475,28 @@ function applySceneDocumentationEnhancements(tags: Record<string, GuideNhTagSche
 	if (tags.LineAnnotation) {
 		tags.LineAnnotation.children = [];
 	}
+}
+
+function applyStructureLibConditionEnhancements(tags: Record<string, GuideNhTagSchema>): void {
+	const structureLibConditionAttributes = {
+		showWhenChannels: { type: 'string', valueStyle: 'string' },
+		showWhenStructure: { type: 'string', valueStyle: 'string' },
+		showWhenTier: { type: 'string', valueStyle: 'string' }
+	} satisfies Record<string, GuideNhAttributeSchema>;
+	for (const tagName of [
+		'BlockAnnotation',
+		'BlockAnnotationTemplate',
+		'BoxAnnotation',
+		'DiamondAnnotation',
+		'LineAnnotation',
+		'PlaySound',
+		'TextAnnotation'
+	]) {
+		mergeAttributes(tags[tagName], structureLibConditionAttributes);
+	}
+	mergeAttributes(tags.ImportStructureLib, {
+		name: { type: 'string', valueStyle: 'string' }
+	});
 }
 
 function applyFunctionGraphEnhancements(tags: Record<string, GuideNhTagSchema>, sources: JavaSourceFile[]): void {
@@ -876,8 +900,8 @@ function mergeAttributes(tag: GuideNhTagSchema | undefined, attributes: Record<s
 		return;
 	}
 	tag.attributes = sortAttributes({
-		...attributes,
-		...tag.attributes
+		...tag.attributes,
+		...attributes
 	});
 }
 

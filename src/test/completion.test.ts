@@ -407,6 +407,19 @@ suite('GuideNH completion provider', () => {
 		assert.ok(flipItems.some((item: CompletionItem) => item.label === 'horizontal'));
 	});
 
+	test('completes StructureLib conditional scene attributes from schema context', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const importItems = createGuideNhCompletions('<ImportStructureLib ', 20, schema, undefined);
+		const annotationItems = createGuideNhCompletions('<BlockAnnotation ', 17, schema, 'GameScene');
+		const soundItems = createGuideNhCompletions('<PlaySound ', 11, schema, 'GameScene');
+
+		assert.ok(importItems.some((item: CompletionItem) => item.label === 'name'));
+		assert.ok(annotationItems.some((item: CompletionItem) => item.label === 'showWhenStructure'));
+		assert.ok(annotationItems.some((item: CompletionItem) => item.label === 'showWhenTier'));
+		assert.ok(annotationItems.some((item: CompletionItem) => item.label === 'showWhenChannels'));
+		assert.ok(soundItems.some((item: CompletionItem) => item.label === 'showWhenStructure'));
+	});
+
 	test('completes lowercase ImportStructureLib orientation values from schema context', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const facingItems = createGuideNhCompletions('<importstructurelib facing="n', 29, schema, undefined);

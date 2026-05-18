@@ -347,6 +347,19 @@ suite('GuideNH diagnostics', () => {
 		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);
 	});
 
+	test('accepts StructureLib conditional scene attributes', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = [
+			'<GameScene interactive={true}>',
+			'  <ImportStructureLib name="main" controller="gregtech:gt.blockmachines:15411" />',
+			'  <BlockAnnotation showWhenStructure="main" showWhenTier="2..4,!3" showWhenChannels="input:1..3, casing:!2" pos="5 1 2" color="#FFD24C" />',
+			'  <PlaySound sound="guidenh:guide.sample_click" trigger="click" showWhenStructure="main" showWhenTier="2..3" />',
+			'</GameScene>'
+		].join('\n');
+
+		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);
+	});
+
 	test('accepts function graph tags and attributes used by bundled docs', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const text = [
