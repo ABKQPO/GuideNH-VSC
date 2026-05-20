@@ -80,10 +80,23 @@ suite('GuideNH completion provider', () => {
 		const width = items.find((item: CompletionItem) => item.label === 'width');
 		const zoom = items.find((item: CompletionItem) => item.label === 'zoom');
 		const interactive = items.find((item: CompletionItem) => item.label === 'interactive');
+		const showBackground = items.find((item: CompletionItem) => item.label === 'showBackground');
 		assert.strictEqual(width?.insertText, 'width="${1:0}"');
 		assert.strictEqual(zoom?.insertText, 'zoom={${1:0}}');
 		assert.strictEqual(interactive?.insertText, 'interactive={${1:true}}');
+		assert.strictEqual(showBackground?.insertText, 'showBackground={${1:true}}');
 		assert.strictEqual(width?.insertTextFormat, InsertTextFormat.Snippet);
+	});
+
+	test('completes details attributes', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const items = createGuideNhCompletions('<details ', 9, schema, undefined);
+		const open = items.find((item: CompletionItem) => item.label === 'open');
+		const width = items.find((item: CompletionItem) => item.label === 'width');
+		const wrap = items.find((item: CompletionItem) => item.label === 'wrap');
+		assert.strictEqual(open?.insertText, 'open');
+		assert.strictEqual(width?.insertText, 'width="${1:0}"');
+		assert.strictEqual(wrap?.insertText, 'wrap="${1:}"');
 	});
 
 	test('completes partial attribute names inside an open tag', async () => {
@@ -218,16 +231,16 @@ suite('GuideNH completion provider', () => {
 		}), true);
 	});
 
-	test('completes enum attribute values from schema', async () => {
+	test('completes boolean showBackground values from schema', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
-		const text = '<GameScene background="t';
+		const text = '<GameScene showBackground="';
 		const items = createGuideNhCompletions(text, text.length, schema, undefined);
 		assert.deepStrictEqual(
 			items.map((item: CompletionItem) => item.label),
-			['transparent']
+			['true', 'false']
 		);
 		assert.strictEqual(items[0].kind, CompletionItemKind.Value);
-		assert.strictEqual(items[0].detail, 'GameScene.background');
+		assert.strictEqual(items[0].detail, 'GameScene.showBackground');
 	});
 
 	test('completes boolean attribute values from schema', async () => {

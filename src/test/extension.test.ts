@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { resolveGuideNhServerModule } from '../client/languageClient';
 
@@ -94,9 +95,12 @@ suite('GuideNH extension automation', () => {
 	});
 
 	test('resolves the bundled language server module from the extension root', () => {
+		const extensionRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'guide-vsc-server-module-'));
+		fs.mkdirSync(path.join(extensionRoot, 'out'), { recursive: true });
+		fs.writeFileSync(path.join(extensionRoot, 'out', 'server.js'), '', 'utf8');
 		const resolvedModule = resolveGuideNhServerModule({
-			asAbsolutePath: (relativePath: string) => path.join('extension-root', relativePath)
+			asAbsolutePath: (relativePath: string) => path.join(extensionRoot, relativePath)
 		});
-		assert.strictEqual(resolvedModule, path.join('extension-root', 'out', 'server.js'));
+		assert.strictEqual(resolvedModule, path.join(extensionRoot, 'out', 'server.js'));
 	});
 });

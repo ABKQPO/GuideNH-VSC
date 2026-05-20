@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node';
@@ -11,12 +12,10 @@ export interface ExtensionPathResolver {
 export function resolveGuideNhServerModule(pathResolver: ExtensionPathResolver): string {
 	const bundled = pathResolver.asAbsolutePath(path.join('out', 'server.js'));
 	const compiled = pathResolver.asAbsolutePath(path.join('out', 'server', 'server.js'));
-	try {
-		require.resolve(bundled);
+	if (fs.existsSync(bundled)) {
 		return bundled;
-	} catch {
-		return compiled;
 	}
+	return compiled;
 }
 
 export function createGuideNhLanguageClient(context: vscode.ExtensionContext): LanguageClient {

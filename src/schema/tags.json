@@ -288,8 +288,16 @@
             "ore"
           ]
         },
+        "nbt": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "ore": {
           "type": "ore",
+          "valueStyle": "string"
+        },
+        "perspective": {
+          "type": "string",
           "valueStyle": "string"
         },
         "scale": {
@@ -688,7 +696,28 @@
       "name": "details",
       "kind": "block",
       "description": "Generated from GuideNH details compiler source.",
-      "attributes": {},
+      "attributes": {
+        "align": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "height": {
+          "type": "number",
+          "valueStyle": "string"
+        },
+        "open": {
+          "type": "boolean",
+          "valueStyle": "bare"
+        },
+        "width": {
+          "type": "number",
+          "valueStyle": "string"
+        },
+        "wrap": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
       "children": [],
       "snippets": []
     },
@@ -1188,15 +1217,6 @@
           "type": "boolean",
           "valueStyle": "expression"
         },
-        "background": {
-          "type": "enum",
-          "values": [
-            "transparent",
-            "default"
-          ],
-          "description": "Scene background mode.",
-          "valueStyle": "string"
-        },
         "buttonEnabled": {
           "type": "boolean",
           "valueStyle": "expression"
@@ -1250,6 +1270,11 @@
           "type": "boolean",
           "valueStyle": "expression",
           "description": "Whether the scene accepts mouse input."
+        },
+        "showBackground": {
+          "type": "boolean",
+          "valueStyle": "expression",
+          "description": "Whether the scene draws its background fill and border."
         },
         "item": {
           "type": "string",

@@ -70,13 +70,13 @@ suite('GuideNH diagnostics', () => {
 		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);
 	});
 
-	test('reports invalid tag enum attribute values', async () => {
+	test('reports invalid tag boolean attribute values', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
-		const diagnostics = createGuideNhDiagnostics('<GameScene background="opaque" />', schema);
-		assert.deepStrictEqual(diagnostics.map((item: Diagnostic) => item.message), ['Attribute background on GameScene expects enum value']);
+		const diagnostics = createGuideNhDiagnostics('<GameScene showBackground="opaque" />', schema);
+		assert.deepStrictEqual(diagnostics.map((item: Diagnostic) => item.message), ['Attribute showBackground on GameScene expects boolean value']);
 		assert.deepStrictEqual(diagnostics[0].range, {
-			start: { line: 0, character: 23 },
-			end: { line: 0, character: 29 }
+			start: { line: 0, character: 27 },
+			end: { line: 0, character: 33 }
 		});
 	});
 
