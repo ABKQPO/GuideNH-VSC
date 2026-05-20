@@ -360,17 +360,26 @@ function applySceneTagEnhancements(tags: Record<string, GuideNhTagSchema>, sourc
 	if (!sceneTagCompiler) {
 		applySceneDocumentationEnhancements(tags);
 		applyStructureLibConditionEnhancements(tags);
+		syncSceneAlias(tags);
 		return;
 	}
 	applySceneChildren(tags, sceneTagCompiler.text);
 	applySceneBlockStatsTags(tags);
 	applySceneDocumentationEnhancements(tags);
 	applyStructureLibConditionEnhancements(tags);
+	syncSceneAlias(tags);
 }
 
 function applySceneChildren(tags: Record<string, GuideNhTagSchema>, source: string): void {
 	const sceneChildren = extractSceneElementNames(source);
 	setChildren(tags.GameScene, sceneChildren);
+}
+
+function syncSceneAlias(tags: Record<string, GuideNhTagSchema>): void {
+	if (!tags.GameScene || !tags.Scene) {
+		return;
+	}
+	tags.Scene.children = mergeChildren(tags.GameScene.children, tags.Scene.children);
 }
 
 function extractSceneElementNames(source: string): string[] {
@@ -951,9 +960,15 @@ export async function generateSchema(guideNhRoot: string): Promise<void> {
 async function mergeGeneratedTags(generatedTags: Record<string, GuideNhTagSchema>): Promise<void> {
 	const schemaPath = path.join(__dirname, '..', '..', 'src', 'schema', 'tags.json');
 	const existing = JSON.parse(await fs.readFile(schemaPath, 'utf8')) as GuideNhTagsFile;
+	const mergedTags = mergeTagMaps(generatedTags, existing.tags);
+	const gameScene = mergedTags.GameScene;
+	const sceneAlias = mergedTags.Scene;
+	if (gameScene && sceneAlias) {
+		sceneAlias.children = mergeChildren(gameScene.children, sceneAlias.children);
+	}
 	const merged: GuideNhTagsFile = {
 		...existing,
-		tags: mergeTagMaps(generatedTags, existing.tags)
+		tags: mergedTags
 	};
 	await fs.writeFile(schemaPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
 }

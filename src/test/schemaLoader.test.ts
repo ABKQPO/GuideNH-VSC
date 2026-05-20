@@ -21,6 +21,12 @@ suite('GuideNH schema loader', () => {
 		assert.ok(schema.tags.tags.GameScene.children.includes('ImportStructure'));
 	});
 
+	test('exposes Scene alias child tags', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		assert.ok(schema.tags.tags.Scene.children.includes('Block'));
+		assert.ok(schema.tags.tags.Scene.children.includes('ImportStructure'));
+	});
+
 	test('loads bundled default schema files for packaged extensions', async () => {
 		const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'guide-vsc-schema-'));
 		const outputDir = path.join(tempRoot, 'schema');

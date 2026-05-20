@@ -106,7 +106,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "bundle": "node ./out/scripts/bundle.js",
-    "generate:schema": "node ./out/scripts/generateSchema.js",
+    "generate:schema": "npm run compile && node ./out/scripts/generateSchema.js",
     "verify:e2e": "node ./out/scripts/verifyE2e.js",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",

@@ -96,7 +96,7 @@ suite('GuideNH completion provider', () => {
 		const wrap = items.find((item: CompletionItem) => item.label === 'wrap');
 		assert.strictEqual(open?.insertText, 'open');
 		assert.strictEqual(width?.insertText, 'width="${1:0}"');
-		assert.strictEqual(wrap?.insertText, 'wrap="${1:}"');
+		assert.strictEqual(wrap?.insertText, 'wrap="${1:value}"');
 	});
 
 	test('completes partial attribute names inside an open tag', async () => {
@@ -256,6 +256,14 @@ suite('GuideNH completion provider', () => {
 	test('filters tag completions by the open parent tag', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const text = '<GameScene>\n  <';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'Block' && item.kind === CompletionItemKind.Class));
+		assert.strictEqual(items.some((item: CompletionItem) => item.label === 'Recipe'), false);
+	});
+
+	test('filters tag completions by the Scene alias parent tag', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '<Scene>\n  <';
 		const items = createGuideNhCompletions(text, text.length, schema, undefined);
 		assert.ok(items.some((item: CompletionItem) => item.label === 'Block' && item.kind === CompletionItemKind.Class));
 		assert.strictEqual(items.some((item: CompletionItem) => item.label === 'Recipe'), false);

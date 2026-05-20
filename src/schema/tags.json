@@ -1271,11 +1271,6 @@
           "valueStyle": "expression",
           "description": "Whether the scene accepts mouse input."
         },
-        "showBackground": {
-          "type": "boolean",
-          "valueStyle": "expression",
-          "description": "Whether the scene draws its background fill and border."
-        },
         "item": {
           "type": "string",
           "valueStyle": "string"
@@ -1322,6 +1317,11 @@
         "rotateZ": {
           "type": "number",
           "valueStyle": "expression"
+        },
+        "showBackground": {
+          "type": "boolean",
+          "valueStyle": "expression",
+          "description": "Whether the scene draws its background fill and border."
         },
         "showGrid": {
           "type": "boolean",
@@ -2925,6 +2925,10 @@
           "type": "number",
           "valueStyle": "expression"
         },
+        "showBackground": {
+          "type": "boolean",
+          "valueStyle": "expression"
+        },
         "showGrid": {
           "type": "boolean",
           "valueStyle": "expression"
@@ -2946,7 +2950,24 @@
           "valueStyle": "expression"
         }
       },
-      "children": [],
+      "children": [
+        "Block",
+        "BlockAnnotation",
+        "BlockAnnotationTemplate",
+        "BlockStats",
+        "BoxAnnotation",
+        "DiamondAnnotation",
+        "Entity",
+        "ImportPonder",
+        "ImportStructure",
+        "ImportStructureLib",
+        "IsometricCamera",
+        "LineAnnotation",
+        "PlaceBlock",
+        "PlaySound",
+        "RemoveBlocks",
+        "ReplaceBlock"
+      ],
       "snippets": []
     },
     "Series": {

@@ -71,11 +71,11 @@ navigation:
 	test('parses details attributes used by runtime content blocks', () => {
 		const parsed = parseGuideNhDocument('<details open width="220" height="150" wrap="square" align="right"></details>');
 		assert.deepStrictEqual(parsed.tags[0].attributes, {
-			open: 'bare',
-			width: 'string',
-			height: 'string',
-			wrap: 'string',
-			align: 'string'
+			open: true,
+			width: '220',
+			height: '150',
+			wrap: 'square',
+			align: 'right'
 		});
 	});
 });
