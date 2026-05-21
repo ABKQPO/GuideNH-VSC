@@ -261,6 +261,22 @@ suite('GuideNH completion provider', () => {
 		assert.strictEqual(items.some((item: CompletionItem) => item.label === 'Recipe'), false);
 	});
 
+	test('keeps global tag completions inside details blocks with unrestricted children', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '<details>\n  <';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'summary'));
+		assert.ok(items.some((item: CompletionItem) => item.label === 'BlockImage'));
+	});
+
+	test('offers Mermaid node content completions inside Mermaid blocks', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '<Mermaid>\n  <';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'NodeContent'));
+		assert.strictEqual(items.some((item: CompletionItem) => item.label === 'Recipe'), false);
+	});
+
 	test('filters tag completions by the Scene alias parent tag', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const text = '<Scene>\n  <';
@@ -298,6 +314,7 @@ suite('GuideNH completion provider', () => {
 		const items = createGuideNhCompletions(text, 20, schema, undefined);
 		assert.ok(items.some((item: CompletionItem) => item.label === 'title' && item.kind === CompletionItemKind.Property));
 		assert.ok(items.some((item: CompletionItem) => item.label === 'required_mods' && item.detail === 'list'));
+		assert.ok(items.some((item: CompletionItem) => item.label === 'recommend' && item.detail === 'number'));
 	});
 
 	test('completes navigation parent values from indexed pages', async () => {

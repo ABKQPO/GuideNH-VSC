@@ -1367,10 +1367,12 @@
         "ImportStructureLib",
         "IsometricCamera",
         "LineAnnotation",
+        "Particle",
         "PlaceBlock",
         "PlaySound",
         "RemoveBlocks",
-        "ReplaceBlock"
+        "ReplaceBlock",
+        "TextAnnotation"
       ],
       "snippets": [
         "guidenh.gameScene"
@@ -1619,7 +1621,7 @@
         },
         "showTooltip": {
           "type": "boolean",
-          "valueStyle": "expression"
+          "valueStyle": "string"
         },
         "tooltip": {
           "type": "string",
@@ -2046,6 +2048,54 @@
         "width": {
           "type": "number",
           "valueStyle": "string"
+        }
+      },
+      "children": [
+        "NodeContent"
+      ],
+      "snippets": []
+    },
+    "NodeContent": {
+      "name": "NodeContent",
+      "kind": "block",
+      "description": "Generated from GuideNH Mermaid rich node content support.",
+      "attributes": {
+        "id": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "Particle": {
+      "name": "Particle",
+      "kind": "any",
+      "description": "Generated from GuideNH Particle compiler source.",
+      "attributes": {
+        "name": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "particle": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "size": {
+          "type": "number",
+          "valueStyle": "expression"
+        },
+        "x": {
+          "type": "number",
+          "valueStyle": "expression"
+        },
+        "y": {
+          "type": "number",
+          "valueStyle": "expression"
+        },
+        "z": {
+          "type": "number",
+          "valueStyle": "expression"
         }
       },
       "children": [],
@@ -2963,10 +3013,12 @@
         "ImportStructureLib",
         "IsometricCamera",
         "LineAnnotation",
+        "Particle",
         "PlaceBlock",
         "PlaySound",
         "RemoveBlocks",
-        "ReplaceBlock"
+        "ReplaceBlock",
+        "TextAnnotation"
       ],
       "snippets": []
     },
@@ -3191,6 +3243,14 @@
           "valueStyle": "string"
         }
       },
+      "children": [],
+      "snippets": []
+    },
+    "summary": {
+      "name": "summary",
+      "kind": "block",
+      "description": "Generated from GuideNH details summary support.",
+      "attributes": {},
       "children": [],
       "snippets": []
     },

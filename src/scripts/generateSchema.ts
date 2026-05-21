@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs';
+﻿import { promises as fs } from 'fs';
 import * as path from 'path';
 import { GuideNhAttributeSchema, GuideNhTagSchema, GuideNhTagsFile } from '../common/schema';
 
@@ -47,6 +47,8 @@ export function enhanceGeneratedTagsFromJavaSources(
 	const enhanced = { ...tags };
 	applyChartAttributeEnhancements(enhanced, sources);
 	applyChartChildTagEnhancements(enhanced, sources);
+	applyDetailsEnhancements(enhanced);
+	applyMermaidEnhancements(enhanced);
 	applyFunctionGraphEnhancements(enhanced, sources);
 	applySceneTagEnhancements(enhanced, sources);
 	applyRecipeEnhancements(enhanced);
@@ -363,15 +365,46 @@ function applySceneTagEnhancements(tags: Record<string, GuideNhTagSchema>, sourc
 		syncSceneAlias(tags);
 		return;
 	}
-	applySceneChildren(tags, sceneTagCompiler.text);
+	applySceneChildren(tags, sceneTagCompiler.text, sources);
 	applySceneBlockStatsTags(tags);
 	applySceneDocumentationEnhancements(tags);
 	applyStructureLibConditionEnhancements(tags);
 	syncSceneAlias(tags);
 }
 
-function applySceneChildren(tags: Record<string, GuideNhTagSchema>, source: string): void {
-	const sceneChildren = extractSceneElementNames(source);
+function applyDetailsEnhancements(tags: Record<string, GuideNhTagSchema>): void {
+	tags.summary = {
+		name: 'summary',
+		kind: 'block',
+		description: 'Generated from GuideNH details summary support.',
+		attributes: {},
+		children: [],
+		snippets: []
+	};
+}
+
+function applyMermaidEnhancements(tags: Record<string, GuideNhTagSchema>): void {
+	tags.NodeContent = {
+		name: 'NodeContent',
+		kind: 'block',
+		description: 'Generated from GuideNH Mermaid rich node content support.',
+		attributes: {
+			id: {
+				type: 'string',
+				valueStyle: 'string'
+			}
+		},
+		children: [],
+		snippets: []
+	};
+	setChildren(tags.Mermaid, ['NodeContent']);
+}
+
+function applySceneChildren(tags: Record<string, GuideNhTagSchema>, source: string, sources: JavaSourceFile[]): void {
+	const sceneChildren = mergeChildren(
+		extractSceneElementNames(source),
+		extractRegisteredSceneElementNames(sources)
+	);
 	setChildren(tags.GameScene, sceneChildren);
 }
 
@@ -400,6 +433,30 @@ function extractSceneElementNames(source: string): string[] {
 		}
 	}
 	return Array.from(names).sort((left, right) => left.localeCompare(right));
+}
+
+function extractRegisteredSceneElementNames(sources: JavaSourceFile[]): string[] {
+	const defaultExtensions = findSourceByClassName(sources, 'DefaultExtensions');
+	if (!defaultExtensions) {
+		return [];
+	}
+	const classNames = new Set<string>();
+	for (const match of defaultExtensions.text.matchAll(/new\s+([A-Za-z0-9_]+ElementCompiler)\s*\(\)/g)) {
+		classNames.add(match[1]);
+	}
+	const tagNames = new Set<string>();
+	for (const className of classNames) {
+		const source = findSourceByClassName(sources, className);
+		if (!source) {
+			continue;
+		}
+		for (const tagName of scanJavaCompilerSource(source.text).tagNames) {
+			if (tagName !== 'BlockStat' && tagName !== 'GameScene' && tagName !== 'Scene') {
+				tagNames.add(tagName);
+			}
+		}
+	}
+	return Array.from(tagNames).sort((left, right) => left.localeCompare(right));
 }
 
 function applySceneBlockStatsTags(tags: Record<string, GuideNhTagSchema>): void {
@@ -693,7 +750,7 @@ function applyReferenceEnhancements(tags: Record<string, GuideNhTagSchema>): voi
 	mergeAttributes(tags.ItemImage, {
 		align: { type: 'string', valueStyle: 'string' },
 		noTooltip: { type: 'boolean', valueStyle: 'expression' },
-		showTooltip: { type: 'boolean', valueStyle: 'expression' },
+		showTooltip: { type: 'boolean', valueStyle: 'string' },
 		tooltip: { type: 'string', valueStyle: 'string' }
 	});
 	mergeAttributes(tags.FloatingImage, {
@@ -1031,3 +1088,4 @@ if (require.main === module) {
 		process.exitCode = 1;
 	});
 }
+

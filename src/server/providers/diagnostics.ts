@@ -213,20 +213,17 @@ function validateAttributeValueType(attribute: GuideNhAttributeSchema, value: st
 	if (value === true) {
 		return attribute.type === 'boolean' ? undefined : attribute.type;
 	}
+	if (attribute.type === 'boolean') {
+		return /^(?:true|false)$/i.test(value) ? undefined : 'boolean';
+	}
 	if (acceptsBooleanLikeString(attribute, value)) {
 		return undefined;
-	}
-	if (attribute.type === 'boolean' && attribute.valueStyle === 'expression' && valueStyle === 'string') {
-		return 'boolean';
 	}
 	if (attribute.valueStyle === 'string' && valueStyle === 'expression') {
 		return attribute.type;
 	}
 	if (attribute.type === 'number') {
 		return /^-?\d+(?:\.\d+)?$/.test(value) ? undefined : 'number';
-	}
-	if (attribute.type === 'boolean') {
-		return /^(?:true|false)$/i.test(value) ? undefined : 'boolean';
 	}
 	if (attribute.type === 'color') {
 		return /^(?:#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8}|0x[0-9a-fA-F]{6}|0x[0-9a-fA-F]{8}|[A-Za-z_][\w.-]*)$/.test(value)

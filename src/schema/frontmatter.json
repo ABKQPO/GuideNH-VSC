@@ -9,6 +9,7 @@
         "parent": { "type": "string", "description": "Parent page id." },
         "position": { "type": "number", "description": "Sibling sort position." },
         "priority": { "type": "number", "description": "Override priority." },
+        "recommend": { "type": "number", "description": "Recommendation sort weight." },
         "icon": { "type": "string", "description": "Item icon id." },
         "icons": { "type": "list", "description": "Rotating item icons." },
         "icon_texture": { "type": "string", "description": "Texture icon path." },

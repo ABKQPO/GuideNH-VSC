@@ -149,7 +149,7 @@ export function createGuideNhCompletionResult(
 	}
 	if (openTag.name.length === 0) {
 		const resolvedParentTag = parentTag ?? inferOpenParentTag(maskedText, offset);
-		const allowed = findTagSchema(schema, resolvedParentTag)?.children;
+		const allowed = resolveAllowedTagNames(schema, resolvedParentTag);
 		const completions = [
 			...createTagNameSnippetCompletions(schema, allowed),
 			...createSnippetCompletions(schema, allowed)
@@ -159,7 +159,7 @@ export function createGuideNhCompletionResult(
 	const tagSchema = findTagSchema(schema, openTag.name);
 	if (!tagSchema || !openTag.hasAttributeBoundary) {
 		const resolvedParentTag = parentTag ?? inferOpenParentTag(maskedText, offset);
-		const allowed = findTagSchema(schema, resolvedParentTag)?.children;
+		const allowed = resolveAllowedTagNames(schema, resolvedParentTag);
 		const completions = [
 			...createTagNameSnippetCompletions(schema, allowed).filter((item) => item.label.toLowerCase().startsWith(openTag.name.toLowerCase())),
 			...createSnippetCompletions(schema, allowed).filter((item) => item.label.toLowerCase().startsWith(openTag.name.toLowerCase()))
@@ -655,11 +655,19 @@ function createPlainTagCompletions(
 		return [];
 	}
 	const resolvedParentTag = parentTag ?? inferOpenParentTag(maskedText, offset);
-	const allowed = findTagSchema(schema, resolvedParentTag)?.children;
+	const allowed = resolveAllowedTagNames(schema, resolvedParentTag);
 	return [
 		...createTagSnippetCompletions(schema, allowed, prefix),
 		...createSnippetCompletions(schema, allowed).filter((item) => item.label.startsWith(prefix))
 	];
+}
+
+function resolveAllowedTagNames(schema: GuideNhSchemaBundle, parentTagName: string | undefined): string[] | undefined {
+	const parentTag = findTagSchema(schema, parentTagName);
+	if (!parentTag || parentTag.children.length === 0) {
+		return undefined;
+	}
+	return parentTag.children;
 }
 
 function findPlainTagPrefix(text: string, offset: number): string | undefined {

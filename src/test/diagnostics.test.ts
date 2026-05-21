@@ -39,11 +39,11 @@ suite('GuideNH diagnostics', () => {
 	test('validates GuideNH attribute value styles', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const validText = [
-			'<GameScene width="256" height="192" zoom={4} interactive={true}>',
+			'<GameScene width="256" height="192" zoom={4} interactive={true} showBackground="false">',
 			'  <Block id="minecraft:diamond_block" x="-1" y="1" z="-1" />',
 			'</GameScene>'
 		].join('\n');
-		const invalidText = '<GameScene width={256} interactive="true" />';
+		const invalidText = '<GameScene width={256} interactive="maybe" />';
 
 		assert.deepStrictEqual(createGuideNhDiagnostics(validText, schema), []);
 		assert.deepStrictEqual(
@@ -172,6 +172,12 @@ suite('GuideNH diagnostics', () => {
 		assert.deepStrictEqual(diagnostics, []);
 	});
 
+	test('accepts current navigation frontmatter keys used by GuideNH docs', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('---\nnavigation:\n  title: Intro\n  recommend: 10\n---\n', schema);
+		assert.deepStrictEqual(diagnostics, []);
+	});
+
 	test('reports unresolved GuideNH page references', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const index = new GuideNhWorkspaceIndex();
@@ -288,8 +294,51 @@ suite('GuideNH diagnostics', () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const text = [
 			'<ItemImage id="minecraft:diamond_sword" noTooltip={true} />',
+			'<ItemImage id="minecraft:diamond_sword" noTooltip="true" />',
 			'<ItemImage id="minecraft:apple" tooltip="Plain tooltip text." />',
-			'<ItemImage id="minecraft:golden_apple" showTooltip={false} />'
+			'<ItemImage id="minecraft:golden_apple" showTooltip={false} />',
+			'<ItemImage id="minecraft:golden_apple" showTooltip="false" />'
+		].join('\n');
+
+		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);
+	});
+
+	test('accepts boolean attributes in both quoted and expression forms', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = [
+			'<GameScene interactive="true" showBackground={false} allowLayerSlider="false" />',
+			'<LineAnnotation showPoints="true" alwaysOnTop={false} />'
+		].join('\n');
+
+		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);
+	});
+
+	test('accepts details summary blocks used by GuideNH runtime content docs', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = [
+			'<details open width="220" height="150" wrap="square" align="right">',
+			'  <summary>Mixed runtime content <ItemImage id="minecraft:diamond" /></summary>',
+			'  <BlockImage id="minecraft:diamond_block" />',
+			'</details>'
+		].join('\n');
+
+		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);
+	});
+
+	test('accepts Mermaid node content blocks used by GuideNH rich mindmap docs', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = [
+			'<Mermaid>',
+			'mindmap',
+			'  root((Root))',
+			'</Mermaid>',
+			'<Mermaid>',
+			'  mindmap',
+			'    root((Root))',
+			'  <NodeContent id="root">',
+			'    <BlockImage id="minecraft:diamond_block" />',
+			'  </NodeContent>',
+			'</Mermaid>'
 		].join('\n');
 
 		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);

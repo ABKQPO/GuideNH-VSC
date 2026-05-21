@@ -1,4 +1,4 @@
-import * as assert from 'assert';
+﻿import * as assert from 'assert';
 import { enhanceGeneratedTagsFromJavaSources, extractTagNamesFromJavaSource, scanJavaCompilerSource } from '../scripts/generateSchema';
 
 suite('GuideNH schema generator', () => {
@@ -265,4 +265,100 @@ suite('GuideNH schema generator', () => {
 			value: { type: 'number', valueStyle: 'expression' }
 		});
 	});
+
+	test('adds registered scene element compiler tags to GameScene children', () => {
+		const enhanced = enhanceGeneratedTagsFromJavaSources({
+			GameScene: {
+				name: 'GameScene',
+				kind: 'block',
+				description: 'Interactive GuideNH 3D scene.',
+				attributes: {},
+				children: [],
+				snippets: []
+			},
+			Scene: {
+				name: 'Scene',
+				kind: 'block',
+				description: 'Generated from GuideNH Scene compiler source.',
+				attributes: {},
+				children: [],
+				snippets: []
+			}
+		}, [
+			{
+				path: 'src/SceneTagCompiler.java',
+				text: 'if ("Block".equals(name)) { return; }'
+			},
+			{
+				path: 'src/DefaultExtensions.java',
+				text: 'return Arrays.asList(new ParticleElementCompiler(), new TextAnnotationElementCompiler());'
+			},
+			{
+				path: 'src/ParticleElementCompiler.java',
+				text: 'public Set<String> getTagNames() { return Collections.singleton("Particle"); }'
+			},
+			{
+				path: 'src/TextAnnotationElementCompiler.java',
+				text: 'public Set<String> getTagNames() { return Collections.singleton("TextAnnotation"); }'
+			}
+		]);
+
+		assert.deepStrictEqual(enhanced.GameScene.children, ['Block', 'Particle', 'TextAnnotation']);
+		assert.deepStrictEqual(enhanced.Scene.children, ['Block', 'Particle', 'TextAnnotation']);
+	});
+
+	test('adds details summary support and string-style ItemImage showTooltip semantics', () => {
+		const enhanced = enhanceGeneratedTagsFromJavaSources({
+			ItemImage: {
+				name: 'ItemImage',
+				kind: 'inline',
+				description: 'Generated from GuideNH ItemImage compiler source.',
+				attributes: {
+					id: { type: 'item', valueStyle: 'string' }
+				},
+				children: [],
+				snippets: []
+			}
+		}, []);
+
+		assert.deepStrictEqual(enhanced.summary, {
+			name: 'summary',
+			kind: 'block',
+			description: 'Generated from GuideNH details summary support.',
+			attributes: {},
+			children: [],
+			snippets: []
+		});
+		assert.deepStrictEqual(enhanced.ItemImage.attributes.showTooltip, {
+			type: 'boolean',
+			valueStyle: 'string'
+		});
+	});
+
+	test('adds Mermaid rich node content support', () => {
+		const enhanced = enhanceGeneratedTagsFromJavaSources({
+			Mermaid: {
+				name: 'Mermaid',
+				kind: 'block',
+				description: 'Generated from GuideNH Mermaid compiler source.',
+				attributes: {},
+				children: [],
+				snippets: []
+			}
+		}, []);
+
+		assert.deepStrictEqual(enhanced.Mermaid.children, ['NodeContent']);
+		assert.deepStrictEqual(enhanced.NodeContent, {
+			name: 'NodeContent',
+			kind: 'block',
+			description: 'Generated from GuideNH Mermaid rich node content support.',
+			attributes: {
+				id: { type: 'string', valueStyle: 'string' }
+			},
+			children: [],
+			snippets: []
+		});
+	});
 });
+
+
