@@ -1372,7 +1372,8 @@
         "PlaySound",
         "RemoveBlocks",
         "ReplaceBlock",
-        "TextAnnotation"
+        "TextAnnotation",
+        "Weather"
       ],
       "snippets": [
         "guidenh.gameScene"
@@ -3018,7 +3019,8 @@
         "PlaySound",
         "RemoveBlocks",
         "ReplaceBlock",
-        "TextAnnotation"
+        "TextAnnotation",
+        "Weather"
       ],
       "snippets": []
     },
@@ -3365,6 +3367,35 @@
       "description": "Generated from GuideNH Tooltip compiler source.",
       "attributes": {
         "label": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "Weather": {
+      "name": "Weather",
+      "kind": "any",
+      "description": "Generated from GuideNH Weather compiler source.",
+      "attributes": {
+        "density": {
+          "type": "number",
+          "valueStyle": "string"
+        },
+        "type": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "weather": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "x": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "z": {
           "type": "string",
           "valueStyle": "string"
         }
