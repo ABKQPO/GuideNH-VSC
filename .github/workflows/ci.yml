@@ -16,6 +16,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Checkout GuideNH sources
+        uses: actions/checkout@v4
+        with:
+          repository: ABKQPO/GuideNH
+          path: GuideNH
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -26,6 +32,8 @@ jobs:
         run: npm ci
 
       - name: Build, test, and package extension
+        env:
+          GUIDENH_ROOT: ${{ github.workspace }}/GuideNH
         run: xvfb-run -a npm run build
 
       - name: Upload VSIX artifact
