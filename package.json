@@ -113,7 +113,7 @@
     "test": "vscode-test",
     "verify": "npm run generate:schema && npm run lint && npm run compile && npm test",
     "prepackage": "npm run compile && npm run bundle",
-    "package": "vsce package --out dist/guide-vsc.vsix",
+    "package": "node -e \"require('fs').mkdirSync('dist', { recursive: true })\" && vsce package --out dist/guide-vsc.vsix",
     "build": "npm run verify && npm run package"
   },
   "dependencies": {

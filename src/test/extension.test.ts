@@ -34,7 +34,10 @@ suite('GuideNH extension automation', () => {
 		};
 		assert.strictEqual(packageJson.scripts.build, 'npm run verify && npm run package');
 		assert.strictEqual(packageJson.scripts.prepackage, 'npm run compile && npm run bundle');
-		assert.strictEqual(packageJson.scripts.package, 'vsce package --out dist/guide-vsc.vsix');
+		assert.strictEqual(
+			packageJson.scripts.package,
+			`node -e "require('fs').mkdirSync('dist', { recursive: true })" && vsce package --out dist/guide-vsc.vsix`
+		);
 		assert.match(packageJson.scripts.verify, /npm run generate:schema/);
 		assert.match(packageJson.scripts.verify, /npm run lint/);
 		assert.match(packageJson.scripts.verify, /npm run compile/);
