@@ -1,5 +1,7 @@
 .vscode/**
+.github/**
 .vscode-test/**
+GuideNH/**
 docs/**
 ROADMAP.zh-CN.md
 **/ROADMAP.zh-CN.md
