@@ -249,6 +249,9 @@ function extractFallbackAttributes(source: string): Array<{ name: string; type: 
 	for (const match of source.matchAll(/getAttributeBoolean\(\s*"([^"]+)"/g)) {
 		attributes.push({ name: match[1], type: 'boolean', reader: 'getAttributeBoolean' });
 	}
+	for (const match of source.matchAll(/getOptionalBoolean\([^;]*?"([^"]+)"/g)) {
+		attributes.push({ name: match[1], type: 'boolean', reader: 'getOptionalBoolean' });
+	}
 	for (const match of source.matchAll(/getAttribute(?:Int|Integer|Float|Double)\(\s*"([^"]+)"/g)) {
 		attributes.push({ name: match[1], type: 'number', reader: match[0].includes('Float') || match[0].includes('Double') ? 'getAttributeFloat' : 'getAttributeInt' });
 	}

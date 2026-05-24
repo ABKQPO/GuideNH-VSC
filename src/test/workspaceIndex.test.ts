@@ -72,6 +72,20 @@ navigation:
 		assert.deepStrictEqual(index.listFrontmatterValues('navigation.required_mods'), ['gregtech']);
 	});
 
+	test('normalizes category sort keys in indexed frontmatter values', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/index.md', `---
+categories:
+  - Machines|Arc Furnace
+  - Power | Generator
+  - "Logistics|Item Pipe"
+  - "  Decor  | Showcase "
+---
+`);
+
+		assert.deepStrictEqual(index.listFrontmatterValues('categories'), ['Decor', 'Logistics', 'Machines', 'Power']);
+	});
+
 	test('updates cached frontmatter values incrementally', () => {
 		const index = new GuideNhWorkspaceIndex();
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md', `---
@@ -113,6 +127,20 @@ categories:
 		assert.deepStrictEqual(index.queryFrontmatterValues('categories', 'a'), ['advanced', 'archive']);
 		assert.deepStrictEqual(index.queryFrontmatterValues('categories', 'a', 1), ['advanced']);
 		assert.deepStrictEqual(index.queryFrontmatterValues('categories', 'missing'), []);
+	});
+
+	test('queries normalized category names instead of raw sort keys', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/a.md', `---
+categories:
+  - Machines|Arc Furnace
+  - Mechanics|Bearing
+  - Magic|Crystal
+---
+`);
+
+		assert.deepStrictEqual(index.queryFrontmatterValues('categories', 'Ma'), ['Magic', 'Machines']);
+		assert.deepStrictEqual(index.queryFrontmatterValues('categories', 'Me'), ['Mechanics']);
 	});
 
 	test('ignores reusable list examples outside frontmatter', () => {

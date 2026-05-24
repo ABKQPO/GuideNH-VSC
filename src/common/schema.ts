@@ -22,7 +22,7 @@ export interface GuideNhTagsFile {
 }
 
 export interface GuideNhFrontmatterKey {
-	type: 'string' | 'number' | 'boolean' | 'list' | 'map' | 'date';
+	type: 'string' | 'number' | 'boolean' | 'list' | 'string_or_list' | 'map' | 'date';
 	description: string;
 	children?: Record<string, GuideNhFrontmatterKey>;
 }

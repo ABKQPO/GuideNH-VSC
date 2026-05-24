@@ -442,13 +442,17 @@
       "children": [],
       "snippets": []
     },
-    "CategoryIndex": {
-      "name": "CategoryIndex",
+    "Category": {
+      "name": "Category",
       "kind": "block",
-      "description": "Generated from GuideNH CategoryIndex compiler source.",
+      "description": "Generated from GuideNH Category compiler source.",
       "attributes": {
-        "category": {
+        "name": {
           "type": "string",
+          "valueStyle": "string"
+        },
+        "rows": {
+          "type": "number",
           "valueStyle": "string"
         }
       },
@@ -795,6 +799,10 @@
           "type": "string",
           "valueStyle": "string"
         },
+        "mount": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "name": {
           "type": "string",
           "valueStyle": "string"
@@ -815,11 +823,19 @@
           "type": "number",
           "valueStyle": "expression"
         },
+        "sceneEntityId": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "showCape": {
           "type": "boolean",
           "valueStyle": "expression"
         },
         "showName": {
+          "type": "boolean",
+          "valueStyle": "expression"
+        },
+        "unmount": {
           "type": "boolean",
           "valueStyle": "expression"
         },
@@ -1371,6 +1387,7 @@
         "PlaceBlock",
         "PlaySound",
         "RemoveBlocks",
+        "RemoveEntity",
         "ReplaceBlock",
         "TextAnnotation",
         "Weather"
@@ -2670,6 +2687,23 @@
       "children": [],
       "snippets": []
     },
+    "RemoveEntity": {
+      "name": "RemoveEntity",
+      "kind": "any",
+      "description": "Generated from GuideNH RemoveEntity compiler source.",
+      "attributes": {
+        "sceneEntityId": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "unmount": {
+          "type": "boolean",
+          "valueStyle": "expression"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
     "ReplaceBlock": {
       "name": "ReplaceBlock",
       "kind": "any",
@@ -3018,6 +3052,7 @@
         "PlaceBlock",
         "PlaySound",
         "RemoveBlocks",
+        "RemoveEntity",
         "ReplaceBlock",
         "TextAnnotation",
         "Weather"
@@ -3201,6 +3236,65 @@
         "z": {
           "type": "number",
           "valueStyle": "expression"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "Special": {
+      "name": "Special",
+      "kind": "block",
+      "description": "Generated from GuideNH Special compiler source.",
+      "attributes": {
+        "language": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "name": {
+          "type": "enum",
+          "valueStyle": "string",
+          "values": [
+            "SpecialPages",
+            "AllPages",
+            "AllPagesWithPrefix",
+            "Categories",
+            "CategoryTree",
+            "DisambiguationPages",
+            "ExternalLinksSearch",
+            "PagesLinkingToDisambiguationPages",
+            "PagesWithPageProperty",
+            "PagesWithBadges",
+            "DoubleRedirects",
+            "LintErrors",
+            "LongPages",
+            "ShortPages",
+            "UncategorizedPages",
+            "PagesNotConnectedToItems",
+            "UnusedFiles",
+            "OverriddenPages",
+            "FileList",
+            "GlobalFileUsage",
+            "MediaStatistics",
+            "DownloadGuideNHExtension",
+            "AllTranslations",
+            "LanguageStatistics",
+            "PageTranslation",
+            "SearchTranslations",
+            "TranslationStatistics",
+            "Contribute"
+          ]
+        },
+        "page": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "prefix": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "rows": {
+          "type": "number",
+          "valueStyle": "string"
         }
       },
       "children": [],

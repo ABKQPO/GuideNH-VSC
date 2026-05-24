@@ -134,6 +134,21 @@ suite('GuideNH schema generator', () => {
 		});
 	});
 
+	test('extracts helper-wrapped optional boolean attributes', () => {
+		const source = `
+			public Set<String> getTagNames() {
+				return Collections.singleton("Entity");
+			}
+			protected void compile(PageCompiler compiler, LytErrorSink errorSink, MdxJsxElementFields el) {
+				Boolean unmount = getOptionalBoolean(compiler, errorSink, el, "unmount");
+			}
+		`;
+		const result = scanJavaCompilerSource(source);
+		assert.deepStrictEqual(result.tags.Entity.attributes, {
+			unmount: { type: 'boolean', valueStyle: 'expression' }
+		});
+	});
+
 	test('extracts implicit item id and ore attributes from item stack helpers', () => {
 		const source = `
 			public Set<String> getTagNames() {

@@ -194,7 +194,7 @@ function resolveFrontmatterAllowedKeys(
 }
 
 function validateFrontmatterValueType(key: GuideNhFrontmatterKey, value: string): string | undefined {
-	if (value.length === 0 || key.type === 'map' || key.type === 'string' || key.type === 'date') {
+	if (value.length === 0 || key.type === 'map' || key.type === 'string' || key.type === 'string_or_list' || key.type === 'date') {
 		return undefined;
 	}
 	if (key.type === 'number') {

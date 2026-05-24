@@ -24,7 +24,7 @@ export function extractIndexedFrontmatterValues(text: string): Record<string, st
 		if (!itemMatch || !currentPath) {
 			continue;
 		}
-		const normalized = normalizeIndexedFrontmatterValue(itemMatch[1]);
+		const normalized = normalizeIndexedFrontmatterValue(currentPath, itemMatch[1]);
 		if (!normalized) {
 			continue;
 		}
@@ -55,7 +55,7 @@ export function findIndexedFrontmatterValueAtOffset(text: string, offset: number
 			continue;
 		}
 		const rawValue = itemMatch[2];
-		const normalizedValue = normalizeIndexedFrontmatterValue(rawValue);
+		const normalizedValue = normalizeIndexedFrontmatterValue(currentPath, rawValue);
 		const valueStart = lineStart + itemMatch[1].length;
 		const valueEnd = valueStart + rawValue.length;
 		if (normalizedValue && offset >= valueStart && offset <= valueEnd) {
@@ -78,6 +78,14 @@ function resolveIndexedFrontmatterPath(indent: number, key: string): string {
 	return key;
 }
 
-function normalizeIndexedFrontmatterValue(value: string): string {
-	return value.replace(/^['"]|['"]$/g, '').trim();
+function normalizeIndexedFrontmatterValue(path: string, value: string): string {
+	const normalized = value.replace(/^['"]|['"]$/g, '').trim();
+	if (!normalized) {
+		return '';
+	}
+	if (path !== 'categories') {
+		return normalized;
+	}
+	const separatorIndex = normalized.indexOf('|');
+	return (separatorIndex >= 0 ? normalized.slice(0, separatorIndex) : normalized).trim();
 }

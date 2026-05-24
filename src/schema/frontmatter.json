@@ -17,7 +17,7 @@
         "required_mods": { "type": "list", "description": "Required mod ids." }
       }
     },
-    "categories": { "type": "list", "description": "Category ids." },
+    "categories": { "type": "string_or_list", "description": "MediaWiki-style categories; accepts either a single category string or a list; each entry can use category or category|sort key." },
     "item_ids": { "type": "list", "description": "Item ids indexed to this page." },
     "ore_ids": { "type": "list", "description": "Ore dictionary names indexed to this page." },
     "quest_ids": { "type": "list", "description": "BetterQuesting UUIDs indexed to this page." },

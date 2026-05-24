@@ -389,6 +389,20 @@ suite('GuideNH completion provider', () => {
 		assert.strictEqual(modItems[0].detail, 'GregTech');
 	});
 
+	test('completes normalized category names from indexed frontmatter values', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/source.md', '---\ncategories:\n  - Machines|Arc Furnace\n  - Magic|Crystal\n---\n');
+		const text = '---\ncategories:\n  - Ma\n---\n';
+		const items = createGuideNhCompletions(text, text.indexOf('Ma') + 2, schema, undefined, undefined, index);
+
+		assert.deepStrictEqual(
+			items.map((item: CompletionItem) => item.label),
+			['Magic', 'Machines']
+		);
+		assert.strictEqual(items[0].detail, 'Indexed category');
+	});
+
 	test('completes linksTo values from indexed pages', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const index = new GuideNhWorkspaceIndex();
