@@ -20,6 +20,20 @@
       "body": ["<ImportStructure src=\"${1:./structure.snbt}\" />"],
       "description": "Import a structure into a GameScene."
     },
+    "guidenh.importStructureLib": {
+      "prefix": "ImportStructureLib",
+      "body": [
+        "<ImportStructureLib controller=\"${1:gregtech:gt.blockmachines:2741}\"${2: gtFormed={true}} />"
+      ],
+      "description": "Insert a StructureLib scene import."
+    },
+    "guidenh.gtBlock": {
+      "prefix": "GTBlock",
+      "body": [
+        "<Block id=\"${1:gregtech:gt.blockmachines:2741}\"${2: gtFormed={true}} />"
+      ],
+      "description": "Insert a GT controller scene block."
+    },
     "guidenh.itemLink": {
       "prefix": "ItemLink",
       "body": ["<ItemLink id=\"${1:minecraft:diamond}\" />"],

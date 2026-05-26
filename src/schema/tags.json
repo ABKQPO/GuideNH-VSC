@@ -168,6 +168,11 @@
           "type": "string",
           "valueStyle": "string"
         },
+        "gtFormed": {
+          "type": "boolean",
+          "valueStyle": "expression",
+          "description": "Whether GT controller preview sync should auto-form this block controller. Defaults to false."
+        },
         "id": {
           "type": "item",
           "valueStyle": "string",
@@ -1479,6 +1484,11 @@
           "type": "number",
           "valueStyle": "string"
         },
+        "gtFormed": {
+          "type": "boolean",
+          "valueStyle": "expression",
+          "description": "Whether GT controller preview sync should auto-form imported controllers. Defaults to false."
+        },
         "src": {
           "type": "resource",
           "valueStyle": "string",
@@ -1526,6 +1536,11 @@
         "flip": {
           "type": "string",
           "valueStyle": "string"
+        },
+        "gtFormed": {
+          "type": "boolean",
+          "valueStyle": "expression",
+          "description": "Whether GT controller preview sync should auto-form the imported controller. Defaults to false."
         },
         "name": {
           "type": "string",
@@ -2254,6 +2269,11 @@
           "type": "string",
           "valueStyle": "string"
         },
+        "gtFormed": {
+          "type": "boolean",
+          "valueStyle": "expression",
+          "description": "Whether GT controller preview sync should auto-form controllers placed by this region fill. Defaults to false."
+        },
         "nbt": {
           "type": "string",
           "valueStyle": "string"
@@ -2724,6 +2744,11 @@
         "from": {
           "type": "string",
           "valueStyle": "string"
+        },
+        "gtFormed": {
+          "type": "boolean",
+          "valueStyle": "expression",
+          "description": "Whether GT controller preview sync should auto-form replacement controllers. Defaults to false."
         },
         "from_nbt": {
           "type": "string",
@@ -3432,6 +3457,10 @@
           "valueStyle": "string"
         },
         "text": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "textKey": {
           "type": "string",
           "valueStyle": "string"
         },

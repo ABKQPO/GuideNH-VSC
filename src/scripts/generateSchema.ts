@@ -510,6 +510,41 @@ function applySceneBlockStatsTags(tags: Record<string, GuideNhTagSchema>): void 
 }
 
 function applySceneDocumentationEnhancements(tags: Record<string, GuideNhTagSchema>): void {
+	mergeAttributes(tags.Block, {
+		gtFormed: {
+			type: 'boolean',
+			valueStyle: 'expression',
+			description: 'Whether GT controller preview sync should auto-form this block controller. Defaults to false.'
+		}
+	});
+	mergeAttributes(tags.ImportStructure, {
+		gtFormed: {
+			type: 'boolean',
+			valueStyle: 'expression',
+			description: 'Whether GT controller preview sync should auto-form imported controllers. Defaults to false.'
+		}
+	});
+	mergeAttributes(tags.ImportStructureLib, {
+		gtFormed: {
+			type: 'boolean',
+			valueStyle: 'expression',
+			description: 'Whether GT controller preview sync should auto-form the imported controller. Defaults to false.'
+		}
+	});
+	mergeAttributes(tags.PlaceBlock, {
+		gtFormed: {
+			type: 'boolean',
+			valueStyle: 'expression',
+			description: 'Whether GT controller preview sync should auto-form controllers placed by this region fill. Defaults to false.'
+		}
+	});
+	mergeAttributes(tags.ReplaceBlock, {
+		gtFormed: {
+			type: 'boolean',
+			valueStyle: 'expression',
+			description: 'Whether GT controller preview sync should auto-form replacement controllers. Defaults to false.'
+		}
+	});
 	mergeAttributes(tags.Entity, {
 		baby: { type: 'boolean', valueStyle: 'expression' },
 		capeRotation: { type: 'string', valueStyle: 'string' },

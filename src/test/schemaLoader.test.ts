@@ -27,6 +27,15 @@ suite('GuideNH schema loader', () => {
 		assert.ok(schema.tags.tags.Scene.children.includes('ImportStructure'));
 	});
 
+	test('exposes GT preview formed attributes on scene structure tags', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		assert.strictEqual(schema.tags.tags.Block.attributes.gtFormed?.type, 'boolean');
+		assert.strictEqual(schema.tags.tags.ImportStructure.attributes.gtFormed?.type, 'boolean');
+		assert.strictEqual(schema.tags.tags.ImportStructureLib.attributes.gtFormed?.type, 'boolean');
+		assert.strictEqual(schema.tags.tags.PlaceBlock.attributes.gtFormed?.type, 'boolean');
+		assert.strictEqual(schema.tags.tags.ReplaceBlock.attributes.gtFormed?.type, 'boolean');
+	});
+
 	test('loads bundled default schema files for packaged extensions', async () => {
 		const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'guide-vsc-schema-'));
 		const outputDir = path.join(tempRoot, 'schema');
