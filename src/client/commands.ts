@@ -25,6 +25,7 @@ export interface GuideNhCommandCallbacks {
 	disconnectRuntimeBridge(): Promise<void>;
 	generateSchema(): Promise<void>;
 	validateRuntimeDocument(): Promise<void>;
+	openItemStackPicker(): Promise<void>;
 }
 
 export interface ActiveGuideNhDocument {
@@ -89,6 +90,9 @@ export function createGuideNhCommandCallbacks(dependencies: GuideNhCommandDepend
 			};
 			await dependencies.sender.sendNotification(RuntimeDocumentValidateNotification, params);
 			await dependencies.showInformationMessage(localize('GuideNH runtime document validation requested.'));
+		},
+		async openItemStackPicker() {
+			await vscode.commands.executeCommand('guide-vsc.openItemStackPicker');
 		}
 	};
 }
@@ -139,7 +143,8 @@ export function registerGuideNhCommands(context: vscode.ExtensionContext, sender
 		vscode.commands.registerCommand('guide-vsc.generateSchema', callbacks.generateSchema),
 		vscode.commands.registerCommand('guide-vsc.connectRuntimeBridge', callbacks.connectRuntimeBridge),
 		vscode.commands.registerCommand('guide-vsc.disconnectRuntimeBridge', callbacks.disconnectRuntimeBridge),
-		vscode.commands.registerCommand('guide-vsc.validateRuntimeDocument', callbacks.validateRuntimeDocument)
+		vscode.commands.registerCommand('guide-vsc.validateRuntimeDocument', callbacks.validateRuntimeDocument),
+		vscode.commands.registerCommand('guide-vsc.pickItemStack', callbacks.openItemStackPicker)
 	);
 }
 

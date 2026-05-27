@@ -7,7 +7,12 @@ import { findAttributeSchema, findTagSchema, listTagSchemas, matchesTagName } fr
 import { findOpenTagAttributeValue, findOpenTagContext, normalizeResourceReference } from '../parser/documentModel';
 import { extractFrontmatter, FrontmatterBlock } from '../parser/frontmatter';
 import { SemanticCache } from '../runtime/semanticCache';
-import { isStructureLibOrientationAttribute, resolveRuntimeAttributeSource } from '../runtime/runtimeAttributeSources';
+import {
+	isStructureLibOrientationAttribute,
+	resolveFrontmatterRuntimeCapability,
+	resolveRuntimeCapability,
+	resolveRuntimeAttributeSource
+} from '../runtime/runtimeAttributeSources';
 
 export const GuideNhCompletionTriggerCharacters = ['<', ' ', '"', '\'', '`', '=', '+', ':', '^'];
 
@@ -27,12 +32,6 @@ interface FrontmatterValueContext {
 	prefix: string;
 }
 
-interface FrontmatterValueSource {
-	path: string;
-	capability?: string;
-	indexDetail?: string;
-}
-
 interface StaticAttributeValueSource {
 	tagName: string;
 	attributeName: string;
@@ -49,13 +48,6 @@ export interface GuideNhCompletionResult {
 	items: CompletionItem[];
 	dynamicRequest?: DynamicCompletionRequest;
 }
-
-const FrontmatterValueSources: FrontmatterValueSource[] = [
-	{ path: 'item_ids', capability: 'items', indexDetail: 'Indexed item id' },
-	{ path: 'ore_ids', capability: 'ores', indexDetail: 'Indexed ore id' },
-	{ path: 'categories', capability: 'categories', indexDetail: 'Indexed category' },
-	{ path: 'navigation.required_mods', capability: 'mods', indexDetail: 'Indexed required mod' }
-];
 
 const StaticAttributeValueSources: StaticAttributeValueSource[] = [
 	{
@@ -75,7 +67,19 @@ const StaticAttributeValueSources: StaticAttributeValueSource[] = [
 	}
 ];
 
-const DynamicCompletionCapabilities = new Set(['sounds', 'keybinds', 'commands', 'recipes', 'quests', 'pages']);
+const DynamicCompletionCapabilities = new Set([
+	'items',
+	'ores',
+	'categories',
+	'mods',
+	'sounds',
+	'keybinds',
+	'commands',
+	'recipes',
+	'quests',
+	'pages',
+	'entities'
+]);
 
 export function createGuideNhCompletionResult(
 	text: string,
@@ -89,13 +93,15 @@ export function createGuideNhCompletionResult(
 	const maskedText = maskIgnoredMarkdownRanges(text);
 	const frontmatter = extractFrontmatter(text);
 	if (frontmatter && offset <= frontmatter.end) {
+		const dynamicRequest = resolveFrontmatterDynamicCompletionRequest(text, offset, frontmatter);
 		const pageCompletions = createFrontmatterPageValueCompletions(text, offset, frontmatter, index, cache);
 		if (pageCompletions.length > 0) {
-			return { items: pageCompletions };
+			return { items: pageCompletions, dynamicRequest };
 		}
 		const valueCompletions = createFrontmatterValueCompletions(text, offset, frontmatter, cache, index);
 		return {
-			items: valueCompletions.length > 0 ? valueCompletions : createFrontmatterCompletions(text, offset, frontmatter, schema)
+			items: valueCompletions.length > 0 ? valueCompletions : createFrontmatterCompletions(text, offset, frontmatter, schema),
+			dynamicRequest
 		};
 	}
 
@@ -124,7 +130,7 @@ export function createGuideNhCompletionResult(
 		}
 	}
 	if (attributeValueContext && cache) {
-		const runtimeCompletions = createRuntimeAttributeValueCompletions(attributeValueContext, cache, index);
+		const runtimeCompletions = createRuntimeAttributeValueCompletions(attributeValueContext, schema, cache, index);
 		if (runtimeCompletions.length > 0) {
 			return { items: runtimeCompletions, dynamicRequest };
 		}
@@ -201,6 +207,13 @@ export function findGuideNhAttributeValueCompletionContext(text: string, offset:
 	return findAttributeValueContext(maskIgnoredMarkdownRanges(text), offset);
 }
 
+export function createRuntimeSemanticCompletionItems(
+	capability: string,
+	entries: Array<{ id: string; label?: string; detail?: string }>
+): CompletionItem[] {
+	return entries.map((entry) => createRuntimeCompletionItem(capability, entry));
+}
+
 function resolveDynamicCompletionRequest(
 	text: string,
 	offset: number,
@@ -254,14 +267,35 @@ function resolveDynamicCompletionRequest(
 		};
 	}
 	const attribute = findAttributeSchema(schema, context.tagName, context.attributeName);
-	if (attribute?.type === 'page') {
+	const capability = resolveRuntimeCapability(context.tagName, context.attributeName, attribute);
+	if (capability && DynamicCompletionCapabilities.has(capability)) {
 		return {
-			capability: 'pages',
+			capability,
 			prefix: context.prefix,
 			filters: {}
 		};
 	}
 	return undefined;
+}
+
+function resolveFrontmatterDynamicCompletionRequest(
+	text: string,
+	offset: number,
+	frontmatter: FrontmatterBlock
+): DynamicCompletionRequest | undefined {
+	const context = findFrontmatterValueContext(text.slice(frontmatter.start, offset));
+	if (!context) {
+		return undefined;
+	}
+	const capability = resolveFrontmatterRuntimeCapability(context.path.join('.'));
+	if (!capability || !DynamicCompletionCapabilities.has(capability)) {
+		return undefined;
+	}
+	return {
+		capability,
+		prefix: context.prefix,
+		filters: {}
+	};
 }
 
 function findAttributeValueContext(text: string, offset: number): AttributeValueContext | undefined {
@@ -372,7 +406,8 @@ function createAttributeReferenceValueCompletions(
 	if (!attribute) {
 		return [];
 	}
-	if (attribute.type === 'page') {
+	const capability = resolveRuntimeCapability(context.tagName, context.attributeName, attribute);
+	if (capability === 'pages') {
 		return mergeCompletionItems([
 			...createPageValueCompletions(context.prefix, index),
 			...createRuntimeValueCompletions('pages', context.prefix, cache)
@@ -403,15 +438,17 @@ function shouldUseStaticAttributeCompletions(
 
 function createRuntimeAttributeValueCompletions(
 	context: AttributeValueContext,
+	schema: GuideNhSchemaBundle,
 	cache: SemanticCache,
 	index: GuideNhWorkspaceIndex | undefined
 ): CompletionItem[] {
-	const source = resolveRuntimeAttributeSource(context.tagName, context.attributeName);
-	if (!source) {
+	const attribute = findAttributeSchema(schema, context.tagName, context.attributeName);
+	const capability = resolveRuntimeCapability(context.tagName, context.attributeName, attribute);
+	if (!capability) {
 		return [];
 	}
-	const runtimeItems = createRuntimeValueCompletions(source.capability, context.prefix, cache);
-	if (source.capability !== 'pages') {
+	const runtimeItems = createRuntimeValueCompletions(capability, context.prefix, cache);
+	if (capability !== 'pages') {
 		return runtimeItems;
 	}
 	return mergeCompletionItems([
@@ -502,42 +539,44 @@ function createFrontmatterValueCompletions(
 		return [];
 	}
 	const path = context.path.join('.');
-	const source = FrontmatterValueSources.find((candidate) => candidate.path === path);
-	if (!source) {
+	const capability = resolveFrontmatterRuntimeCapability(path);
+	const indexDetail = resolveFrontmatterIndexDetail(path);
+	if (!capability && !indexDetail) {
 		return [];
 	}
 	return mergeCompletionItems([
-		...createIndexedFrontmatterValueCompletions(source, context.prefix, index),
-		...createRuntimeFrontmatterValueCompletions(source, context.prefix, cache)
+		...createIndexedFrontmatterValueCompletions(path, indexDetail, context.prefix, index),
+		...createRuntimeFrontmatterValueCompletions(capability, context.prefix, cache)
 	]);
 }
 
 function createIndexedFrontmatterValueCompletions(
-	source: FrontmatterValueSource,
+	path: string,
+	indexDetail: string | undefined,
 	prefix: string,
 	index: GuideNhWorkspaceIndex | undefined
 ): CompletionItem[] {
-	if (!index) {
+	if (!index || !indexDetail) {
 		return [];
 	}
 	return index
-		.queryFrontmatterValues(source.path, prefix)
+		.queryFrontmatterValues(path, prefix)
 		.map((value) => ({
 			label: value,
 			kind: CompletionItemKind.Value,
-			detail: source.indexDetail
+			detail: indexDetail
 		}));
 }
 
 function createRuntimeFrontmatterValueCompletions(
-	source: FrontmatterValueSource,
+	capability: string | undefined,
 	prefix: string,
 	cache: SemanticCache | undefined
 ): CompletionItem[] {
-	if (!source.capability) {
+	if (!capability) {
 		return [];
 	}
-	return createRuntimeValueCompletions(source.capability, prefix, cache);
+	return createRuntimeValueCompletions(capability, prefix, cache);
 }
 
 function createRuntimeValueCompletions(
@@ -554,13 +593,14 @@ function createRuntimeValueCompletions(
 function createRuntimeCompletionItem(capability: string, entry: { id: string; label?: string; detail?: string }): CompletionItem {
 	const detailParts = [entry.detail, entry.id].filter((value): value is string => typeof value === 'string' && value.length > 0);
 	if (capability === 'items') {
+		const itemMatchTerms = buildItemCompletionTerms(entry);
 		return {
 			label: entry.label ?? entry.id,
 			kind: CompletionItemKind.Value,
 			detail: detailParts.join(' - '),
 			documentation: entry.id,
 			insertText: entry.id,
-			filterText: [entry.id, entry.label, entry.detail].filter((value): value is string => typeof value === 'string' && value.length > 0).join(' ')
+			filterText: itemMatchTerms.join(' ')
 		};
 	}
 	return {
@@ -569,6 +609,52 @@ function createRuntimeCompletionItem(capability: string, entry: { id: string; la
 		detail: entry.label,
 		documentation: entry.detail
 	};
+}
+
+function buildItemCompletionTerms(entry: { id: string; label?: string; detail?: string }): string[] {
+	const values = [entry.id, entry.label, entry.detail].filter((value): value is string => typeof value === 'string' && value.length > 0);
+	const pathId = entry.id.includes(':') ? entry.id.slice(entry.id.indexOf(':') + 1) : entry.id;
+	const compactValues = values
+		.map((value) => value.toLowerCase().replace(/[^a-z0-9]/g, ''))
+		.filter((value) => value.length > 0);
+	return Array.from(new Set([
+		...values,
+		pathId,
+		...tokenizeCompletionValue(entry.id),
+		...tokenizeCompletionValue(pathId),
+		...tokenizeCompletionValue(entry.label),
+		...tokenizeCompletionValue(entry.detail),
+		...compactValues
+	]));
+}
+
+function tokenizeCompletionValue(value: string | undefined): string[] {
+	if (!value) {
+		return [];
+	}
+	return value.split(/[^A-Za-z0-9]+/).filter((token) => token.length > 0);
+}
+
+function resolveFrontmatterIndexDetail(path: string): string | undefined {
+	switch (path) {
+		case 'item_ids':
+			return 'Indexed item id';
+		case 'ore_ids':
+			return 'Indexed ore id';
+		case 'quest_ids':
+			return 'Indexed quest id';
+		case 'categories':
+			return 'Indexed category';
+		case 'navigation.required_mods':
+			return 'Indexed required mod';
+		case 'navigation.parent':
+			return 'Indexed page';
+		case 'navigation.icon':
+		case 'navigation.icons':
+			return 'Indexed navigation icon';
+		default:
+			return undefined;
+	}
 }
 
 function mergeCompletionItems(items: CompletionItem[]): CompletionItem[] {
@@ -681,6 +767,10 @@ function findPlainTagPrefix(text: string, offset: number): string | undefined {
 
 export function resolveGuideNhCompletionOffset(text: string, requestedOffset: number): number {
 	const normalizedOffset = clampOffset(text, requestedOffset);
+	const quotedValueOffset = resolveAutoClosedAttributeValueOffset(text, normalizedOffset);
+	if (quotedValueOffset !== undefined) {
+		return quotedValueOffset;
+	}
 	const fallbackOffset = resolveAutoClosedTagOffset(text, normalizedOffset);
 	return fallbackOffset ?? normalizedOffset;
 }
@@ -888,6 +978,23 @@ function resolveAutoClosedTagOffset(text: string, offset: number): number | unde
 	return insideOffset;
 }
 
+function resolveAutoClosedAttributeValueOffset(text: string, offset: number): number | undefined {
+	if (offset <= 0) {
+		return undefined;
+	}
+	const requestedOffset = clampOffset(text, offset);
+	const minimumOffset = Math.max(0, requestedOffset - 4);
+	for (let candidateOffset = requestedOffset; candidateOffset >= minimumOffset; candidateOffset--) {
+		if (!hasOnlyAutoClosedAttributeSuffix(text, candidateOffset, requestedOffset)) {
+			continue;
+		}
+		if (findAttributeValueContext(text, candidateOffset)) {
+			return candidateOffset;
+		}
+	}
+	return undefined;
+}
+
 function clampOffset(text: string, offset: number): number {
 	if (offset < 0) {
 		return 0;
@@ -900,6 +1007,10 @@ function clampOffset(text: string, offset: number): number {
 
 function isAsciiAlphaNumeric(value: string | undefined): boolean {
 	return value !== undefined && /^[A-Za-z0-9]$/.test(value);
+}
+
+function hasOnlyAutoClosedAttributeSuffix(text: string, start: number, end: number): boolean {
+	return /^["'\s/>]*$/.test(text.slice(start, end));
 }
 
 function createFencedBlockCompletions(text: string, offset: number, schema: GuideNhSchemaBundle): CompletionItem[] {

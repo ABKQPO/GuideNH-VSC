@@ -1,9 +1,10 @@
 import * as assert from 'assert';
 import { WebSocketServer } from 'ws';
 import { RuntimeBridgeClient, RuntimeBridgeStatus } from '../server/runtime/runtimeBridgeClient';
+import { PreviewResolvePayload, PreviewSearchPayload } from '../common/protocol';
 import { SemanticCache } from '../server/runtime/semanticCache';
 
-const DefaultCapabilities = ['categories', 'commands', 'items', 'keybinds', 'mods', 'ores', 'pages', 'quests', 'recipes', 'sounds', 'structurelib'];
+const DefaultCapabilities = ['categories', 'commands', 'entities', 'items', 'keybinds', 'mods', 'ores', 'pages', 'quests', 'recipes', 'sounds', 'structurelib'];
 
 suite('GuideNH runtime bridge client', () => {
 	test('queries semantic pages after hello succeeds', async () => {
@@ -55,11 +56,11 @@ suite('GuideNH runtime bridge client', () => {
 
 		try {
 			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
-			await waitFor(() => cache.getVersion('items') === 7 && cache.getVersion('pages') === 7);
-			assert.strictEqual(cache.queryPrefix('items', 'minecraft:s')[0]?.label, 'Stone');
+			await waitFor(() => cache.getVersion('pages') === 7 && cache.getVersion('entities') === 7);
+			assert.strictEqual(cache.getVersion('items'), 0);
 			assert.deepStrictEqual(
 				Array.from(queriedCapabilities).sort(),
-				['categories', 'commands', 'items', 'keybinds', 'mods', 'ores', 'pages', 'quests', 'recipes', 'sounds', 'structurelib']
+				['commands', 'entities', 'keybinds', 'pages', 'quests', 'recipes', 'sounds', 'structurelib']
 			);
 		} finally {
 			client.disconnect();
@@ -84,10 +85,10 @@ suite('GuideNH runtime bridge client', () => {
 					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
 					return;
 				}
-				if (message.method === 'semantic.query' && message.payload.capability === 'items') {
+				if (message.method === 'semantic.query' && message.payload.capability === 'pages') {
 					const payload = message.payload.cursor
-						? { capability: 'items', version: 8, entries: [{ id: 'minecraft:dirt', label: 'Dirt' }], nextCursor: null }
-						: { capability: 'items', version: 8, entries: [{ id: 'minecraft:stone', label: 'Stone' }], nextCursor: '1' };
+						? { capability: 'pages', version: 8, entries: [{ id: 'dirt.md', label: 'Dirt' }], nextCursor: null }
+						: { capability: 'pages', version: 8, entries: [{ id: 'stone.md', label: 'Stone' }], nextCursor: '1' };
 					socket.send(JSON.stringify(response(message.id, 'semantic.query', payload)));
 				}
 			});
@@ -95,8 +96,8 @@ suite('GuideNH runtime bridge client', () => {
 
 		try {
 			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
-			await waitFor(() => cache.getVersion('items') === 8);
-			assert.deepStrictEqual(cache.queryPrefix('items', 'minecraft:').map((entry) => entry.id), ['minecraft:dirt', 'minecraft:stone']);
+			await waitFor(() => cache.getVersion('pages') === 8);
+			assert.deepStrictEqual(cache.queryPrefix('pages', '').map((entry) => entry.id), ['dirt.md', 'stone.md']);
 		} finally {
 			client.disconnect();
 			await closeServer(server);
@@ -169,8 +170,8 @@ suite('GuideNH runtime bridge client', () => {
 
 		try {
 			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
-			await waitFor(() => queriedCapabilities.length === 2);
-			assert.deepStrictEqual(queriedCapabilities.sort(), ['items', 'pages']);
+			await waitFor(() => queriedCapabilities.length === 1);
+			assert.deepStrictEqual(queriedCapabilities, ['pages']);
 		} finally {
 			client.disconnect();
 			await closeServer(server);
@@ -371,11 +372,11 @@ suite('GuideNH runtime bridge client', () => {
 					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
 					return;
 				}
-				if (message.method === 'semantic.query' && message.payload?.capability === 'items') {
+				if (message.method === 'semantic.query' && message.payload?.capability === 'pages') {
 					socket.send(JSON.stringify(response(message.id, 'semantic.query', {
-						capability: 'items',
+						capability: 'pages',
 						version: 9,
-						entries: Array.from({ length: 501 }, (_, index) => ({ id: `minecraft:item_${index}` })),
+						entries: Array.from({ length: 501 }, (_, index) => ({ id: `page_${index}.md` })),
 						nextCursor: null
 					})));
 				}
@@ -385,7 +386,7 @@ suite('GuideNH runtime bridge client', () => {
 		try {
 			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
 			await waitFor(() => statuses.some((status) => status.state === 'error'));
-			assert.strictEqual(cache.getVersion('items'), 0);
+			assert.strictEqual(cache.getVersion('pages'), 0);
 			assert.ok(statuses.find((status) => status.state === 'error')?.message?.includes('too large'));
 		} finally {
 			client.disconnect();
@@ -632,6 +633,110 @@ suite('GuideNH runtime bridge client', () => {
 			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
 			await waitFor(() => statuses.some((status) => status.state === 'error'));
 			assert.ok(statuses.find((status) => status.state === 'error')?.message?.includes('not requested'));
+		} finally {
+			client.disconnect();
+			await closeServer(server);
+		}
+	});
+
+	test('sends preview search and resolve requests without touching semantic cache', async () => {
+		const server = new WebSocketServer({ port: 0 });
+		const port = await listenPort(server);
+		const cache = new SemanticCache();
+		const client = new RuntimeBridgeClient(cache);
+		const searchPayloads: PreviewSearchPayload[] = [];
+		const resolvePayloads: PreviewResolvePayload[] = [];
+
+		server.on('connection', (socket) => {
+			socket.on('message', (data) => {
+				const message = JSON.parse(data.toString()) as {
+					id: string;
+					method: string;
+					payload?: PreviewSearchPayload | PreviewResolvePayload | { capability?: string };
+				};
+				if (message.method === 'hello') {
+					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
+					return;
+				}
+				if (message.method === 'preview.search') {
+					searchPayloads.push(message.payload as PreviewSearchPayload);
+					socket.send(JSON.stringify(response(message.id, 'preview.search', {
+						capability: 'items',
+						version: 2,
+						entries: [{ id: 'minecraft:stone', label: 'Stone', detail: 'minecraft:stone:0', previewKey: 'items|minecraft:stone|0|1|default|0', matchKind: 'id-prefix' }],
+						nextCursor: null
+					})));
+					return;
+				}
+				if (message.method === 'preview.resolve') {
+					resolvePayloads.push(message.payload as PreviewResolvePayload);
+					socket.send(JSON.stringify(response(message.id, 'preview.resolve', {
+						capability: 'items',
+						previewKey: 'items|minecraft:stone|0|1|default|0',
+						id: 'minecraft:stone',
+						displayName: 'Stone',
+						detail: 'minecraft:stone:0',
+						meta: 0,
+						count: 1,
+						nbt: '',
+						tooltipLines: ['Stone'],
+						iconPngBase64: 'ZmFrZQ==',
+						pixelWidth: 64,
+						pixelHeight: 64
+					})));
+					return;
+				}
+				if (message.method === 'semantic.query') {
+					socket.send(JSON.stringify(response(message.id, 'semantic.query', {
+						capability: message.payload?.capability,
+						version: 1,
+						entries: [],
+						nextCursor: null
+					})));
+				}
+			});
+		});
+
+		try {
+			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
+			await waitFor(() => cache.getVersion('pages') >= 0);
+			const searchResult = await client.queryPreviewSearch({
+				capability: 'items',
+				cursor: '',
+				limit: 80,
+				prefix: 'stone',
+				filters: { source: 'picker' }
+			});
+			const resolveResult = await client.queryPreviewResolve({
+				capability: 'items',
+				id: 'minecraft:stone',
+				count: 1,
+				nbt: '',
+				renderVariant: 'picker',
+				filters: {}
+			});
+			assert.strictEqual(searchResult.entries[0]?.id, 'minecraft:stone');
+			assert.strictEqual(resolveResult.id, 'minecraft:stone');
+			assert.strictEqual(cache.getVersion('items'), 0);
+			assert.deepStrictEqual(searchPayloads, [{
+				capability: 'items',
+				cursor: '',
+				limit: 80,
+				prefix: 'stone',
+				filters: { source: 'picker' }
+			}]);
+			assert.deepStrictEqual(resolvePayloads, [{
+				capability: 'items',
+				id: 'minecraft:stone',
+				count: 1,
+				nbt: '',
+				renderVariant: 'picker',
+				filters: {}
+			}]);
 		} finally {
 			client.disconnect();
 			await closeServer(server);

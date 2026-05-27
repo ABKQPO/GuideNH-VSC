@@ -10,5 +10,6 @@
   "command.generateSchema.title": "GuideNH: 生成 Schema",
   "command.connectRuntimeBridge.title": "GuideNH: 连接运行时桥接",
   "command.disconnectRuntimeBridge.title": "GuideNH: 断开运行时桥接",
-  "command.validateRuntimeDocument.title": "GuideNH: 使用运行时校验当前文档"
+  "command.validateRuntimeDocument.title": "GuideNH: 使用运行时校验当前文档",
+  "command.pickItemStack.title": "GuideNH: 打开 ItemStack 选择器"
 }

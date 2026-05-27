@@ -101,6 +101,16 @@ suite('GuideNH hover provider', () => {
 		assert.match(JSON.stringify(hover.hover?.contents), /Stone/);
 	});
 
+	test('returns runtime hover details for entity ids', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const cache = new SemanticCache();
+		cache.replace('entities', 1, [{ id: 'minecraft:zombie', label: 'Zombie', detail: 'minecraft:zombie' }]);
+		const hover = createGuideNhHover('<Entity id="minecraft:zombie" />', 20, schema, undefined, undefined, cache);
+		assert.match(JSON.stringify(hover.hover?.contents), /Entity\.id/);
+		assert.match(JSON.stringify(hover.hover?.contents), /minecraft:zombie/);
+		assert.match(JSON.stringify(hover.hover?.contents), /Zombie/);
+	});
+
 	test('returns local semantic hover details for item attributes without runtime cache', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const index = new GuideNhWorkspaceIndex();
@@ -124,14 +134,15 @@ suite('GuideNH hover provider', () => {
 	test('returns runtime hover details for ImportStructureLib controller values', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const cache = new SemanticCache();
+		const text = '<ImportStructureLib controller="gregtech:gt.blockmachines:1000" />';
 		cache.replace('structurelib', 1, [{
 			id: 'gregtech:gt.blockmachines:1000',
 			label: 'Basic Machine Hull',
 			detail: 'gregtech:gt.blockmachines:1000'
 		}]);
 		const hover = createGuideNhHover(
-			'<ImportStructureLib controller="gregtech:gt.blockmachines:1000" />',
-			50,
+			text,
+			text.lastIndexOf('gregtech:gt.blockmachines:1000') + 'gregtech'.length,
 			schema,
 			undefined,
 			undefined,

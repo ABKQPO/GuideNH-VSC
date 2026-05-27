@@ -21,7 +21,8 @@
     "onCommand:guide-vsc.generateSchema",
     "onCommand:guide-vsc.connectRuntimeBridge",
     "onCommand:guide-vsc.disconnectRuntimeBridge",
-    "onCommand:guide-vsc.validateRuntimeDocument"
+    "onCommand:guide-vsc.validateRuntimeDocument",
+    "onCommand:guide-vsc.pickItemStack"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -99,6 +100,10 @@
       {
         "command": "guide-vsc.validateRuntimeDocument",
         "title": "%command.validateRuntimeDocument.title%"
+      },
+      {
+        "command": "guide-vsc.pickItemStack",
+        "title": "%command.pickItemStack.title%"
       }
     ]
   },
@@ -108,6 +113,7 @@
     "bundle": "node ./out/scripts/bundle.js",
     "generate:schema": "npm run compile && node ./out/scripts/generateSchema.js",
     "verify:e2e": "node ./out/scripts/verifyE2e.js",
+    "verify:runtime-bridge-live": "node ./out/scripts/verifyRuntimeBridgeLive.js",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test",

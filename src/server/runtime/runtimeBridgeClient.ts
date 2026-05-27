@@ -2,10 +2,16 @@ import WebSocket from 'ws';
 import {
 	BridgeEnvelope,
 	createCapabilitiesMessage,
+	createPreviewResolveMessage,
+	createPreviewSearchMessage,
 	createRuntimeDocumentValidateMessage,
 	createHelloMessage,
 	createSemanticQueryMessage,
 	MaxRuntimeDocumentBytes,
+	PreviewResolvePayload,
+	PreviewResolveResultPayload,
+	PreviewSearchPayload,
+	PreviewSearchResultPayload,
 	RuntimeCapabilitiesPayload,
 	SemanticEntry,
 	SemanticQueryResultPayload,
@@ -49,17 +55,21 @@ const MaxRuntimeBridgeMessageBytes = 262144;
 
 export class RuntimeBridgeClient {
 	private static readonly preferredBootstrapCapabilities = [
-		'items',
-		'ores',
-		'categories',
-		'mods',
 		'commands',
 		'sounds',
 		'keybinds',
 		'recipes',
 		'quests',
+		'entities',
 		'structurelib',
 		'pages'
+	];
+
+	private static readonly dynamicOnlyCapabilities = [
+		'items',
+		'ores',
+		'categories',
+		'mods'
 	];
 
 	private socket: WebSocket | undefined;
@@ -68,9 +78,16 @@ export class RuntimeBridgeClient {
 	private readonly pendingPayloadStates = new Map<string, SemanticPayloadGuardState>();
 	private readonly pendingDocumentValidations = new Set<string>();
 	private readonly pendingSemanticQueries = new Map<string, { resolve: (entries: SemanticEntry[]) => void; reject: (error: Error) => void }>();
+	private readonly pendingPreviewRequests = new Map<string, {
+		resolve: (payload: PreviewSearchResultPayload | PreviewResolveResultPayload) => void;
+		reject: (error: Error) => void;
+		method: 'preview.search' | 'preview.resolve';
+	}>();
 	private readonly allowedCapabilities = new Set(RuntimeBridgeClient.preferredBootstrapCapabilities);
+	private readonly bootstrapCapabilities = new Set(RuntimeBridgeClient.preferredBootstrapCapabilities);
 	private documentValidationSequence = 0;
 	private semanticQuerySequence = 0;
+	private previewRequestSequence = 0;
 
 	public constructor(
 		private readonly cache: SemanticCache,
@@ -160,6 +177,50 @@ export class RuntimeBridgeClient {
 		this.send(createRuntimeDocumentValidateMessage(requestId, document));
 	}
 
+	queryPreviewSearch(payload: PreviewSearchPayload): Promise<PreviewSearchResultPayload> {
+		if (!this.connected) {
+			return Promise.resolve({
+				capability: payload.capability,
+				version: 0,
+				entries: [],
+				nextCursor: null
+			});
+		}
+		const requestId = this.createPreviewRequestId('preview.search');
+		return new Promise<PreviewSearchResultPayload>((resolve, reject) => {
+			this.pendingPreviewRequests.set(requestId, {
+				resolve: (result) => resolve(result as PreviewSearchResultPayload),
+				reject,
+				method: 'preview.search'
+			});
+			this.send(
+				createPreviewSearchMessage(
+					requestId,
+					payload.capability,
+					payload.cursor,
+					payload.limit,
+					payload.prefix,
+					payload.filters
+				)
+			);
+		});
+	}
+
+	queryPreviewResolve(payload: PreviewResolvePayload): Promise<PreviewResolveResultPayload> {
+		if (!this.connected) {
+			return Promise.reject(new Error(localizeServer('runtime.bridge.rejected')));
+		}
+		const requestId = this.createPreviewRequestId('preview.resolve');
+		return new Promise<PreviewResolveResultPayload>((resolve, reject) => {
+			this.pendingPreviewRequests.set(requestId, {
+				resolve: (result) => resolve(result as PreviewResolveResultPayload),
+				reject,
+				method: 'preview.resolve'
+			});
+			this.send(createPreviewResolveMessage(requestId, payload));
+		});
+	}
+
 	private send(message: BridgeEnvelope): void {
 		this.socket?.send(JSON.stringify(message));
 	}
@@ -192,13 +253,17 @@ export class RuntimeBridgeClient {
 			this.handleSemanticQueryResult(message.id, message.payload);
 			return;
 		}
+		if ((message.method === 'preview.search' || message.method === 'preview.resolve') && message.type === 'response') {
+			this.handlePreviewResponse(message.id, message.payload);
+			return;
+		}
 		if (message.method === 'document.validate' && message.type === 'response') {
 			this.handleDocumentValidationResult(message.id);
 		}
 	}
 
 	private refreshBootstrapCapabilities(): void {
-		for (const capability of this.allowedCapabilities) {
+		for (const capability of this.bootstrapCapabilities) {
 			this.pendingEntries.set(capability, []);
 			this.pendingPayloadStates.set(capability, createSemanticPayloadGuardState());
 			this.send(createSemanticQueryMessage(`semantic.${capability}.0`, capability));
@@ -212,7 +277,14 @@ export class RuntimeBridgeClient {
 			return;
 		}
 		this.allowedCapabilities.clear();
+		this.bootstrapCapabilities.clear();
 		for (const capability of capabilities) {
+			this.allowedCapabilities.add(capability);
+			if (RuntimeBridgeClient.preferredBootstrapCapabilities.includes(capability)) {
+				this.bootstrapCapabilities.add(capability);
+			}
+		}
+		for (const capability of RuntimeBridgeClient.dynamicOnlyCapabilities) {
 			this.allowedCapabilities.add(capability);
 		}
 		this.refreshBootstrapCapabilities();
@@ -284,6 +356,25 @@ export class RuntimeBridgeClient {
 		this.pendingDocumentValidations.delete(id);
 	}
 
+	private handlePreviewResponse(id: string | undefined, payload: unknown): void {
+		if (!id) {
+			return;
+		}
+		const pending = this.pendingPreviewRequests.get(id);
+		if (!pending) {
+			return;
+		}
+		this.pendingPreviewRequests.delete(id);
+		try {
+			if (!payload || typeof payload !== 'object') {
+				throw new Error(localizeServer('runtime.bridge.invalidJson'));
+			}
+			pending.resolve(payload as PreviewSearchResultPayload | PreviewResolveResultPayload);
+		} catch (error) {
+			pending.reject(error instanceof Error ? error : new Error(localizeServer('runtime.bridge.invalidJson')));
+		}
+	}
+
 	private parseMessage(data: string): BridgeEnvelope | undefined {
 		try {
 			return validateBridgeEnvelope(JSON.parse(data));
@@ -325,6 +416,10 @@ export class RuntimeBridgeClient {
 			pending.reject(new Error(localizeServer('runtime.bridge.rejected')));
 		}
 		this.pendingSemanticQueries.clear();
+		for (const pending of this.pendingPreviewRequests.values()) {
+			pending.reject(new Error(localizeServer('runtime.bridge.rejected')));
+		}
+		this.pendingPreviewRequests.clear();
 		const socket = this.socket;
 		this.socket = undefined;
 		socket?.close();
@@ -338,6 +433,11 @@ export class RuntimeBridgeClient {
 	private createSemanticQueryRequestId(): string {
 		this.semanticQuerySequence++;
 		return `semantic.query.dynamic.${this.semanticQuerySequence}`;
+	}
+
+	private createPreviewRequestId(method: 'preview.search' | 'preview.resolve'): string {
+		this.previewRequestSequence++;
+		return `${method}.${this.previewRequestSequence}`;
 	}
 }
 

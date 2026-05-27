@@ -163,6 +163,7 @@ function findAttributeContext(boundary: GuideNhTagBoundary, offset: number): Gui
 	const sourceOffset = boundary.nameEnd - boundary.start;
 	const attributeMarkup = tagMarkup.slice(sourceOffset);
 	const tagStart = boundary.start;
+	GuideNhAttributePattern.lastIndex = 0;
 	let match: RegExpExecArray | null;
 	while ((match = GuideNhAttributePattern.exec(attributeMarkup)) !== null) {
 		const name = match[1];

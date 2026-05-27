@@ -7,7 +7,11 @@ import { extractFrontmatter } from '../parser/frontmatter';
 import { findIndexedFrontmatterValueAtOffset } from '../parser/frontmatterIndexing';
 import { SemanticCache } from '../runtime/semanticCache';
 import { DynamicHoverRequest, resolveDynamicHoverRequest } from '../runtime/runtimeHover';
-import { resolveRuntimeAttributeSource } from '../runtime/runtimeAttributeSources';
+import {
+	resolveFrontmatterRuntimeCapability,
+	resolveRuntimeCapability,
+	resolveRuntimeAttributeSource
+} from '../runtime/runtimeAttributeSources';
 import { findAttributeSchema, findTagSchema, matchesTagName } from '../schema/schemaLookup';
 
 interface FrontmatterKeyContext {
@@ -49,6 +53,7 @@ export function createGuideNhHover(
 		tagContext.tag.name,
 		tagContext.attribute?.name,
 		tagContext.attribute?.value,
+		findAttributeSchema(schema, tagContext.tag.name, tagContext.attribute?.name),
 		index,
 		cache
 	);
@@ -60,7 +65,8 @@ export function createGuideNhHover(
 		offset,
 		tagContext.tag.name,
 		tagContext.attribute?.name,
-		tagContext.attribute?.value
+		tagContext.attribute?.value,
+		findAttributeSchema(schema, tagContext.tag.name, tagContext.attribute?.name)
 	);
 	if (dynamicRequest) {
 		return { dynamicRequest };
@@ -122,7 +128,9 @@ function createIndexedFrontmatterValueHover(
 		? 'GuideNH item id'
 		: context.path === 'ore_ids'
 			? 'GuideNH ore id'
-			: undefined;
+			: context.path === 'quest_ids'
+				? 'GuideNH quest id'
+				: undefined;
 	if (!kind) {
 		return undefined;
 	}
@@ -214,6 +222,7 @@ function createRuntimeAttributeHover(
 	tagName: string,
 	attributeName: string | undefined,
 	attributeValue: string | undefined,
+	attribute: ReturnType<typeof findAttributeSchema>,
 	index: GuideNhWorkspaceIndex | undefined,
 	cache: SemanticCache | undefined
 ): Hover | undefined {
@@ -224,12 +233,13 @@ function createRuntimeAttributeHover(
 		return createMarkdownHover(`**GuideNH structure piece**\n\n\`${attributeValue}\`\n\nUsed by runtime import, but no standalone semantic candidates are exposed.`);
 	}
 	const source = resolveRuntimeAttributeSource(tagName, attributeName);
-	if (!source) {
+	const capability = source?.capability ?? resolveRuntimeCapability(tagName, attributeName, attribute);
+	if (!capability) {
 		return undefined;
 	}
-	const entry = cache?.findEntry(source.capability, attributeValue);
+	const entry = cache?.findEntry(capability, attributeValue);
 	if (!entry) {
-		return createLocalSemanticAttributeHover(tagName, attributeName, attributeValue, source.capability, index);
+		return createLocalSemanticAttributeHover(tagName, attributeName, attributeValue, capability, index);
 	}
 	const title = `**${tagName}.${attributeName}**`;
 	const lines = [
@@ -282,6 +292,10 @@ function createLocalSemanticAttributeHover(
 		'',
 		`Defined in ${page.relativePath}`
 	].join('\n'));
+}
+
+export function resolveFrontmatterRuntimeHoverCapability(path: string): string | undefined {
+	return resolveFrontmatterRuntimeCapability(path);
 }
 
 function createMarkdownHover(value: string): Hover {

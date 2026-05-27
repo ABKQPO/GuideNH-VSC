@@ -12,11 +12,18 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { pathToFileURL } from 'url';
 import { GuideNhInitializationOptions } from '../common/protocol';
+import {
+	PreviewResolvePayload,
+	PreviewSearchPayload,
+	RuntimePreviewResolveRequest,
+	RuntimePreviewSearchRequest
+} from '../common/protocol';
 import { GuideNhResourceIndex } from './index/resourceIndex';
 import { GuideNhWorkspaceIndex } from './index/workspaceIndex';
 import { indexGuideNhWorkspaceFolders } from './index/workspaceScanner';
 import { localizeServer, setServerLocale } from './localization';
 import {
+	createRuntimeSemanticCompletionItems,
 	createGuideNhCompletionResult,
 	GuideNhCompletionTriggerCharacters,
 	resolveGuideNhCompletionOffset
@@ -77,6 +84,14 @@ connection.onInitialized(() => {
 	});
 });
 
+connection.onRequest(RuntimePreviewSearchRequest, async (payload: PreviewSearchPayload) => {
+	return runtimeBridgeClient.queryPreviewSearch(payload);
+});
+
+connection.onRequest(RuntimePreviewResolveRequest, async (payload: PreviewResolvePayload) => {
+	return runtimeBridgeClient.queryPreviewResolve(payload);
+});
+
 documents.onDidChangeContent(async (change) => {
 	workspaceIndex.updatePage(change.document.uri, change.document.getText());
 	await publishDiagnostics(change.document);
@@ -104,18 +119,18 @@ connection.onCompletion(async (params) => {
 		if (!completionResult.dynamicRequest) {
 			return completionResult.items;
 		}
+		if (!shouldQueryRuntimeCompletion(completionResult.items.length, completionResult.dynamicRequest.filters)) {
+			return completionResult.items;
+		}
 		const runtimeEntries = await runtimeBridgeClient.querySemanticEntries({
 			capability: completionResult.dynamicRequest.capability,
 			prefix: completionResult.dynamicRequest.prefix,
 			filters: completionResult.dynamicRequest.filters
 		});
-		const runtimeItems = runtimeEntries.map((entry) => ({
-			label: entry.id,
-			kind: CompletionItemKind.Value,
-			detail: entry.label,
-			documentation: entry.detail,
-			insertText: entry.id
-		}));
+		const runtimeItems = createRuntimeSemanticCompletionItems(
+			completionResult.dynamicRequest.capability,
+			runtimeEntries
+		);
 		return deduplicateCompletionItems(completionResult.items, runtimeItems);
 	} catch (error) {
 		connection.console.error(`onCompletion error: ${error instanceof Error ? error.message : String(error)}`);
@@ -200,6 +215,10 @@ function deduplicateCompletionItems<T extends { label: string }>(primary: T[], s
 		merged.push(item);
 	}
 	return merged;
+}
+
+function shouldQueryRuntimeCompletion(existingItemCount: number, filters: Record<string, string>): boolean {
+	return existingItemCount === 0 || Object.keys(filters).length > 0;
 }
 
 function createRuntimeSemanticHover(

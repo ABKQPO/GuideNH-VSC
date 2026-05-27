@@ -1,4 +1,5 @@
 import { matchesTagName } from '../schema/schemaLookup';
+import { GuideNhAttributeSchema } from '../../common/schema';
 
 export interface RuntimeAttributeSource {
 	tagName?: string;
@@ -30,9 +31,27 @@ const RuntimeAttributeSources: RuntimeAttributeSource[] = [
 	{ tagName: 'CommandLink', attributeName: 'command', capability: 'commands' },
 	{ tagName: 'PlaySound', attributeName: 'sound', capability: 'sounds' },
 	{ tagName: 'SoundLink', attributeName: 'sound', capability: 'sounds' },
+	{ tagName: 'Entity', attributeName: 'id', capability: 'entities' },
 	{ tagName: 'ImportStructureLib', attributeName: 'controller', capability: 'structurelib' },
 	{ tagName: 'SubPages', attributeName: 'id', capability: 'pages' }
 ];
+
+const FrontmatterRuntimeCapabilities = new Map<string, string>([
+	['item_ids', 'items'],
+	['ore_ids', 'ores'],
+	['quest_ids', 'quests'],
+	['categories', 'categories'],
+	['navigation.parent', 'pages'],
+	['navigation.required_mods', 'mods'],
+	['navigation.icon', 'items'],
+	['navigation.icons', 'items']
+]);
+
+const RuntimeAttributeTypeCapabilities = new Map<GuideNhAttributeSchema['type'], string>([
+	['item', 'items'],
+	['ore', 'ores'],
+	['page', 'pages']
+]);
 
 export function resolveRuntimeAttributeSource(
 	tagName: string | undefined,
@@ -46,4 +65,23 @@ export function resolveRuntimeAttributeSource(
 
 export function isStructureLibOrientationAttribute(attributeName: string): boolean {
 	return attributeName === 'facing' || attributeName === 'rotation' || attributeName === 'flip';
+}
+
+export function resolveFrontmatterRuntimeCapability(path: string): string | undefined {
+	return FrontmatterRuntimeCapabilities.get(path);
+}
+
+export function resolveRuntimeCapability(
+	tagName: string | undefined,
+	attributeName: string,
+	attribute: GuideNhAttributeSchema | undefined
+): string | undefined {
+	const explicitSource = resolveRuntimeAttributeSource(tagName, attributeName);
+	if (explicitSource) {
+		return explicitSource.capability;
+	}
+	if (!attribute) {
+		return undefined;
+	}
+	return RuntimeAttributeTypeCapabilities.get(attribute.type);
 }

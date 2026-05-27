@@ -1,6 +1,8 @@
 import * as assert from 'assert';
 import {
 	createHelloMessage,
+	createPreviewResolveMessage,
+	createPreviewSearchMessage,
 	createRuntimeDocumentValidateMessage,
 	isBridgeError,
 	MaxRuntimeDocumentBytes
@@ -32,6 +34,36 @@ suite('GuideNH runtime protocol', () => {
 			uri: 'file:///repo/page.md',
 			languageId: 'markdown',
 			text: '# Page'
+		});
+	});
+
+	test('creates preview search and resolve bridge messages', () => {
+		const search = createPreviewSearchMessage('preview.search.1', 'items', '', 80, 'greg', { source: 'picker' });
+		const resolve = createPreviewResolveMessage('preview.resolve.1', {
+			capability: 'items',
+			id: 'minecraft:stone',
+			count: 1,
+			nbt: '',
+			renderVariant: 'picker',
+			filters: {}
+		});
+
+		assert.strictEqual(search.method, 'preview.search');
+		assert.deepStrictEqual(search.payload, {
+			capability: 'items',
+			cursor: '',
+			limit: 80,
+			prefix: 'greg',
+			filters: { source: 'picker' }
+		});
+		assert.strictEqual(resolve.method, 'preview.resolve');
+		assert.deepStrictEqual(resolve.payload, {
+			capability: 'items',
+			id: 'minecraft:stone',
+			count: 1,
+			nbt: '',
+			renderVariant: 'picker',
+			filters: {}
 		});
 	});
 });

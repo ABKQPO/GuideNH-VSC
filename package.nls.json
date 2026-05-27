@@ -10,5 +10,6 @@
   "command.generateSchema.title": "GuideNH: Generate Schema",
   "command.connectRuntimeBridge.title": "GuideNH: Connect Runtime Bridge",
   "command.disconnectRuntimeBridge.title": "GuideNH: Disconnect Runtime Bridge",
-  "command.validateRuntimeDocument.title": "GuideNH: Validate Current Document With Runtime"
+  "command.validateRuntimeDocument.title": "GuideNH: Validate Current Document With Runtime",
+  "command.pickItemStack.title": "GuideNH: Open ItemStack Picker"
 }

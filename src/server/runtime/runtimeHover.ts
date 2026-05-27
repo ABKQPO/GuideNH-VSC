@@ -1,8 +1,21 @@
 import { findOpenTagAttributeValue } from '../parser/documentModel';
+import { GuideNhAttributeSchema } from '../../common/schema';
 import { matchesTagName } from '../schema/schemaLookup';
-import { resolveRuntimeAttributeSource } from './runtimeAttributeSources';
+import { resolveRuntimeCapability, resolveRuntimeAttributeSource } from './runtimeAttributeSources';
 
-const DynamicHoverCapabilities = new Set(['sounds', 'keybinds', 'commands', 'recipes', 'quests', 'pages']);
+const DynamicHoverCapabilities = new Set([
+	'items',
+	'ores',
+	'categories',
+	'mods',
+	'sounds',
+	'keybinds',
+	'commands',
+	'recipes',
+	'quests',
+	'pages',
+	'entities'
+]);
 
 export interface DynamicHoverRequest {
 	capability: string;
@@ -15,7 +28,8 @@ export function resolveDynamicHoverRequest(
 	offset: number,
 	tagName: string | undefined,
 	attributeName: string | undefined,
-	attributeValue: string | undefined
+	attributeValue: string | undefined,
+	attribute?: GuideNhAttributeSchema
 ): DynamicHoverRequest | undefined {
 	if (!tagName || !attributeName || !attributeValue) {
 		return undefined;
@@ -59,11 +73,12 @@ export function resolveDynamicHoverRequest(
 		};
 	}
 	const source = resolveRuntimeAttributeSource(tagName, attributeName);
-	if (!source || !DynamicHoverCapabilities.has(source.capability)) {
+	const capability = source?.capability ?? resolveRuntimeCapability(tagName, attributeName, attribute);
+	if (!capability || !DynamicHoverCapabilities.has(capability)) {
 		return undefined;
 	}
 	return {
-		capability: source.capability,
+		capability,
 		prefix: attributeValue,
 		filters: {}
 	};
