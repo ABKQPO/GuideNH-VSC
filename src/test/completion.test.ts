@@ -398,7 +398,7 @@ suite('GuideNH completion provider', () => {
 
 		assert.deepStrictEqual(
 			items.map((item: CompletionItem) => item.label),
-			['Magic', 'Machines']
+			['Machines', 'Magic']
 		);
 		assert.strictEqual(items[0].detail, 'Indexed category');
 	});

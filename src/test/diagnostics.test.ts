@@ -152,12 +152,12 @@ suite('GuideNH diagnostics', () => {
 
 	test('reports invalid frontmatter scalar value types', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
-		const diagnostics = createGuideNhDiagnostics('---\nzoom: fast\ncategories: tech\n---\n', schema);
+		const diagnostics = createGuideNhDiagnostics('---\nzoom: fast\nitem_ids: minecraft:stone\n---\n', schema);
 		assert.deepStrictEqual(
 			diagnostics.map((item: Diagnostic) => item.message),
 			[
 				'Frontmatter key zoom expects number value',
-				'Frontmatter key categories expects list value'
+				'Frontmatter key item_ids expects list value'
 			]
 		);
 		assert.deepStrictEqual(diagnostics[0].range, {
@@ -169,6 +169,12 @@ suite('GuideNH diagnostics', () => {
 	test('accepts valid frontmatter scalar value types', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const diagnostics = createGuideNhDiagnostics('---\nzoom: 1.25\ncategories: [intro, tools]\nnavigation:\n  title: Intro\n---\n', schema);
+		assert.deepStrictEqual(diagnostics, []);
+	});
+
+	test('accepts categories frontmatter as a single string value', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('---\ncategories: tech|machines\n---\n', schema);
 		assert.deepStrictEqual(diagnostics, []);
 	});
 

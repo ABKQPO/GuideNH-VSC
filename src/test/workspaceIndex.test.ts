@@ -139,7 +139,7 @@ categories:
 ---
 `);
 
-		assert.deepStrictEqual(index.queryFrontmatterValues('categories', 'Ma'), ['Magic', 'Machines']);
+		assert.deepStrictEqual(index.queryFrontmatterValues('categories', 'Ma'), ['Machines', 'Magic']);
 		assert.deepStrictEqual(index.queryFrontmatterValues('categories', 'Me'), ['Mechanics']);
 	});
 
