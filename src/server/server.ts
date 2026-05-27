@@ -23,6 +23,7 @@ import { GuideNhWorkspaceIndex } from './index/workspaceIndex';
 import { indexGuideNhWorkspaceFolders } from './index/workspaceScanner';
 import { localizeServer, setServerLocale } from './localization';
 import {
+	applyCompletionReplacementRange,
 	createRuntimeSemanticCompletionItems,
 	createGuideNhCompletionResult,
 	GuideNhCompletionTriggerCharacters,
@@ -131,7 +132,11 @@ connection.onCompletion(async (params) => {
 			completionResult.dynamicRequest.capability,
 			runtimeEntries
 		);
-		return deduplicateCompletionItems(completionResult.items, runtimeItems);
+		const runtimeItemsWithReplacement = applyCompletionReplacementRange(
+			runtimeItems,
+			completionResult.runtimeReplacement
+		);
+		return deduplicateCompletionItems(completionResult.items, runtimeItemsWithReplacement);
 	} catch (error) {
 		connection.console.error(`onCompletion error: ${error instanceof Error ? error.message : String(error)}`);
 		return [];

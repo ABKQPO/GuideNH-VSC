@@ -33,7 +33,7 @@ export class SemanticCache {
 			details: indexedEntries.map((entry) => (entry.detail ?? '').toLowerCase()),
 			pathKeys: indexedEntries.map((entry) => extractSemanticPathKey(entry.id)),
 			compactPathKeys: indexedEntries.map((entry) => compactSemanticKey(extractSemanticPathKey(entry.id))),
-			tokenInitials: indexedEntries.map((entry) => createTokenInitials(extractSemanticPathKey(entry.id))),
+			tokenInitials: indexedEntries.map((entry) => createTokenInitials(extractRawSemanticPath(entry.id))),
 			labelInitials: indexedEntries.map((entry) => createTokenInitials((entry.label ?? '').toLowerCase())),
 			compactKeys: indexedEntries.map((entry) => compactSemanticKey(entry.id)),
 			compactLabels: indexedEntries.map((entry) => compactSemanticKey(entry.label ?? '')),
@@ -119,7 +119,15 @@ export class SemanticCache {
 function querySmartItemPrefix(cache: CapabilityCache, prefix: string, limit: number): SemanticEntry[] {
 	const lowered = prefix.toLowerCase();
 	const compactPrefix = compactSemanticKey(prefix);
-	const matches: Array<{ entry: SemanticEntry; score: number; index: number }> = [];
+	const familySizes = buildFamilySizes(cache.entries);
+	const matches: Array<{
+		entry: SemanticEntry;
+		score: number;
+		index: number;
+		pathLength: number;
+		structuredSpecificity: number;
+		familySize: number;
+	}> = [];
 	for (let index = 0; index < cache.entries.length; index++) {
 		const score = resolveItemMatchScore(cache, index, lowered, compactPrefix);
 		if (score === undefined) {
@@ -128,12 +136,25 @@ function querySmartItemPrefix(cache: CapabilityCache, prefix: string, limit: num
 		matches.push({
 			entry: cache.entries[index],
 			score,
-			index
+			index,
+			pathLength: cache.pathKeys[index].length,
+			structuredSpecificity: computeStructuredMatchSpecificity(extractRawSemanticPath(cache.entries[index].id), compactPrefix, score),
+			familySize: resolveFamilySize(familySizes, cache.entries[index].id)
 		});
 	}
 	matches.sort((left, right) => {
 		if (left.score !== right.score) {
 			return left.score - right.score;
+		}
+		if (prefersLargerFamilyForScore(left.score) && left.familySize !== right.familySize) {
+			return right.familySize - left.familySize;
+		}
+		if (prefersHigherStructuredSpecificityForScore(left.score)
+			&& left.structuredSpecificity !== right.structuredSpecificity) {
+			return right.structuredSpecificity - left.structuredSpecificity;
+		}
+		if (prefersShorterPathForScore(left.score) && left.pathLength !== right.pathLength) {
+			return left.pathLength - right.pathLength;
 		}
 		return left.index - right.index;
 	});
@@ -151,6 +172,7 @@ function resolveItemMatchScore(
 	const label = cache.labels[index];
 	const detail = cache.details[index];
 	const pathKey = cache.pathKeys[index];
+	const rawPath = extractRawSemanticPath(cache.entries[index].id);
 	const tokenInitials = cache.tokenInitials[index];
 	const labelInitials = cache.labelInitials[index];
 	const shortPrefix = isShortItemPrefix(loweredPrefix);
@@ -181,26 +203,29 @@ function resolveItemMatchScore(
 	if (detail.startsWith(loweredPrefix)) {
 		return 8;
 	}
+	if (matchesStructuredPathAbbreviation(rawPath, compactPrefix) && compactPrefix.length >= 2) {
+		return 9;
+	}
 	if (compactPrefix.length === 0) {
 		return undefined;
-	}
-	if (labelInitials.startsWith(compactPrefix) && compactPrefix.length >= 2) {
-		return 9;
 	}
 	if (tokenInitials.startsWith(compactPrefix) && compactPrefix.length >= 2) {
 		return 10;
 	}
-	if (cache.compactLabels[index].startsWith(compactPrefix)) {
+	if (cache.compactKeys[index].startsWith(compactPrefix)) {
 		return 11;
 	}
 	if (cache.compactPathKeys[index].startsWith(compactPrefix)) {
 		return 12;
 	}
-	if (cache.compactKeys[index].startsWith(compactPrefix)) {
+	if (labelInitials.startsWith(compactPrefix) && compactPrefix.length >= 2) {
 		return 13;
 	}
-	if (cache.compactDetails[index].startsWith(compactPrefix)) {
+	if (cache.compactLabels[index].startsWith(compactPrefix)) {
 		return 14;
+	}
+	if (cache.compactDetails[index].startsWith(compactPrefix)) {
+		return 15;
 	}
 	return undefined;
 }
@@ -238,6 +263,11 @@ function extractSemanticPathKey(value: string): string {
 	return separator >= 0 ? lowered.slice(separator + 1) : lowered;
 }
 
+function extractRawSemanticPath(value: string): string {
+	const separator = value.indexOf(':');
+	return separator >= 0 ? value.slice(separator + 1) : value;
+}
+
 function extractSemanticNamespaceKey(value: string): string {
 	const lowered = value.toLowerCase();
 	const separator = lowered.indexOf(':');
@@ -257,9 +287,135 @@ function isShortItemPrefix(prefix: string): boolean {
 }
 
 function createTokenInitials(value: string): string {
-	return value
-		.split(/[^a-z0-9]+/)
-		.filter((token) => token.length > 0)
+	return splitSearchTokens(value)
 		.map((token) => token[0])
 		.join('');
+}
+
+function matchesStructuredPathAbbreviation(path: string, compactPrefix: string): boolean {
+	if (compactPrefix.length < 2) {
+		return false;
+	}
+	const tokens = splitSearchTokens(path);
+	if (tokens.length < 2) {
+		return false;
+	}
+	const firstToken = tokens[0];
+	if (!compactPrefix.startsWith(firstToken) || compactPrefix.length <= firstToken.length) {
+		return false;
+	}
+	let queryIndex = firstToken.length;
+	for (let tokenIndex = 1; tokenIndex < tokens.length && queryIndex < compactPrefix.length; tokenIndex++) {
+		if (!tokens[tokenIndex].startsWith(compactPrefix[queryIndex])) {
+			return false;
+		}
+		queryIndex++;
+	}
+	return queryIndex === compactPrefix.length;
+}
+
+function prefersShorterPathForScore(score: number): boolean {
+	return score === 9 || score === 10 || score === 11 || score === 12;
+}
+
+function prefersHigherStructuredSpecificityForScore(score: number): boolean {
+	return score === 9;
+}
+
+function prefersLargerFamilyForScore(score: number): boolean {
+	return score === 9;
+}
+
+function computeStructuredMatchSpecificity(path: string, compactPrefix: string, score: number): number {
+	if (score !== 9 || compactPrefix.length < 2) {
+		return 0;
+	}
+	const tokens = splitSearchTokens(path);
+	if (tokens.length < 2) {
+		return 0;
+	}
+	const firstToken = tokens[0];
+	if (!compactPrefix.startsWith(firstToken) || compactPrefix.length <= firstToken.length) {
+		return 0;
+	}
+	let queryIndex = firstToken.length;
+	let specificity = firstToken.length;
+	for (let tokenIndex = 1; tokenIndex < tokens.length && queryIndex < compactPrefix.length; tokenIndex++) {
+		if (!tokens[tokenIndex].startsWith(compactPrefix[queryIndex])) {
+			return 0;
+		}
+		specificity += tokens[tokenIndex].length;
+		queryIndex++;
+	}
+	return queryIndex === compactPrefix.length ? specificity : 0;
+}
+
+function buildFamilySizes(entries: SemanticEntry[]): Map<string, number> {
+	const familySizes = new Map<string, number>();
+	for (const entry of entries) {
+		const familyKey = toFamilyKey(entry.id);
+		familySizes.set(familyKey, (familySizes.get(familyKey) ?? 0) + 1);
+	}
+	return familySizes;
+}
+
+function resolveFamilySize(familySizes: Map<string, number>, id: string): number {
+	return familySizes.get(toFamilyKey(id)) ?? 0;
+}
+
+function toFamilyKey(id: string): string {
+	const separator = id.indexOf(':');
+	const namespace = separator >= 0 ? id.slice(0, separator + 1).toLowerCase() : '';
+	let rawPath = extractRawSemanticPath(id);
+	const metaSeparator = rawPath.lastIndexOf(':');
+	if (metaSeparator >= 0) {
+		const trailing = rawPath.slice(metaSeparator + 1);
+		if (/^[0-9]+$/.test(trailing)) {
+			rawPath = rawPath.slice(0, metaSeparator);
+		}
+	}
+	return namespace + rawPath.toLowerCase();
+}
+
+function splitSearchTokens(value: string): string[] {
+	const tokens: string[] = [];
+	let current = '';
+	for (let index = 0; index < value.length; index++) {
+		const currentChar = value[index];
+		if (!/[a-z0-9]/i.test(currentChar)) {
+			flushToken(tokens, current);
+			current = '';
+			continue;
+		}
+		const nextChar = index + 1 < value.length ? value[index + 1] : '';
+		if (shouldSplitToken(current, currentChar, nextChar)) {
+			flushToken(tokens, current);
+			current = '';
+		}
+		current += currentChar.toLowerCase();
+	}
+	flushToken(tokens, current);
+	return tokens;
+}
+
+function shouldSplitToken(current: string, currentChar: string, nextChar: string): boolean {
+	if (current.length === 0) {
+		return false;
+	}
+	const previousChar = current[current.length - 1];
+	const previousIsDigit = /[0-9]/.test(previousChar);
+	const currentIsDigit = /[0-9]/.test(currentChar);
+	if (previousIsDigit !== currentIsDigit) {
+		return true;
+	}
+	if (/[a-z]/.test(previousChar) && /[A-Z]/.test(currentChar)) {
+		return true;
+	}
+	return /[A-Z]/.test(previousChar) && /[A-Z]/.test(currentChar) && /[a-z]/.test(nextChar);
+}
+
+function flushToken(tokens: string[], token: string): void {
+	if (token.length > 0) {
+		tokens.push(token);
+	}
 }

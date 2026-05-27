@@ -318,11 +318,15 @@ suite('GuideNH runtime bridge client', () => {
 			onStatus: (status) => {
 				statuses.push(status);
 			}
+		}, {
+			reconnectDelayMs: 5,
+			maxReconnectAttempts: 1
 		});
 
 		client.connect({ host: '127.0.0.1', port: 9, token: 'secret', allowRemote: false });
 
 		await waitFor(() => statuses.some((status) => status.state === 'error'));
+		assert.ok(statuses.some((status) => status.state === 'connecting'));
 		assert.ok(statuses.find((status) => status.state === 'error')?.message);
 		client.disconnect();
 	});
@@ -742,6 +746,153 @@ suite('GuideNH runtime bridge client', () => {
 			await closeServer(server);
 		}
 	});
+
+	test('does not publish a global error when a preview resolve request is rejected', async () => {
+		const server = new WebSocketServer({ port: 0 });
+		const port = await listenPort(server);
+		const statuses: RuntimeBridgeStatus[] = [];
+		const client = new RuntimeBridgeClient(new SemanticCache(), {
+			onStatus: (status) => {
+				statuses.push(status);
+			}
+		});
+
+		server.on('connection', (socket) => {
+			socket.on('message', (data) => {
+				const message = JSON.parse(data.toString()) as {
+					id: string;
+					method: string;
+					payload?: { capability?: string };
+				};
+				if (message.method === 'hello') {
+					socket.send(JSON.stringify(response(message.id, 'hello', {
+						serverName: 'GuideNH',
+						protocol: 1,
+						limits: { maxPageSize: 200 }
+					})));
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
+					return;
+				}
+				if (message.method === 'preview.resolve') {
+					socket.send(JSON.stringify({
+						id: message.id,
+						type: 'error',
+						method: 'preview.resolve',
+						protocol: 1,
+						payload: {
+							code: 'invalid_preview_query',
+							message: 'Unknown item id',
+							retryable: false
+						}
+					}));
+					return;
+				}
+				if (message.method === 'semantic.query') {
+					socket.send(JSON.stringify(response(message.id, 'semantic.query', {
+						capability: message.payload?.capability,
+						version: 1,
+						entries: [],
+						nextCursor: null
+					})));
+				}
+			});
+		});
+
+		try {
+			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
+			await waitFor(() => statuses.some((status) => status.state === 'connected'));
+			await assert.rejects(
+				() => client.queryPreviewResolve({
+					capability: 'items',
+					id: 'gregtech:missing',
+					count: 1,
+					nbt: '',
+					renderVariant: 'inline',
+					filters: { source: 'inline' }
+				}),
+				/Unknown item id/
+			);
+			assert.strictEqual(statuses.some((status) => status.state === 'error'), false);
+		} finally {
+			client.disconnect();
+			await closeServer(server);
+		}
+	});
+
+	test('retries after unexpected disconnect and resets after reconnect succeeds', async () => {
+		const statuses: RuntimeBridgeStatus[] = [];
+		const client = new RuntimeBridgeClient(new SemanticCache(), {
+			onStatus: (status) => {
+				statuses.push(status);
+			}
+		}, {
+			reconnectDelayMs: 5,
+			maxReconnectAttempts: 3
+		});
+		let helloCount = 0;
+		const server = new WebSocketServer({ port: 0 });
+		const port = await listenPort(server);
+		server.on('connection', (socket) => {
+			socket.on('message', (data) => {
+				const message = JSON.parse(data.toString()) as { id: string; method: string };
+				if (message.method === 'hello') {
+					helloCount++;
+					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
+					socket.close();
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
+				}
+			});
+		});
+
+		try {
+			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
+			await waitFor(() => helloCount >= 2);
+			assert.ok(statuses.some((status) => status.state === 'connecting'));
+			assert.ok(statuses.some((status) => status.state === 'connected'));
+		} finally {
+			client.disconnect();
+			await closeServer(server);
+		}
+	});
+
+	test('does not retry after manual disconnect', async () => {
+		const server = new WebSocketServer({ port: 0 });
+		const port = await listenPort(server);
+		let helloCount = 0;
+		const client = new RuntimeBridgeClient(new SemanticCache(), {}, {
+			reconnectDelayMs: 5,
+			maxReconnectAttempts: 3
+		});
+		server.on('connection', (socket) => {
+			socket.on('message', (data) => {
+				const message = JSON.parse(data.toString()) as { id: string; method: string };
+				if (message.method === 'hello') {
+					helloCount++;
+					socket.send(JSON.stringify(response(message.id, 'hello', { serverName: 'GuideNH', protocol: 1, limits: { maxPageSize: 200 } })));
+					return;
+				}
+				if (message.method === 'capabilities') {
+					socket.send(JSON.stringify(response(message.id, 'capabilities', { capabilities: DefaultCapabilities })));
+				}
+			});
+		});
+
+		try {
+			client.connect({ host: '127.0.0.1', port, token: 'secret', allowRemote: false });
+			await waitFor(() => helloCount === 1);
+			client.disconnect();
+			await sleep(25);
+			assert.strictEqual(helloCount, 1);
+		} finally {
+			await closeServer(server);
+		}
+	});
 });
 
 function response(id: string, method: string, payload: unknown): object {
@@ -790,5 +941,11 @@ function closeServer(server: WebSocketServer): Promise<void> {
 			}
 			resolve();
 		});
+	});
+}
+
+function sleep(durationMs: number): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, durationMs);
 	});
 }

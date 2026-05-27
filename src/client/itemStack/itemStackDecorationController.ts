@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { MarkdownString, ThemeColor } from 'vscode';
+import { MarkdownString } from 'vscode';
 import { localize } from '../localization';
 import { PreviewResolveResultPayload } from '../../common/protocol';
-import { createFallbackInlineIconUri, createPreviewIconUri } from './itemStackDecorationAssets';
+import { ItemStackContextCache } from './itemStackContextCache';
+import { createFallbackInlineIconUri, createSizedInlineIconUri } from './itemStackDecorationAssets';
+import { renderMinecraftFormattingHtml, stripMinecraftFormatting } from './itemStackTextFormatting';
 import {
-	findItemStackContextAtPosition,
-	findVisibleItemStackContexts,
 	isGuideNhPreviewDocument,
 	ItemStackContext
 } from './itemStackContextResolver';
@@ -18,22 +18,22 @@ interface ItemStackDecorationState {
 }
 
 export class ItemStackDecorationController implements vscode.Disposable {
+	private static readonly maxVisibleContexts = 24;
+	private static readonly resolveConcurrency = 4;
 	private readonly disposables: vscode.Disposable[] = [];
 	private readonly refreshByUri = new Map<string, NodeJS.Timeout>();
-	private readonly fallbackDecorationType: vscode.TextEditorDecorationType;
-	private readonly iconDecorationTypes = new Map<string, vscode.TextEditorDecorationType>();
+	private readonly inlineDecorationType: vscode.TextEditorDecorationType;
 	private readonly editorState = new WeakMap<vscode.TextEditor, ItemStackDecorationState[]>();
 
 	public constructor(
 		private readonly previewClient: ItemStackPreviewClient,
-		private readonly pickerPanel: ItemStackPickerPanel
+		private readonly pickerPanel: ItemStackPickerPanel,
+		private readonly contextCache: ItemStackContextCache
 	) {
-		this.fallbackDecorationType = vscode.window.createTextEditorDecorationType({
-			gutterIconPath: createFallbackInlineIconUri(),
-			gutterIconSize: 'contain',
+		this.inlineDecorationType = vscode.window.createTextEditorDecorationType({
 			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
 		});
-		this.disposables.push(this.fallbackDecorationType);
+		this.disposables.push(this.inlineDecorationType);
 		this.disposables.push(
 			vscode.window.onDidChangeVisibleTextEditors((editors) => {
 				for (const editor of editors) {
@@ -56,8 +56,8 @@ export class ItemStackDecorationController implements vscode.Disposable {
 					this.scheduleRefresh(editor, 90);
 				}
 			}),
-			vscode.commands.registerCommand('guide-vsc.openItemStackPicker', async (position?: vscode.Position) => {
-				await this.openPickerForActiveEditor(position);
+			vscode.commands.registerCommand('guide-vsc.openItemStackPicker', async (position?: unknown) => {
+				await this.openPickerForActiveEditor(normalizePosition(position));
 			})
 		);
 		for (const editor of vscode.window.visibleTextEditors) {
@@ -70,10 +70,6 @@ export class ItemStackDecorationController implements vscode.Disposable {
 			clearTimeout(timeout);
 		}
 		this.refreshByUri.clear();
-		for (const decorationType of this.iconDecorationTypes.values()) {
-			decorationType.dispose();
-		}
-		this.iconDecorationTypes.clear();
 		while (this.disposables.length > 0) {
 			this.disposables.pop()?.dispose();
 		}
@@ -87,7 +83,8 @@ export class ItemStackDecorationController implements vscode.Disposable {
 		}
 		const targetPosition = position ?? editor.selection.active;
 		const stateContext = this.findEditorStateContext(editor, targetPosition)
-			?? findItemStackContextAtPosition(editor.document, targetPosition);
+			?? this.contextCache.findNearestContext(editor, targetPosition)
+			?? this.contextCache.findContextAt(editor, targetPosition);
 		if (!stateContext) {
 			await vscode.window.showInformationMessage(localize('Move the cursor into an ItemStack id before opening the picker.'));
 			return;
@@ -113,135 +110,143 @@ export class ItemStackDecorationController implements vscode.Disposable {
 	}
 
 	private async refreshEditor(editor: vscode.TextEditor): Promise<void> {
-		const contexts = findVisibleItemStackContexts(editor.document, editor.visibleRanges).slice(0, 24);
-		const states = await Promise.all(contexts.map(async (context) => {
-			try {
-				const preview = context.value.trim().length === 0
-					? undefined
-					: await this.previewClient.resolve({
-						capability: 'items',
-						id: context.value.trim(),
-						count: 1,
-						renderVariant: 'inline',
-						filters: {
-							source: 'inline'
-						}
-					});
-				return {
-					context,
-					preview
-				} satisfies ItemStackDecorationState;
-			} catch {
-				return {
-					context,
-					preview: undefined
-				} satisfies ItemStackDecorationState;
-			}
-		}));
+		const contexts = this.contextCache.getVisibleContexts(editor)
+			.slice(0, ItemStackDecorationController.maxVisibleContexts);
+		const states = await this.resolveDecorationStates(contexts);
 		this.editorState.set(editor, states);
 		this.applyDecorations(editor, states);
 	}
 
 	private applyDecorations(editor: vscode.TextEditor, states: ItemStackDecorationState[]): void {
-		const decorationGroups = new Map<vscode.TextEditorDecorationType, vscode.DecorationOptions[]>();
-		const fallbackOptions: vscode.DecorationOptions[] = [];
-		for (const state of states) {
-			const option = this.createDecorationOption(state);
-			if (!state.preview) {
-				fallbackOptions.push(option);
-				continue;
-			}
-			const decorationType = this.getOrCreateDecorationType(state.preview);
-			const group = decorationGroups.get(decorationType) ?? [];
-			group.push(option);
-			decorationGroups.set(decorationType, group);
-		}
-		editor.setDecorations(this.fallbackDecorationType, fallbackOptions);
-		const usedTypes = new Set(decorationGroups.keys());
-		for (const [iconKey, decorationType] of this.iconDecorationTypes.entries()) {
-			const options = usedTypes.has(decorationType) ? decorationGroups.get(decorationType) ?? [] : [];
-			editor.setDecorations(decorationType, options);
-			if (options.length === 0 && !states.some((state) => state.preview && this.createIconKey(state.preview) === iconKey)) {
-				editor.setDecorations(decorationType, []);
-			}
-		}
+		editor.setDecorations(this.inlineDecorationType, states.map((state) => this.createDecorationOption(state)));
 	}
 
 	private clearDecorations(editor: vscode.TextEditor): void {
-		editor.setDecorations(this.fallbackDecorationType, []);
-		for (const decorationType of this.iconDecorationTypes.values()) {
-			editor.setDecorations(decorationType, []);
-		}
+		editor.setDecorations(this.inlineDecorationType, []);
 		this.editorState.set(editor, []);
 	}
 
 	private createDecorationOption(state: ItemStackDecorationState): vscode.DecorationOptions {
+		const iconUri = state.preview ? createSizedInlineIconUri(state.preview) : createFallbackInlineIconUri();
 		return {
 			range: state.context.valueRange,
-			hoverMessage: this.createHoverMessage(state)
+			hoverMessage: this.createHoverMessage(state),
+			renderOptions: {
+				before: {
+					contentIconPath: iconUri,
+					margin: '0 0.28em -0.18em 0',
+					width: '1em',
+					height: '1em'
+				}
+			}
 		};
 	}
 
 	private createHoverMessage(state: ItemStackDecorationState): MarkdownString {
 		const message = new MarkdownString(undefined, true);
 		message.isTrusted = true;
+		message.supportHtml = true;
+		const pickerCommandUri = createPickerCommandUri(state.context.valueRange.end);
 		if (state.preview) {
-			message.appendMarkdown(`**${escapeMarkdown(state.preview.displayName || state.preview.id)}**  \n`);
-			message.appendMarkdown(`${escapeMarkdown(state.preview.id)}  \n`);
+			appendFormattedHoverLine(message, state.preview.displayName || state.preview.id);
 			if (state.preview.detail && state.preview.detail !== state.preview.id) {
-				message.appendMarkdown(`${escapeMarkdown(state.preview.detail)}  \n`);
+				appendFormattedHoverLine(message, state.preview.detail);
 			}
 			for (const line of state.preview.tooltipLines.slice(0, 8)) {
-				message.appendMarkdown(`${escapeMarkdown(line)}  \n`);
+				appendFormattedHoverLine(message, line);
+			}
+			message.appendMarkdown(`\n**ID** \`${escapeMarkdown(stripMinecraftFormatting(state.preview.id))}\``);
+			if (state.preview.meta !== undefined) {
+				message.appendMarkdown(`  \n**Meta** \`${String(state.preview.meta)}\``);
+			}
+			if (state.preview.count !== undefined) {
+				message.appendMarkdown(`  \n**Count** \`${String(state.preview.count)}\``);
+			}
+			if (state.preview.nbt) {
+				message.appendMarkdown(`  \n**NBT** \`${escapeMarkdown(stripMinecraftFormatting(state.preview.nbt))}\``);
 			}
 		} else {
 			message.appendMarkdown(`${escapeMarkdown(localize('Runtime preview unavailable for this ItemStack id.'))}  \n`);
 		}
-		message.appendMarkdown(`\n[${escapeMarkdown(localize('Open ItemStack picker'))}](command:guide-vsc.openItemStackPicker)`);
+		message.appendMarkdown(`\n[${escapeMarkdown(localize('Open ItemStack picker'))}](${pickerCommandUri})`);
 		return message;
-	}
-
-	private getOrCreateDecorationType(preview: PreviewResolveResultPayload): vscode.TextEditorDecorationType {
-		const iconKey = this.createIconKey(preview);
-		const existing = this.iconDecorationTypes.get(iconKey);
-		if (existing) {
-			return existing;
-		}
-		const decorationType = vscode.window.createTextEditorDecorationType({
-			gutterIconPath: createPreviewIconUri(preview),
-			gutterIconSize: 'contain',
-			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
-			overviewRulerColor: new ThemeColor('editor.findMatchHighlightBackground')
-		});
-		this.iconDecorationTypes.set(iconKey, decorationType);
-		this.disposables.push(decorationType);
-		this.trimDecorationTypeCache();
-		return decorationType;
-	}
-
-	private trimDecorationTypeCache(): void {
-		const maxTypes = 96;
-		while (this.iconDecorationTypes.size > maxTypes) {
-			const oldestKey = this.iconDecorationTypes.keys().next().value as string | undefined;
-			if (!oldestKey) {
-				break;
-			}
-			const decorationType = this.iconDecorationTypes.get(oldestKey);
-			this.iconDecorationTypes.delete(oldestKey);
-			decorationType?.dispose();
-		}
-	}
-
-	private createIconKey(preview: PreviewResolveResultPayload): string {
-		return `${preview.previewKey}:${preview.id}:${preview.iconPngBase64.slice(0, 64)}`;
 	}
 
 	private findEditorStateContext(editor: vscode.TextEditor, position: vscode.Position): ItemStackContext | undefined {
 		const states = this.editorState.get(editor) ?? [];
-		return states.find((state) => state.context.valueRange.contains(position))?.context;
+		return states.find((state) => {
+			return state.context.valueRange.contains(position)
+				|| state.context.valueRange.end.isEqual(position);
+		})?.context;
+	}
+
+	private async resolveDecorationStates(contexts: ItemStackContext[]): Promise<ItemStackDecorationState[]> {
+		const states = new Array<ItemStackDecorationState>(contexts.length);
+		let nextIndex = 0;
+		const workerCount = Math.min(ItemStackDecorationController.resolveConcurrency, contexts.length);
+		const workers: Promise<void>[] = [];
+		for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
+			workers.push((async () => {
+				while (nextIndex < contexts.length) {
+					const currentIndex = nextIndex;
+					nextIndex++;
+					states[currentIndex] = await this.resolveDecorationState(contexts[currentIndex]);
+				}
+			})());
+		}
+		await Promise.all(workers);
+		return states;
+	}
+
+	private async resolveDecorationState(context: ItemStackContext): Promise<ItemStackDecorationState> {
+		try {
+			const preview = context.value.trim().length === 0
+				? undefined
+				: await this.previewClient.resolve({
+					capability: 'items',
+					id: context.value.trim(),
+					count: 1,
+					renderVariant: 'inline',
+					filters: {
+						source: 'inline'
+					}
+				});
+			return {
+				context,
+				preview
+			};
+		} catch {
+			return {
+				context,
+				preview: undefined
+			};
+		}
 	}
 }
 
 function escapeMarkdown(value: string): string {
 	return value.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
+}
+
+function appendFormattedHoverLine(message: MarkdownString, value: string): void {
+	message.appendMarkdown(`${renderMinecraftFormattingHtml(value)}<br/>`);
+}
+
+function createPickerCommandUri(position: vscode.Position): string {
+	const argument = encodeURIComponent(JSON.stringify([{
+		line: position.line,
+		character: position.character
+	}]));
+	return `command:guide-vsc.openItemStackPicker?${argument}`;
+}
+
+function normalizePosition(value: unknown): vscode.Position | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as { line?: unknown; character?: unknown };
+	if (typeof candidate.line !== 'number' || typeof candidate.character !== 'number') {
+		return undefined;
+	}
+	return new vscode.Position(candidate.line, candidate.character);
 }

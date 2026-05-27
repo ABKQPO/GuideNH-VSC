@@ -2,20 +2,26 @@ import * as vscode from 'vscode';
 import { PreviewResolvePayload, PreviewResolveResultPayload, PreviewSearchEntry } from '../../common/protocol';
 import { localize } from '../localization';
 import { createPreviewDataUri, escapeHtml } from './itemStackDecorationAssets';
-import { ItemStackContext } from './itemStackContextResolver';
+import { findNearestItemStackContextInEditor, ItemStackContext } from './itemStackContextResolver';
+import { GuideNhItemStackDropMime } from './itemStackDropPayload';
 import { ItemStackPreviewClient } from './itemStackPreviewClient';
+import { renderMinecraftFormattingHtml, serializeMinecraftTooltipLines, stripMinecraftFormatting } from './itemStackTextFormatting';
 
 interface PickerState {
+	documentUri: string;
 	query: string;
 	selectedId: string;
 	selectedPreview?: PreviewResolveResultPayload;
 	entries: PreviewSearchEntry[];
 	context: ItemStackContext;
 	entryPreviewDataUris: Record<string, string>;
+	isLoading: boolean;
+	errorMessage?: string;
 }
 
 interface PickerPanelMessage {
-	type: 'ready' | 'search' | 'select' | 'apply';
+	type: 'ready' | 'search' | 'select' | 'apply' | 'refresh' | 'dragState';
+	active?: boolean;
 	query?: string;
 	id?: string;
 }
@@ -25,16 +31,27 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 	private currentState: PickerState | undefined;
 	private readonly disposables: vscode.Disposable[] = [];
 	private currentEditor: vscode.TextEditor | undefined;
+	private stateRequestVersion = 0;
+	private readonly dragHighlightDecorationType: vscode.TextEditorDecorationType;
 
 	public constructor(
 		private readonly previewClient: ItemStackPreviewClient
-	) {}
+	) {
+		this.dragHighlightDecorationType = vscode.window.createTextEditorDecorationType({
+			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+			backgroundColor: 'rgba(109, 168, 79, 0.18)',
+			borderRadius: '4px',
+			outline: '1px solid rgba(142, 217, 107, 0.85)'
+		});
+		this.disposables.push(this.dragHighlightDecorationType);
+	}
 
 	public async show(
 		context: ItemStackContext,
 		editor: vscode.TextEditor
 	): Promise<void> {
 		this.currentEditor = editor;
+		const loadingState = createLoadingState(editor.document.uri.toString(), context);
 		if (!this.panel) {
 			this.panel = vscode.window.createWebviewPanel(
 				'guide-vsc.itemStackPicker',
@@ -46,41 +63,32 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 				}
 			);
 			this.panel.onDidDispose(() => {
+				this.clearDragHighlight();
 				this.panel = undefined;
 				this.currentState = undefined;
 			}, undefined, this.disposables);
 			this.panel.webview.onDidReceiveMessage((message: PickerPanelMessage) => {
-				void this.handleMessage(message);
+				void this.handleMessage(message).catch(async (error) => {
+					await vscode.window.showErrorMessage(
+						error instanceof Error
+							? error.message
+							: localize('GuideNH ItemStack picker apply failed.')
+					);
+				});
 			}, undefined, this.disposables);
+			this.currentState = loadingState;
+			this.panel.webview.html = this.renderHtml(this.panel.webview, loadingState);
 		}
-		const initialQuery = context.value.trim();
-		const searchResult = await this.previewClient.search({
-			capability: 'items',
-			cursor: '',
-			limit: 40,
-			prefix: initialQuery,
-			filters: {
-				source: 'picker'
-			}
-		});
-		const selectedId = pickInitialSelection(context.value, searchResult.entries);
-		const selectedPreview = selectedId
-			? await this.resolvePreview(selectedId)
-			: undefined;
-		const entryPreviewDataUris = await this.resolveEntryPreviewDataUris(searchResult.entries);
-		this.currentState = {
-			query: initialQuery,
-			selectedId,
-			selectedPreview,
-			entries: searchResult.entries,
-			context,
-			entryPreviewDataUris
-		};
-		this.panel.webview.html = this.renderHtml(this.panel.webview, this.currentState);
+		this.currentState = loadingState;
+		if (this.panel) {
+			await this.postState();
+		}
 		this.panel.reveal(vscode.ViewColumn.Beside, true);
+		void this.loadState(context, editor);
 	}
 
 	public dispose(): void {
+		this.clearDragHighlight();
 		while (this.disposables.length > 0) {
 			this.disposables.pop()?.dispose();
 		}
@@ -104,41 +112,108 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 				}
 				return;
 			case 'apply':
-				if (typeof message.id === 'string' && message.id.length > 0 && this.currentEditor) {
-					await this.applySelection(this.currentEditor, message.id);
+				if (typeof message.id === 'string' && message.id.length > 0) {
+					await this.applySelection(message.id);
 				}
+				return;
+			case 'refresh':
+				await this.refreshCurrentState();
+				return;
+			case 'dragState':
+				await this.updateDragHighlight(message.active === true);
 				return;
 			default:
 				return;
 		}
 	}
 
+	private async loadState(context: ItemStackContext, editor: vscode.TextEditor): Promise<void> {
+		const requestVersion = ++this.stateRequestVersion;
+		const documentUri = editor.document.uri.toString();
+		const initialQuery = context.value.trim();
+		try {
+			const searchResult = await this.previewClient.search({
+				capability: 'items',
+				cursor: '',
+				limit: 40,
+				prefix: initialQuery,
+				filters: {
+					source: 'picker'
+				}
+			});
+			const selectedId = pickInitialSelection(context.value, searchResult.entries);
+			const selectedPreview = selectedId
+				? await this.resolvePreview(selectedId)
+				: undefined;
+			const entryPreviewDataUris = await this.resolveEntryPreviewDataUris(searchResult.entries);
+			if (!this.currentState || this.currentState.documentUri !== documentUri || requestVersion !== this.stateRequestVersion) {
+				return;
+			}
+			this.currentState = {
+				documentUri,
+				query: initialQuery,
+				selectedId,
+				selectedPreview,
+				entries: searchResult.entries,
+				context,
+				entryPreviewDataUris,
+				isLoading: false,
+				errorMessage: undefined
+			};
+		} catch (error) {
+			if (!this.currentState || this.currentState.documentUri !== documentUri || requestVersion !== this.stateRequestVersion) {
+				return;
+			}
+			this.currentState = {
+				...createLoadingState(documentUri, context),
+				isLoading: false,
+				errorMessage: error instanceof Error
+					? error.message
+					: localize('GuideNH ItemStack picker could not load runtime items.')
+			};
+		}
+		await this.postState();
+	}
+
 	private async updateSearch(query: string): Promise<void> {
 		if (!this.currentState) {
 			return;
 		}
-		const searchResult = await this.previewClient.search({
-			capability: 'items',
-			cursor: '',
-			limit: 40,
-			prefix: query,
-			filters: {
-				source: 'picker'
-			}
-		});
-		const selectedId = pickInitialSelection(this.currentState.selectedId || query, searchResult.entries);
-		const selectedPreview = selectedId
-			? await this.resolvePreview(selectedId)
-			: undefined;
-		const entryPreviewDataUris = await this.resolveEntryPreviewDataUris(searchResult.entries);
-		this.currentState = {
-			...this.currentState,
-			query,
-			selectedId,
-			selectedPreview,
-			entries: searchResult.entries,
-			entryPreviewDataUris
-		};
+		try {
+			const searchResult = await this.previewClient.search({
+				capability: 'items',
+				cursor: '',
+				limit: 40,
+				prefix: query,
+				filters: {
+					source: 'picker'
+				}
+			});
+			const selectedId = pickInitialSelection(this.currentState.selectedId || query, searchResult.entries);
+			const selectedPreview = selectedId
+				? await this.resolvePreview(selectedId)
+				: undefined;
+			const entryPreviewDataUris = await this.resolveEntryPreviewDataUris(searchResult.entries);
+			this.currentState = {
+				...this.currentState,
+				query,
+				selectedId,
+				selectedPreview,
+				entries: searchResult.entries,
+				entryPreviewDataUris,
+				isLoading: false,
+				errorMessage: undefined
+			};
+		} catch (error) {
+			this.currentState = {
+				...this.currentState,
+				query,
+				isLoading: false,
+				errorMessage: error instanceof Error
+					? error.message
+					: localize('GuideNH ItemStack picker could not load runtime items.')
+			};
+		}
 		await this.postState();
 	}
 
@@ -146,25 +221,47 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 		if (!this.currentState) {
 			return;
 		}
-		this.currentState = {
-			...this.currentState,
-			selectedId: id,
-			selectedPreview: await this.resolvePreview(id)
-		};
+		try {
+			this.currentState = {
+				...this.currentState,
+				selectedId: id,
+				selectedPreview: await this.resolvePreview(id),
+				errorMessage: undefined
+			};
+		} catch (error) {
+			this.currentState = {
+				...this.currentState,
+				selectedId: id,
+				selectedPreview: undefined,
+				errorMessage: error instanceof Error
+					? error.message
+					: localize('GuideNH ItemStack picker could not load runtime items.')
+			};
+		}
 		await this.postState();
 	}
 
-	private async applySelection(editor: vscode.TextEditor, id: string): Promise<void> {
+	private async applySelection(id: string): Promise<void> {
 		if (!this.currentState) {
 			return;
 		}
-		const targetRange = this.currentState.context.valueRange;
-		await editor.edit((editBuilder) => {
+		const editor = await this.resolveTargetEditor();
+		if (!editor) {
+			await vscode.window.showErrorMessage(localize('Reopen the GuideNH document before applying an ItemStack id.'));
+			return;
+		}
+		const targetRange = this.resolveApplyRange(editor);
+		const didApply = await editor.edit((editBuilder) => {
 			editBuilder.replace(targetRange, id);
 		});
+		if (!didApply) {
+			await vscode.window.showErrorMessage(localize('GuideNH ItemStack picker could not apply the selected id.'));
+			return;
+		}
 		const end = targetRange.start.translate(0, id.length);
 		editor.selection = new vscode.Selection(end, end);
 		editor.revealRange(new vscode.Range(targetRange.start, end));
+		this.currentEditor = editor;
 		this.currentState = {
 			...this.currentState,
 			context: {
@@ -173,9 +270,90 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 				valueRange: new vscode.Range(targetRange.start, end)
 			},
 			selectedId: id,
-			selectedPreview: await this.resolvePreview(id)
+			selectedPreview: await this.resolvePreview(id),
+			errorMessage: undefined
 		};
 		await this.postState();
+	}
+
+	private async refreshCurrentState(): Promise<void> {
+		if (!this.currentState || !this.currentEditor) {
+			return;
+		}
+		this.currentState = {
+			...this.currentState,
+			isLoading: true,
+			errorMessage: undefined
+		};
+		await this.postState();
+		await this.loadState(this.currentState.context, this.currentEditor);
+	}
+
+	private async updateDragHighlight(active: boolean): Promise<void> {
+		if (!active) {
+			this.clearDragHighlight();
+			return;
+		}
+		if (!this.currentState) {
+			return;
+		}
+		const editor = this.findVisibleTargetEditor();
+		if (!editor) {
+			return;
+		}
+		editor.setDecorations(this.dragHighlightDecorationType, [{
+			range: this.resolveApplyRange(editor)
+		}]);
+	}
+
+	private resolveApplyRange(editor: vscode.TextEditor): vscode.Range {
+		if (!this.currentState) {
+			return new vscode.Range(editor.selection.active, editor.selection.active);
+		}
+		const currentValue = editor.document.getText(this.currentState.context.valueRange);
+		if (currentValue === this.currentState.context.value) {
+			return this.currentState.context.valueRange;
+		}
+		const nearestContext = findNearestItemStackContextInEditor(editor);
+		if (nearestContext) {
+			return nearestContext.valueRange;
+		}
+		const selection = editor.selection;
+		if (!selection.isEmpty) {
+			return new vscode.Range(selection.start, selection.end);
+		}
+		const cursor = selection.active;
+		return new vscode.Range(cursor, cursor);
+	}
+
+	private async resolveTargetEditor(): Promise<vscode.TextEditor | undefined> {
+		if (!this.currentState) {
+			return undefined;
+		}
+		const visibleEditor = this.findVisibleTargetEditor();
+		if (visibleEditor) {
+			return visibleEditor;
+		}
+		const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(this.currentState.documentUri));
+		return vscode.window.showTextDocument(document, {
+			preview: false,
+			preserveFocus: false
+		});
+	}
+
+	private findVisibleTargetEditor(): vscode.TextEditor | undefined {
+		if (!this.currentState) {
+			return undefined;
+		}
+		return vscode.window.visibleTextEditors.find((editor) => {
+			return editor.document.uri.toString() === this.currentState?.documentUri;
+		});
+	}
+
+	private clearDragHighlight(): void {
+		for (const editor of vscode.window.visibleTextEditors) {
+			editor.setDecorations(this.dragHighlightDecorationType, []);
+		}
 	}
 
 	private async resolvePreview(id: string): Promise<PreviewResolveResultPayload> {
@@ -215,7 +393,7 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 
 	private renderHtml(_webview: vscode.Webview, state: PickerState): string {
 		const nonce = String(Date.now());
-		const initialState = JSON.stringify(serializeState(state));
+		const initialState = escapeJsonForHtmlScriptTag(JSON.stringify(serializeState(state)));
 		return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -380,6 +558,12 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 		}
 		.apply {
 			margin-top: 16px;
+			display: flex;
+			align-items: stretch;
+			gap: 10px;
+		}
+		.apply-button {
+			flex: 1 1 auto;
 			padding: 10px 14px;
 			border: 1px solid var(--accent);
 			border-radius: 999px;
@@ -387,6 +571,38 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 			color: #0d160d;
 			font-weight: 700;
 			cursor: pointer;
+		}
+		.apply-button:hover {
+			filter: brightness(1.04);
+		}
+		.apply-button:active {
+			transform: translateY(1px);
+		}
+		.apply-drag {
+			flex: 0 0 auto;
+			min-width: 46px;
+			padding: 10px 12px;
+			border: 1px solid var(--border);
+			border-radius: 999px;
+			background: linear-gradient(180deg, rgba(56, 66, 76, 0.98) 0%, rgba(35, 41, 47, 0.98) 100%);
+			color: var(--text);
+			font-weight: 700;
+			cursor: grab;
+		}
+		.apply-drag:hover {
+			border-color: var(--accent);
+			color: var(--accent-2);
+		}
+		.apply-drag:active,
+		.apply-drag[data-dragging="true"] {
+			cursor: grabbing;
+			border-color: var(--accent);
+			background: linear-gradient(180deg, rgba(80, 102, 58, 0.98) 0%, rgba(56, 77, 38, 0.98) 100%);
+		}
+		.apply-hint {
+			margin-top: 8px;
+			color: var(--muted);
+			font-size: 12px;
 		}
 		.empty {
 			color: var(--muted);
@@ -413,28 +629,44 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 			<div id="preview"></div>
 		</section>
 	</div>
+	<script type="application/json" id="initial-state">${initialState}</script>
 	<script nonce="${nonce}">
 		const vscode = acquireVsCodeApi();
-		const initialState = ${initialState};
+		const initialState = JSON.parse(document.getElementById('initial-state')?.textContent || '{}');
 		const searchInput = document.getElementById('search');
 		const list = document.getElementById('list');
 		const preview = document.getElementById('preview');
 		let currentState = initialState;
 		let debounceTimer;
 
+		function setDragData(event, id, source) {
+			if (!event.dataTransfer) {
+				return;
+			}
+			event.dataTransfer.setData('text/plain', id);
+			event.dataTransfer.setData('${GuideNhItemStackDropMime}', createDropPayload(id, source));
+			event.dataTransfer.effectAllowed = 'copy';
+		}
+
+		function createDropPayload(id, source) {
+			return JSON.stringify({ id, source });
+		}
+
 		function render(state) {
 			currentState = state;
 			searchInput.value = state.query;
-			list.innerHTML = state.entries.length === 0
-				? '<div class="empty">${escapeHtml(localize('No runtime items matched this query.'))}</div>'
-				: state.entries.map((entry) => {
+			list.innerHTML = state.isLoading && state.entries.length === 0
+				? '<div class="empty">${escapeHtml(localize('Loading runtime items...'))}</div>'
+				: state.entries.length === 0
+					? '<div class="empty">${escapeHtml(localize('No runtime items matched this query.'))}</div>'
+					: state.entries.map((entry) => {
 					const selected = entry.id === state.selectedId;
 					const image = entry.previewDataUri ? '<img class="entry-icon" src="' + entry.previewDataUri + '" alt="">' : '<div class="entry-icon"></div>';
 					const rawId = entry.id;
 					const name = highlight(entry.label || rawId, state.query);
 					const idHtml = highlight(rawId, state.query);
 					const kind = entry.matchKind ? '<span class="entry-kind">' + escapeHtml(describeMatchKind(entry.matchKind)) + '</span>' : '';
-					return '<button class="entry" data-id="' + escapeHtml(rawId) + '" data-selected="' + selected + '">' + image
+					return '<button class="entry" draggable="true" data-id="' + escapeHtml(rawId) + '" data-selected="' + selected + '">' + image
 						+ '<span class="entry-name">' + name + '</span>'
 						+ '<span class="entry-id">' + idHtml + '</span>'
 						+ kind
@@ -442,28 +674,56 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 				}).join('');
 			const selectedPreview = state.selectedPreview;
 			if (!selectedPreview) {
-				preview.innerHTML = '<div class="preview-card"><div class="empty">${escapeHtml(localize('Select a runtime item to inspect its preview.'))}</div></div>';
+				const statusMessage = state.errorMessage
+					? '<div class="empty">${escapeHtml(localize('Runtime preview is temporarily unavailable.'))}<br/><br/>' + escapeHtml(state.errorMessage) + '</div><button class="apply" id="refresh">${escapeHtml(localize('Retry runtime load'))}</button>'
+					: state.isLoading
+						? '<div class="empty">${escapeHtml(localize('Loading runtime preview...'))}</div>'
+						: '<div class="empty">${escapeHtml(localize('Select a runtime item to inspect its preview.'))}</div>';
+				preview.innerHTML = '<div class="preview-card">' + statusMessage + '</div>';
+				document.getElementById('refresh')?.addEventListener('click', () => {
+					vscode.postMessage({ type: 'refresh' });
+				});
 				return;
 			}
-			const tooltip = selectedPreview.tooltipLines.map((line) => '<div class="tooltip-line">' + escapeHtml(line) + '</div>').join('');
-			const nbtBlock = selectedPreview.nbt ? '<div><strong>NBT</strong><code>' + escapeHtml(selectedPreview.nbt) + '</code></div>' : '';
+			const tooltip = (selectedPreview.tooltipLinesHtml || []).map((line) => '<div class="tooltip-line">' + line + '</div>').join('');
+			const nbtBlock = selectedPreview.nbt ? '<div><strong>NBT</strong><code>' + escapeHtml(selectedPreview.nbtPlain) + '</code></div>' : '';
 			preview.innerHTML = '<div class="preview-card">'
 				+ '<div class="preview-header">'
 				+ '<img class="preview-icon" src="' + selectedPreview.previewDataUri + '" alt="">'
-				+ '<div><div class="preview-name">' + escapeHtml(selectedPreview.displayName || selectedPreview.id) + '</div>'
-				+ '<div class="preview-detail">' + escapeHtml(selectedPreview.detail || selectedPreview.id) + '</div></div>'
+				+ '<div draggable="true" id="previewDrag" data-id="' + escapeHtml(selectedPreview.idPlain) + '"><div class="preview-name">' + selectedPreview.displayNameHtml + '</div>'
+				+ '<div class="preview-detail">' + selectedPreview.detailHtml + '</div></div>'
 				+ '</div>'
 				+ '<div class="tooltip">' + tooltip + '</div>'
 				+ '<div class="meta">'
-				+ '<div><strong>ID</strong><code>' + escapeHtml(selectedPreview.id) + '</code></div>'
+				+ '<div><strong>ID</strong><code>' + escapeHtml(selectedPreview.idPlain) + '</code></div>'
 				+ '<div><strong>Meta</strong><code>' + escapeHtml(String(selectedPreview.meta ?? 0)) + '</code></div>'
 				+ '<div><strong>Count</strong><code>' + escapeHtml(String(selectedPreview.count ?? 1)) + '</code></div>'
 				+ nbtBlock
 				+ '</div>'
-				+ '<button class="apply" id="apply">${escapeHtml(localize('Apply ItemStack Id'))}</button>'
+				+ '<div class="apply">'
+				+ '<button class="apply-button" id="apply">${escapeHtml(localize('Apply ItemStack Id'))}</button>'
+				+ '<button class="apply-drag" id="applyDrag" draggable="true" title="${escapeHtml(localize('Drag this ItemStack id into the editor'))}" aria-label="${escapeHtml(localize('Drag this ItemStack id into the editor'))}">::</button>'
+				+ '</div>'
+				+ '<div class="apply-hint">${escapeHtml(localize('Click to apply, or drag the handle into the editor.'))}</div>'
 				+ '</div>';
 			document.getElementById('apply')?.addEventListener('click', () => {
 				vscode.postMessage({ type: 'apply', id: selectedPreview.id });
+			});
+			document.getElementById('applyDrag')?.addEventListener('dragstart', (event) => {
+				event.target?.setAttribute?.('data-dragging', 'true');
+				vscode.postMessage({ type: 'dragState', active: true });
+				setDragData(event, selectedPreview.idPlain, 'picker-apply');
+			});
+			document.getElementById('applyDrag')?.addEventListener('dragend', (event) => {
+				event.target?.setAttribute?.('data-dragging', 'false');
+				vscode.postMessage({ type: 'dragState', active: false });
+			});
+			document.getElementById('previewDrag')?.addEventListener('dragstart', (event) => {
+				vscode.postMessage({ type: 'dragState', active: true });
+				setDragData(event, selectedPreview.idPlain, 'picker-preview');
+			});
+			document.getElementById('previewDrag')?.addEventListener('dragend', () => {
+				vscode.postMessage({ type: 'dragState', active: false });
 			});
 		}
 
@@ -480,6 +740,17 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 				return;
 			}
 			vscode.postMessage({ type: 'select', id: target.getAttribute('data-id') });
+		});
+		list.addEventListener('dragstart', (event) => {
+			const target = event.target.closest('.entry');
+			if (!target) {
+				return;
+			}
+			vscode.postMessage({ type: 'dragState', active: true });
+			setDragData(event, target.getAttribute('data-id'), 'picker-entry');
+		});
+		list.addEventListener('dragend', () => {
+			vscode.postMessage({ type: 'dragState', active: false });
 		});
 
 		window.addEventListener('message', (event) => {
@@ -539,9 +810,14 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 }
 
 function serializeState(state: PickerState) {
+	const serializedTooltipLines = state.selectedPreview
+		? serializeMinecraftTooltipLines(state.selectedPreview.tooltipLines)
+		: [];
 	return {
 		query: state.query,
 		selectedId: state.selectedId,
+		isLoading: state.isLoading,
+		errorMessage: state.errorMessage ?? '',
 		entries: state.entries.map((entry) => ({
 			...entry,
 			previewDataUri: state.entryPreviewDataUris[entry.id] ?? ''
@@ -549,10 +825,38 @@ function serializeState(state: PickerState) {
 		selectedPreview: state.selectedPreview
 			? {
 				...state.selectedPreview,
-				previewDataUri: createPreviewDataUri(state.selectedPreview)
+				previewDataUri: createPreviewDataUri(state.selectedPreview),
+				displayNameHtml: renderMinecraftFormattingHtml(state.selectedPreview.displayName || state.selectedPreview.id),
+				detailHtml: renderMinecraftFormattingHtml(state.selectedPreview.detail || state.selectedPreview.id),
+				idPlain: stripMinecraftFormatting(state.selectedPreview.id),
+				nbtPlain: stripMinecraftFormatting(state.selectedPreview.nbt),
+				tooltipLinesHtml: serializedTooltipLines.map((line) => line.html)
 			}
 			: undefined
 	};
+}
+
+function createLoadingState(documentUri: string, context: ItemStackContext): PickerState {
+	return {
+		documentUri,
+		query: context.value.trim(),
+		selectedId: context.value.trim(),
+		selectedPreview: undefined,
+		entries: [],
+		context,
+		entryPreviewDataUris: {},
+		isLoading: true,
+		errorMessage: undefined
+	};
+}
+
+export function escapeJsonForHtmlScriptTag(value: string): string {
+	return value
+		.replace(/</g, '\\u003C')
+		.replace(/>/g, '\\u003E')
+		.replace(/&/g, '\\u0026')
+		.replace(/\u2028/g, '\\u2028')
+		.replace(/\u2029/g, '\\u2029');
 }
 
 function pickInitialSelection(value: string, entries: PreviewSearchEntry[]): string {

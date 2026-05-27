@@ -20,6 +20,11 @@ export interface RuntimeBridgeLogger {
 	appendLine(message: string): void;
 }
 
+export interface RuntimeBridgeConnectAttemptResult {
+	params?: RuntimeBridgeConnectParams;
+	errorMessage?: string;
+}
+
 export interface GuideNhCommandCallbacks {
 	connectRuntimeBridge(): Promise<void>;
 	disconnectRuntimeBridge(): Promise<void>;
@@ -43,6 +48,32 @@ export interface GuideNhCommandDependencies {
 	showErrorMessage: (message: string) => Thenable<unknown> | Promise<unknown>;
 }
 
+export function resolveGuideNhRuntimeBridgeConnectAttempt(
+	config: GuideNhExtensionDefaults
+): RuntimeBridgeConnectAttemptResult {
+	if (!config.runtimeHost || !config.runtimePort || !config.runtimeToken) {
+		return {
+			errorMessage: localize('GuideNH runtime bridge host, port, and token must be configured explicitly.')
+		};
+	}
+	try {
+		return {
+			params: resolveRuntimeBridgeConnectionParams({
+				host: config.runtimeHost,
+				port: config.runtimePort,
+				token: config.runtimeToken,
+				allowRemote: config.runtimeAllowRemote
+			})
+		};
+	} catch (error) {
+		return {
+			errorMessage: error instanceof Error
+				? localize('GuideNH {0}.', error.message)
+				: localize('GuideNH runtime bridge host is invalid.')
+		};
+	}
+}
+
 export function createGuideNhCommandCallbacks(dependencies: GuideNhCommandDependencies): GuideNhCommandCallbacks {
 	return {
 		async generateSchema() {
@@ -50,17 +81,17 @@ export function createGuideNhCommandCallbacks(dependencies: GuideNhCommandDepend
 		},
 		async connectRuntimeBridge() {
 			const config = dependencies.readConfig();
-			if (!config.runtimeHost || !config.runtimePort || !config.runtimeToken) {
-				await dependencies.showErrorMessage(localize('GuideNH runtime bridge host, port, and token must be configured explicitly.'));
+			const attempt = resolveGuideNhRuntimeBridgeConnectAttempt(config);
+			if (!attempt.params) {
+				await dependencies.showErrorMessage(
+					attempt.errorMessage ?? localize('GuideNH runtime bridge host is invalid.')
+				);
 				return;
 			}
-			const params = resolveRuntimeBridgeConnectParams(config);
-			if (!params) {
-				await dependencies.showErrorMessage(readRuntimeBridgeConnectError(config));
-				return;
-			}
-			dependencies.logger.appendLine(`GuideNH runtime bridge connect requested: ${params.host}:${params.port}`);
-			await dependencies.sender.sendNotification(RuntimeBridgeConnectNotification, params);
+			dependencies.logger.appendLine(
+				`GuideNH runtime bridge connect requested: ${attempt.params.host}:${attempt.params.port}`
+			);
+			await dependencies.sender.sendNotification(RuntimeBridgeConnectNotification, attempt.params);
 			await dependencies.showInformationMessage(localize('GuideNH runtime bridge connection requested.'));
 		},
 		async disconnectRuntimeBridge() {
@@ -101,36 +132,14 @@ function isGuideNhDocumentLanguage(languageId: string): boolean {
 	return languageId === 'markdown' || languageId === 'guidenh-md';
 }
 
-function resolveRuntimeBridgeConnectParams(config: GuideNhExtensionDefaults): RuntimeBridgeConnectParams | undefined {
-	try {
-		return resolveRuntimeBridgeConnectionParams({
-			host: config.runtimeHost,
-			port: config.runtimePort,
-			token: config.runtimeToken,
-			allowRemote: config.runtimeAllowRemote
-		});
-	} catch {
-		return undefined;
+export function registerGuideNhCommands(
+	context: vscode.ExtensionContext,
+	sender: RuntimeBridgeNotificationSender,
+	output: vscode.OutputChannel = vscode.window.createOutputChannel('GuideNH')
+): void {
+	if (!context.subscriptions.includes(output)) {
+		context.subscriptions.push(output);
 	}
-}
-
-function readRuntimeBridgeConnectError(config: GuideNhExtensionDefaults): string {
-	try {
-		resolveRuntimeBridgeConnectionParams({
-			host: config.runtimeHost,
-			port: config.runtimePort,
-			token: config.runtimeToken,
-			allowRemote: config.runtimeAllowRemote
-		});
-	} catch (error) {
-		return error instanceof Error ? localize('GuideNH {0}.', error.message) : localize('GuideNH runtime bridge host is invalid.');
-	}
-	return localize('GuideNH runtime bridge host is invalid.');
-}
-
-export function registerGuideNhCommands(context: vscode.ExtensionContext, sender: RuntimeBridgeNotificationSender): void {
-	const output = vscode.window.createOutputChannel('GuideNH');
-	context.subscriptions.push(output);
 	const callbacks = createGuideNhCommandCallbacks({
 		readConfig: readGuideNhDefaults,
 		sender,

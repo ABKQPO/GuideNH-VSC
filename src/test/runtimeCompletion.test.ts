@@ -214,4 +214,30 @@ suite('GuideNH runtime completion', () => {
 			filters: {}
 		});
 	});
+
+	test('replaces the current ItemStack prefix when applying dynamic runtime completions', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const cache = new SemanticCache();
+		cache.replace('items', 1, [{ id: 'enderio:itemMaterial:9', label: 'Eye of Ender Fragment' }]);
+		const text = '<Block id="Eye" />';
+		const result = createGuideNhCompletionResult(
+			text,
+			text.indexOf('Eye') + 'Eye'.length,
+			schema,
+			undefined,
+			cache
+		);
+		assert.deepStrictEqual(result.runtimeReplacement, {
+			text,
+			start: text.indexOf('Eye'),
+			end: text.indexOf('Eye') + 3
+		});
+		assert.strictEqual(result.items[0]?.textEdit?.newText, 'enderio:itemMaterial:9');
+		if (result.items[0]?.textEdit && 'range' in result.items[0].textEdit) {
+			assert.deepStrictEqual(result.items[0].textEdit.range, {
+				start: { line: 0, character: text.indexOf('Eye') },
+				end: { line: 0, character: text.indexOf('Eye') + 3 }
+			});
+		}
+	});
 });

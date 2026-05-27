@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import {
 	createGuideNhCommandCallbacks,
+	resolveGuideNhRuntimeBridgeConnectAttempt,
 	RuntimeBridgeNotificationSender
 } from '../client/commands';
 import {
@@ -302,9 +303,39 @@ suite('GuideNH runtime bridge commands', () => {
 			}
 		});
 
-		await callbacks.validateRuntimeDocument();
+	await callbacks.validateRuntimeDocument();
 
-		assert.strictEqual(errors.length, 1);
-		assert.ok(errors[0].includes('too large'));
+	assert.strictEqual(errors.length, 1);
+	assert.ok(errors[0].includes('too large'));
+	});
+
+	test('resolves startup auto-connect settings only when runtime bridge settings are complete', () => {
+		const missing = resolveGuideNhRuntimeBridgeConnectAttempt({
+			guideNhSourcePath: 'E:\\Github\\GuideNH',
+			resourcePackPath: 'E:\\Github\\GuideNH\\wiki\\resourcepack',
+			runtimeHost: '',
+			runtimePort: 8765,
+			runtimeToken: 'secret',
+			runtimeAllowRemote: false,
+			runtimeAutoConnectOnStartup: true
+		});
+		assert.strictEqual(missing.params, undefined);
+		assert.ok(missing.errorMessage);
+
+		const resolved = resolveGuideNhRuntimeBridgeConnectAttempt({
+			guideNhSourcePath: 'E:\\Github\\GuideNH',
+			resourcePackPath: 'E:\\Github\\GuideNH\\wiki\\resourcepack',
+			runtimeHost: ' LOCALHOST ',
+			runtimePort: 8765,
+			runtimeToken: 'secret',
+			runtimeAllowRemote: false,
+			runtimeAutoConnectOnStartup: true
+		});
+		assert.deepStrictEqual(resolved.params, {
+			host: 'localhost',
+			port: 8765,
+			token: 'secret',
+			allowRemote: false
+		});
 	});
 });

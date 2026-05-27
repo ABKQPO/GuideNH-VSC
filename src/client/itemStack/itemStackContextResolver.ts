@@ -47,6 +47,25 @@ export function findItemStackContextAtPosition(
 	return contexts.find((context) => context.valueRange.contains(position));
 }
 
+export function findNearestItemStackContextAtPosition(
+	document: vscode.TextDocument,
+	position: vscode.Position
+): ItemStackContext | undefined {
+	const lineRange = expandRangeToNearbyLines(document, position.line, 8);
+	const contexts = findVisibleItemStackContexts(document, [lineRange]);
+	return contexts.find((context) => context.valueRange.contains(position))
+		?? contexts.find((context) => context.valueRange.end.isEqual(position));
+}
+
+export function findNearestItemStackContextInEditor(
+	editor: vscode.TextEditor,
+	position?: vscode.Position
+): ItemStackContext | undefined {
+	const targetPosition = position ?? editor.selection.active;
+	return findNearestItemStackContextAtPosition(editor.document, targetPosition)
+		?? findItemStackContextAtPosition(editor.document, targetPosition);
+}
+
 function scanDocumentRange(
 	document: vscode.TextDocument,
 	range: vscode.Range,

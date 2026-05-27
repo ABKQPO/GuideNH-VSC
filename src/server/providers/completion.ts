@@ -47,6 +47,13 @@ export interface DynamicCompletionRequest {
 export interface GuideNhCompletionResult {
 	items: CompletionItem[];
 	dynamicRequest?: DynamicCompletionRequest;
+	runtimeReplacement?: CompletionReplacementRange;
+}
+
+export interface CompletionReplacementRange {
+	text: string;
+	start: number;
+	end: number;
 }
 
 const StaticAttributeValueSources: StaticAttributeValueSource[] = [
@@ -93,15 +100,27 @@ export function createGuideNhCompletionResult(
 	const maskedText = maskIgnoredMarkdownRanges(text);
 	const frontmatter = extractFrontmatter(text);
 	if (frontmatter && offset <= frontmatter.end) {
+		const frontmatterValueContext = findFrontmatterValueContext(text.slice(frontmatter.start, offset));
+		const runtimeReplacement = frontmatterValueContext
+			? createCompletionReplacementRange(text, offset, frontmatterValueContext.prefix)
+			: undefined;
 		const dynamicRequest = resolveFrontmatterDynamicCompletionRequest(text, offset, frontmatter);
 		const pageCompletions = createFrontmatterPageValueCompletions(text, offset, frontmatter, index, cache);
 		if (pageCompletions.length > 0) {
-			return { items: pageCompletions, dynamicRequest };
+			return { items: pageCompletions, dynamicRequest, runtimeReplacement };
 		}
-		const valueCompletions = createFrontmatterValueCompletions(text, offset, frontmatter, cache, index);
+		const valueCompletions = createFrontmatterValueCompletions(
+			text,
+			offset,
+			frontmatter,
+			cache,
+			index,
+			runtimeReplacement
+		);
 		return {
 			items: valueCompletions.length > 0 ? valueCompletions : createFrontmatterCompletions(text, offset, frontmatter, schema),
-			dynamicRequest
+			dynamicRequest,
+			runtimeReplacement
 		};
 	}
 
@@ -117,28 +136,38 @@ export function createGuideNhCompletionResult(
 
 	const attributeValueContext = findAttributeValueContext(maskedText, offset);
 	const dynamicRequest = attributeValueContext ? resolveDynamicCompletionRequest(text, offset, schema, attributeValueContext) : undefined;
+	const runtimeReplacement = attributeValueContext
+		? createCompletionReplacementRange(text, offset, attributeValueContext.prefix)
+		: undefined;
 	if (attributeValueContext) {
 		const staticCompletions = shouldUseStaticAttributeCompletions(attributeValueContext, dynamicRequest)
 			? createAttributeValueCompletions(attributeValueContext, schema)
 			: [];
 		if (staticCompletions.length > 0) {
-			return { items: staticCompletions, dynamicRequest };
+			return { items: staticCompletions, dynamicRequest, runtimeReplacement };
 		}
 		const referenceCompletions = createAttributeReferenceValueCompletions(attributeValueContext, schema, index, resourceIndex, cache);
 		if (referenceCompletions.length > 0) {
-			return { items: referenceCompletions, dynamicRequest };
+			return { items: referenceCompletions, dynamicRequest, runtimeReplacement };
 		}
 	}
 	if (attributeValueContext && cache) {
-		const runtimeCompletions = createRuntimeAttributeValueCompletions(attributeValueContext, schema, cache, index);
+		const runtimeCompletions = createRuntimeAttributeValueCompletions(
+			attributeValueContext,
+			schema,
+			cache,
+			index,
+			runtimeReplacement
+		);
 		if (runtimeCompletions.length > 0) {
-			return { items: runtimeCompletions, dynamicRequest };
+			return { items: runtimeCompletions, dynamicRequest, runtimeReplacement };
 		}
 	}
 	if (attributeValueContext) {
 		return {
 			items: [],
-			dynamicRequest
+			dynamicRequest,
+			runtimeReplacement
 		};
 	}
 
@@ -440,7 +469,8 @@ function createRuntimeAttributeValueCompletions(
 	context: AttributeValueContext,
 	schema: GuideNhSchemaBundle,
 	cache: SemanticCache,
-	index: GuideNhWorkspaceIndex | undefined
+	index: GuideNhWorkspaceIndex | undefined,
+	replacementRange: CompletionReplacementRange | undefined
 ): CompletionItem[] {
 	const attribute = findAttributeSchema(schema, context.tagName, context.attributeName);
 	const capability = resolveRuntimeCapability(context.tagName, context.attributeName, attribute);
@@ -449,11 +479,11 @@ function createRuntimeAttributeValueCompletions(
 	}
 	const runtimeItems = createRuntimeValueCompletions(capability, context.prefix, cache);
 	if (capability !== 'pages') {
-		return runtimeItems;
+		return applyCompletionReplacementRange(runtimeItems, replacementRange);
 	}
 	return mergeCompletionItems([
 		...createPageValueCompletions(context.prefix, index),
-		...runtimeItems
+		...applyCompletionReplacementRange(runtimeItems, replacementRange)
 	]);
 }
 
@@ -532,7 +562,8 @@ function createFrontmatterValueCompletions(
 	offset: number,
 	frontmatter: FrontmatterBlock,
 	cache: SemanticCache | undefined,
-	index: GuideNhWorkspaceIndex | undefined
+	index: GuideNhWorkspaceIndex | undefined,
+	replacementRange: CompletionReplacementRange | undefined
 ): CompletionItem[] {
 	const context = findFrontmatterValueContext(text.slice(frontmatter.start, offset));
 	if (!context) {
@@ -546,7 +577,10 @@ function createFrontmatterValueCompletions(
 	}
 	return mergeCompletionItems([
 		...createIndexedFrontmatterValueCompletions(path, indexDetail, context.prefix, index),
-		...createRuntimeFrontmatterValueCompletions(capability, context.prefix, cache)
+		...applyCompletionReplacementRange(
+			createRuntimeFrontmatterValueCompletions(capability, context.prefix, cache),
+			replacementRange
+		)
 	]);
 }
 
@@ -723,6 +757,37 @@ function withReplacementRange(items: CompletionItem[], text: string, start: numb
 			}, String(item.insertText))
 		};
 	});
+}
+
+export function applyCompletionReplacementRange(
+	items: CompletionItem[],
+	replacementRange: CompletionReplacementRange | undefined
+): CompletionItem[] {
+	if (!replacementRange) {
+		return items;
+	}
+	return items.map((item) => {
+		const replacementText = item.insertText ?? item.label;
+		return {
+			...item,
+			textEdit: TextEdit.replace({
+				start: offsetToPosition(replacementRange.text, replacementRange.start),
+				end: offsetToPosition(replacementRange.text, replacementRange.end)
+			}, String(replacementText))
+		};
+	});
+}
+
+function createCompletionReplacementRange(
+	text: string,
+	offset: number,
+	prefix: string
+): CompletionReplacementRange {
+	return {
+		text,
+		start: Math.max(0, offset - prefix.length),
+		end: offset
+	};
 }
 
 function resolveTagCompletionReplaceEnd(text: string, offset: number): number {

@@ -68,9 +68,20 @@ suite('GuideNH semantic cache', () => {
 		assert.deepStrictEqual(cache.queryPrefix('items', 'gtb', 1).map((entry) => entry.id), ['gregtech:gt.blockmachines']);
 	});
 
-	test('matches item labels by acronym prefixes', () => {
+	test('prefers more specific structured gtb item paths over shorter gt.block variants', () => {
 		const cache = new SemanticCache();
 		cache.replace('items', 8, [
+			{ id: 'gregtech:gt.blockgem1', label: 'Block of Aer', detail: 'gregtech:gt.blockgem1:0' },
+			{ id: 'gregtech:gt.blockores', label: 'Ore', detail: 'gregtech:gt.blockores:0' },
+			{ id: 'gregtech:gt.blockmachines:1000', label: 'Electric Blast Furnace', detail: 'gregtech:gt.blockmachines:1000' }
+		]);
+
+		assert.deepStrictEqual(cache.queryPrefix('items', 'gtb', 1).map((entry) => entry.id), ['gregtech:gt.blockmachines:1000']);
+	});
+
+	test('matches item labels by acronym prefixes', () => {
+		const cache = new SemanticCache();
+		cache.replace('items', 9, [
 			{ id: 'gregtech:gt.blockmachines:1000', label: 'Electric Blast Furnace', detail: 'gregtech:gt.blockmachines:1000' },
 			{ id: 'gregtech:gt.blockmachines:1003', label: 'Multi Smelter', detail: 'gregtech:gt.blockmachines:1003' }
 		]);

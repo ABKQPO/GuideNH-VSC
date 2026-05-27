@@ -81,6 +81,11 @@
           "type": "boolean",
           "default": false,
           "description": "%configuration.runtimeBridge.allowRemote.description%"
+        },
+        "guide-vsc.runtimeBridge.autoConnectOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.runtimeBridge.autoConnectOnStartup.description%"
         }
       }
     },

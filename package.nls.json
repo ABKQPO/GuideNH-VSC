@@ -7,6 +7,7 @@
   "configuration.runtimeBridge.port.description": "GuideNH runtime bridge port. No default is provided for safety.",
   "configuration.runtimeBridge.token.description": "GuideNH runtime bridge token. No default is provided for safety.",
   "configuration.runtimeBridge.allowRemote.description": "Allow runtime bridge connections to non-loopback hosts. Keep disabled unless the bridge transport is secured externally.",
+  "configuration.runtimeBridge.autoConnectOnStartup.description": "Attempt one GuideNH runtime bridge handshake automatically when VS Code starts, using the configured host, port, and token.",
   "command.generateSchema.title": "GuideNH: Generate Schema",
   "command.connectRuntimeBridge.title": "GuideNH: Connect Runtime Bridge",
   "command.disconnectRuntimeBridge.title": "GuideNH: Disconnect Runtime Bridge",

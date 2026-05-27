@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import {
+	BridgeError,
 	BridgeEnvelope,
 	createCapabilitiesMessage,
 	createPreviewResolveMessage,
@@ -17,7 +18,8 @@ import {
 	SemanticQueryResultPayload,
 	RuntimeDocumentValidateParams,
 	RuntimeBridgeStatusParams,
-	RuntimeBridgeStatusState
+	RuntimeBridgeStatusState,
+	isBridgeError
 } from '../../common/protocol';
 import { SemanticCache } from './semanticCache';
 import {
@@ -42,6 +44,11 @@ export type RuntimeBridgeStatus = RuntimeBridgeStatusParams;
 export interface RuntimeBridgeClientEvents {
 	onStatus?: (status: RuntimeBridgeStatus) => void;
 	onLog?: (message: string) => void;
+}
+
+export interface RuntimeBridgeClientOptions {
+	reconnectDelayMs?: number;
+	maxReconnectAttempts?: number;
 }
 
 export interface RuntimeSemanticQueryOptions {
@@ -74,6 +81,10 @@ export class RuntimeBridgeClient {
 
 	private socket: WebSocket | undefined;
 	private connected = false;
+	private latestConnectOptions: RuntimeBridgeConnectionOptions | undefined;
+	private reconnectAttempts = 0;
+	private reconnectTimer: NodeJS.Timeout | undefined;
+	private manualDisconnect = false;
 	private readonly pendingEntries = new Map<string, SemanticEntry[]>();
 	private readonly pendingPayloadStates = new Map<string, SemanticPayloadGuardState>();
 	private readonly pendingDocumentValidations = new Set<string>();
@@ -91,12 +102,24 @@ export class RuntimeBridgeClient {
 
 	public constructor(
 		private readonly cache: SemanticCache,
-		private readonly events: RuntimeBridgeClientEvents = {}
+		private readonly events: RuntimeBridgeClientEvents = {},
+		private readonly options: RuntimeBridgeClientOptions = {}
 	) {}
 
 	connect(options: RuntimeBridgeConnectionOptions): void {
+		this.connectInternal(options, true);
+	}
+
+	private connectInternal(options: RuntimeBridgeConnectionOptions, resetReconnectState: boolean): void {
+		this.manualDisconnect = false;
+		this.latestConnectOptions = options;
+		if (resetReconnectState) {
+			this.clearReconnectState();
+		} else {
+			this.clearReconnectTimer();
+		}
 		const resolvedOptions = resolveRuntimeBridgeConnectionParams(options);
-		this.closeSocket();
+		this.closeSocket(false);
 		this.pendingEntries.clear();
 		this.pendingPayloadStates.clear();
 		const url = createRuntimeBridgeWebSocketUrl(resolvedOptions);
@@ -105,6 +128,7 @@ export class RuntimeBridgeClient {
 		const socket = new WebSocket(url, {
 			maxPayload: MaxRuntimeBridgeMessageBytes
 		});
+		let suppressCloseReconnect = false;
 		this.socket = socket;
 		socket.on('open', () => {
 			if (this.socket !== socket) {
@@ -124,8 +148,14 @@ export class RuntimeBridgeClient {
 				return;
 			}
 			this.connected = false;
-			this.log(`GuideNH runtime bridge socket error: ${formatRuntimeBridgeError(error)}`);
-			this.publishStatus({ state: 'error', message: formatRuntimeBridgeError(error) });
+			const message = formatRuntimeBridgeError(error);
+			this.log(`GuideNH runtime bridge socket error: ${message}`);
+			if (!this.isReconnectableFailure(message)) {
+				suppressCloseReconnect = true;
+				this.publishStatus({ state: 'error', message });
+				return;
+			}
+			this.scheduleReconnect(message);
 		});
 		socket.on('close', () => {
 			if (this.socket !== socket) {
@@ -136,13 +166,22 @@ export class RuntimeBridgeClient {
 			this.pendingPayloadStates.clear();
 			this.cache.markStale();
 			this.log('GuideNH runtime bridge socket closed.');
-			this.publishStatus({ state: 'disconnected' });
+			if (this.manualDisconnect) {
+				this.publishStatus({ state: 'disconnected' });
+				return;
+			}
+			if (suppressCloseReconnect) {
+				return;
+			}
+			this.scheduleReconnect(localizeServer('runtime.bridge.rejected'));
 		});
 	}
 
 	disconnect(): void {
 		this.log('GuideNH runtime bridge disconnect requested.');
-		this.closeSocket();
+		this.manualDisconnect = true;
+		this.clearReconnectState();
+		this.closeSocket(true);
 		this.cache.markStale();
 		this.publishStatus({ state: 'disconnected' });
 	}
@@ -235,11 +274,13 @@ export class RuntimeBridgeClient {
 			return;
 		}
 		if (message.type === 'error') {
-			this.publishStatus({ state: 'error', message: localizeServer('runtime.bridge.rejected') });
+			this.handleErrorResponse(message.id, message.method, message.payload);
 			return;
 		}
 		if (message.method === 'hello' && message.type === 'response') {
 			this.connected = true;
+			this.reconnectAttempts = 0;
+			this.clearReconnectTimer();
 			this.log('GuideNH runtime bridge hello acknowledged.');
 			this.publishStatus({ state: 'connected' });
 			this.send(createCapabilitiesMessage());
@@ -375,6 +416,31 @@ export class RuntimeBridgeClient {
 		}
 	}
 
+	private handleErrorResponse(id: string | undefined, method: string, payload: unknown): void {
+		const bridgeError = normalizeBridgeError(payload);
+		if (id) {
+			const pendingPreviewRequest = this.pendingPreviewRequests.get(id);
+			if (pendingPreviewRequest) {
+				this.pendingPreviewRequests.delete(id);
+				pendingPreviewRequest.reject(new Error(bridgeError.message));
+				return;
+			}
+			const pendingSemanticQuery = this.pendingSemanticQueries.get(id);
+			if (pendingSemanticQuery) {
+				this.pendingSemanticQueries.delete(id);
+				pendingSemanticQuery.reject(new Error(bridgeError.message));
+				return;
+			}
+			if (this.pendingDocumentValidations.has(id)) {
+				this.pendingDocumentValidations.delete(id);
+			}
+		}
+		if (method === 'hello') {
+			this.connected = false;
+		}
+		this.publishStatus({ state: 'error', message: bridgeError.message });
+	}
+
 	private parseMessage(data: string): BridgeEnvelope | undefined {
 		try {
 			return validateBridgeEnvelope(JSON.parse(data));
@@ -407,7 +473,10 @@ export class RuntimeBridgeClient {
 		this.events.onLog?.(message);
 	}
 
-	private closeSocket(): void {
+	private closeSocket(manual: boolean): void {
+		if (manual) {
+			this.manualDisconnect = true;
+		}
 		this.connected = false;
 		this.pendingEntries.clear();
 		this.pendingPayloadStates.clear();
@@ -423,6 +492,59 @@ export class RuntimeBridgeClient {
 		const socket = this.socket;
 		this.socket = undefined;
 		socket?.close();
+	}
+
+	private scheduleReconnect(message: string): void {
+		if (this.manualDisconnect || !this.latestConnectOptions) {
+			this.publishStatus({ state: 'error', message });
+			return;
+		}
+		if (!this.isReconnectableFailure(message)) {
+			this.publishStatus({ state: 'error', message });
+			return;
+		}
+		const maxReconnectAttempts = this.options.maxReconnectAttempts ?? 3;
+		const reconnectDelayMs = this.options.reconnectDelayMs ?? 5000;
+		if (this.reconnectAttempts >= maxReconnectAttempts) {
+			this.log(`GuideNH runtime bridge reconnect exhausted after ${maxReconnectAttempts} attempts.`);
+			this.publishStatus({ state: 'error', message });
+			return;
+		}
+		if (this.reconnectTimer) {
+			return;
+		}
+		this.reconnectAttempts++;
+		const attempt = this.reconnectAttempts;
+		this.log(
+			`GuideNH runtime bridge reconnect attempt ${attempt}/${maxReconnectAttempts} scheduled in ${reconnectDelayMs / 1000}s.`
+		);
+		this.publishStatus({ state: 'connecting', message });
+		this.reconnectTimer = setTimeout(() => {
+			this.reconnectTimer = undefined;
+			if (this.manualDisconnect || !this.latestConnectOptions) {
+				return;
+			}
+			this.log(`GuideNH runtime bridge reconnect attempt ${attempt}/${maxReconnectAttempts} starting.`);
+			this.connectInternal(this.latestConnectOptions, false);
+		}, reconnectDelayMs);
+	}
+
+	private clearReconnectState(): void {
+		this.reconnectAttempts = 0;
+		this.clearReconnectTimer();
+	}
+
+	private clearReconnectTimer(): void {
+		if (!this.reconnectTimer) {
+			return;
+		}
+		clearTimeout(this.reconnectTimer);
+		this.reconnectTimer = undefined;
+	}
+
+	private isReconnectableFailure(message: string): boolean {
+		return message !== localizeServer('runtime.bridge.messageTooLarge')
+			&& message !== localizeServer('runtime.bridge.invalidJson');
 	}
 
 	private createDocumentValidationRequestId(): string {
@@ -446,4 +568,15 @@ function formatRuntimeBridgeError(error: Error): string {
 		return localizeServer('runtime.bridge.messageTooLarge');
 	}
 	return error.message;
+}
+
+function normalizeBridgeError(payload: unknown): BridgeError {
+	if (isBridgeError(payload)) {
+		return payload;
+	}
+	return {
+		code: 'runtime.bridge.rejected',
+		message: localizeServer('runtime.bridge.rejected'),
+		retryable: false
+	};
 }

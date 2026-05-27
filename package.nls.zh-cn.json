@@ -7,6 +7,7 @@
   "configuration.runtimeBridge.port.description": "GuideNH 运行时桥接端口。出于安全考虑不提供默认值。",
   "configuration.runtimeBridge.token.description": "GuideNH 运行时桥接 token。出于安全考虑不提供默认值。",
   "configuration.runtimeBridge.allowRemote.description": "允许连接非本机运行时桥接主机。除非桥接传输已由外部安全措施保护，否则请保持关闭。",
+  "configuration.runtimeBridge.autoConnectOnStartup.description": "在 VS Code 启动时，使用已配置的主机、端口和令牌自动尝试一次 GuideNH runtime bridge 握手。",
   "command.generateSchema.title": "GuideNH: 生成 Schema",
   "command.connectRuntimeBridge.title": "GuideNH: 连接运行时桥接",
   "command.disconnectRuntimeBridge.title": "GuideNH: 断开运行时桥接",

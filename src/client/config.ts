@@ -7,6 +7,7 @@ export interface GuideNhExtensionDefaults {
 	runtimePort: number;
 	runtimeToken: string;
 	runtimeAllowRemote: boolean;
+	runtimeAutoConnectOnStartup?: boolean;
 }
 
 export function isGuideNhDocumentSelector(path: string): boolean {
@@ -22,6 +23,7 @@ export function readGuideNhDefaults(): GuideNhExtensionDefaults {
 		runtimeHost: config.get('runtimeBridge.host', ''),
 		runtimePort: config.get('runtimeBridge.port', 0),
 		runtimeToken: config.get('runtimeBridge.token', ''),
-		runtimeAllowRemote: config.get('runtimeBridge.allowRemote', false)
+		runtimeAllowRemote: config.get('runtimeBridge.allowRemote', false),
+		runtimeAutoConnectOnStartup: config.get('runtimeBridge.autoConnectOnStartup', false)
 	};
 }
