@@ -23,14 +23,14 @@
     "guidenh.importStructureLib": {
       "prefix": "ImportStructureLib",
       "body": [
-        "<ImportStructureLib controller=\"${1:gregtech:gt.blockmachines:2741}\"${2: gtFormed={true}} />"
+        "<ImportStructureLib controller=\"${1:gregtech:gt.blockmachines:2741}\"${2: formed={true}} />"
       ],
       "description": "Insert a StructureLib scene import."
     },
     "guidenh.gtBlock": {
       "prefix": "GTBlock",
       "body": [
-        "<Block id=\"${1:gregtech:gt.blockmachines:2741}\"${2: gtFormed={true}} />"
+        "<Block id=\"${1:gregtech:gt.blockmachines:2741}\"${2: formed={true}} />"
       ],
       "description": "Insert a GT controller scene block."
     },

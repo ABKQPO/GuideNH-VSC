@@ -511,38 +511,38 @@ function applySceneBlockStatsTags(tags: Record<string, GuideNhTagSchema>): void 
 
 function applySceneDocumentationEnhancements(tags: Record<string, GuideNhTagSchema>): void {
 	mergeAttributes(tags.Block, {
-		gtFormed: {
+		formed: {
 			type: 'boolean',
 			valueStyle: 'expression',
-			description: 'Whether GT controller preview sync should auto-form this block controller. Defaults to false.'
+			description: 'Whether placed controller previews should be treated as formed during preview sync. Defaults to false.'
 		}
 	});
 	mergeAttributes(tags.ImportStructure, {
-		gtFormed: {
+		formed: {
 			type: 'boolean',
 			valueStyle: 'expression',
-			description: 'Whether GT controller preview sync should auto-form imported controllers. Defaults to false.'
+			description: 'Whether imported structure controllers should be treated as formed during preview sync. Defaults to false.'
 		}
 	});
 	mergeAttributes(tags.ImportStructureLib, {
-		gtFormed: {
+		formed: {
 			type: 'boolean',
 			valueStyle: 'expression',
-			description: 'Whether GT controller preview sync should auto-form the imported controller. Defaults to false.'
+			description: 'Whether imported StructureLib controllers should be treated as formed during preview sync. Defaults to false.'
 		}
 	});
 	mergeAttributes(tags.PlaceBlock, {
-		gtFormed: {
+		formed: {
 			type: 'boolean',
 			valueStyle: 'expression',
-			description: 'Whether GT controller preview sync should auto-form controllers placed by this region fill. Defaults to false.'
+			description: 'Whether placed controllers should be treated as formed during preview sync. Defaults to false.'
 		}
 	});
 	mergeAttributes(tags.ReplaceBlock, {
-		gtFormed: {
+		formed: {
 			type: 'boolean',
 			valueStyle: 'expression',
-			description: 'Whether GT controller preview sync should auto-form replacement controllers. Defaults to false.'
+			description: 'Whether replacement result controllers should be treated as formed during preview sync. Defaults to false.'
 		}
 	});
 	mergeAttributes(tags.Entity, {

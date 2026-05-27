@@ -27,13 +27,13 @@ suite('GuideNH schema loader', () => {
 		assert.ok(schema.tags.tags.Scene.children.includes('ImportStructure'));
 	});
 
-	test('exposes GT preview formed attributes on scene structure tags', async () => {
+	test('exposes formed attributes on scene structure tags', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
-		assert.strictEqual(schema.tags.tags.Block.attributes.gtFormed?.type, 'boolean');
-		assert.strictEqual(schema.tags.tags.ImportStructure.attributes.gtFormed?.type, 'boolean');
-		assert.strictEqual(schema.tags.tags.ImportStructureLib.attributes.gtFormed?.type, 'boolean');
-		assert.strictEqual(schema.tags.tags.PlaceBlock.attributes.gtFormed?.type, 'boolean');
-		assert.strictEqual(schema.tags.tags.ReplaceBlock.attributes.gtFormed?.type, 'boolean');
+		assert.strictEqual(schema.tags.tags.Block.attributes.formed?.type, 'boolean');
+		assert.strictEqual(schema.tags.tags.ImportStructure.attributes.formed?.type, 'boolean');
+		assert.strictEqual(schema.tags.tags.ImportStructureLib.attributes.formed?.type, 'boolean');
+		assert.strictEqual(schema.tags.tags.PlaceBlock.attributes.formed?.type, 'boolean');
+		assert.strictEqual(schema.tags.tags.ReplaceBlock.attributes.formed?.type, 'boolean');
 	});
 
 	test('loads bundled default schema files for packaged extensions', async () => {

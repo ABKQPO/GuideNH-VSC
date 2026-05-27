@@ -168,10 +168,10 @@
           "type": "string",
           "valueStyle": "string"
         },
-        "gtFormed": {
+        "formed": {
           "type": "boolean",
           "valueStyle": "expression",
-          "description": "Whether GT controller preview sync should auto-form this block controller. Defaults to false."
+          "description": "Whether placed controller previews should be treated as formed during preview sync. Defaults to false."
         },
         "id": {
           "type": "item",
@@ -1457,7 +1457,7 @@
     "ImportPonder": {
       "name": "ImportPonder",
       "kind": "any",
-      "description": "Generated from GuideNH ImportPonder compiler source.",
+      "description": "Imports a GuideNH Ponder timeline JSON. Supports camera/annotation playback, legacy blockChanges, and the newer worldActions timeline layer.",
       "attributes": {
         "src": {
           "type": "string",
@@ -1484,10 +1484,10 @@
           "type": "number",
           "valueStyle": "string"
         },
-        "gtFormed": {
+        "formed": {
           "type": "boolean",
           "valueStyle": "expression",
-          "description": "Whether GT controller preview sync should auto-form imported controllers. Defaults to false."
+          "description": "Whether imported structure controllers should be treated as formed during preview sync. Defaults to false."
         },
         "src": {
           "type": "resource",
@@ -1537,10 +1537,10 @@
           "type": "string",
           "valueStyle": "string"
         },
-        "gtFormed": {
+        "formed": {
           "type": "boolean",
           "valueStyle": "expression",
-          "description": "Whether GT controller preview sync should auto-form the imported controller. Defaults to false."
+          "description": "Whether imported StructureLib controllers should be treated as formed during preview sync. Defaults to false."
         },
         "name": {
           "type": "string",
@@ -2269,10 +2269,10 @@
           "type": "string",
           "valueStyle": "string"
         },
-        "gtFormed": {
+        "formed": {
           "type": "boolean",
           "valueStyle": "expression",
-          "description": "Whether GT controller preview sync should auto-form controllers placed by this region fill. Defaults to false."
+          "description": "Whether placed controllers should be treated as formed during preview sync. Defaults to false."
         },
         "nbt": {
           "type": "string",
@@ -2745,10 +2745,10 @@
           "type": "string",
           "valueStyle": "string"
         },
-        "gtFormed": {
+        "formed": {
           "type": "boolean",
           "valueStyle": "expression",
-          "description": "Whether GT controller preview sync should auto-form replacement controllers. Defaults to false."
+          "description": "Whether replacement result controllers should be treated as formed during preview sync. Defaults to false."
         },
         "from_nbt": {
           "type": "string",
