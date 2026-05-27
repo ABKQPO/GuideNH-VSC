@@ -162,6 +162,19 @@ categories:
 		);
 	});
 
+	test('indexes namespaced page ids alongside relative paths', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/gregtech/guidenh/_en_us/multiblocks/index.md', '# Multiblocks');
+		assert.strictEqual(
+			index.findPageByRelativePath('gregtech:multiblocks/index.md')?.uri,
+			'file:///repo/assets/gregtech/guidenh/_en_us/multiblocks/index.md'
+		);
+		assert.strictEqual(
+			index.findPageByRelativePath('multiblocks/index.md')?.uri,
+			'file:///repo/assets/gregtech/guidenh/_en_us/multiblocks/index.md'
+		);
+	});
+
 	test('keeps listed pages sorted after updates and removals', () => {
 		const index = new GuideNhWorkspaceIndex();
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/b.md', '# B');
@@ -241,6 +254,15 @@ navigation:
 		const index = new GuideNhWorkspaceIndex();
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/source.md', '<FloatingImage src="./images/test1.png" />');
 		assert.strictEqual(index.findReferencesToResource('images/test1.png').length, 1);
+	});
+
+	test('indexes absolute assets resource references from GuideNH attributes', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage(
+			'file:///repo/assets/gregtech/guidenh/_en_us/multiblocks/gt-ebf.md',
+			'<ImportStructure src="/assets/structures/ponders/multiblocks/ebf_ponder.snbt" />'
+		);
+		assert.strictEqual(index.findReferencesToResource('assets/structures/ponders/multiblocks/ebf_ponder.snbt').length, 1);
 	});
 
 	test('indexes runtime-backed item and ore attribute references', () => {

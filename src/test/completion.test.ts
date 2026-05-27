@@ -415,6 +415,18 @@ suite('GuideNH completion provider', () => {
 		);
 	});
 
+	test('completes namespaced page values from indexed pages', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/gregtech/guidenh/_en_us/index.md', '# Index');
+		const text = '<ItemLink linksTo="gregtech:i';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined, undefined, index);
+		assert.deepStrictEqual(
+			items.map((item: CompletionItem) => item.label),
+			['gregtech:index.md']
+		);
+	});
+
 	test('completes resource attribute values from indexed resources', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const resourceIndex = new GuideNhResourceIndex();

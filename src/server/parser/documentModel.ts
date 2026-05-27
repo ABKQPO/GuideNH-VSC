@@ -1,5 +1,6 @@
 import { GuideNhParsedDocument, GuideNhParsedTag, parseGuideNhDocument } from './documentParser';
 import { extractFrontmatter, FrontmatterBlock } from './frontmatter';
+import { resolveGuideNhPageReference, resolveGuideNhResourceReference } from '../index/guideNhPaths';
 
 export interface GuideNhTagBoundary {
 	tag: GuideNhParsedTag;
@@ -42,12 +43,15 @@ export interface GuideNhTextReference {
 	normalizedTarget?: string;
 	start: number;
 	end: number;
+	interactionStart?: number;
+	interactionEnd?: number;
 	source: 'markdown' | 'frontmatter' | 'attribute';
 	attributeName?: string;
 	tagName?: string;
 }
 
 export interface GuideNhDocumentModel {
+	uri?: string;
 	text: string;
 	parsed: GuideNhParsedDocument;
 	frontmatter?: FrontmatterBlock;
@@ -59,15 +63,16 @@ const GuideNhTagStartPattern = /<\/?([A-Za-z][A-Za-z0-9]*)/;
 const GuideNhOpenTagPattern = /<([A-Za-z][A-Za-z0-9]*)?\s*[^<>/]*$/;
 const GuideNhAttributePattern = /([A-Za-z_][\w.-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|\{([^}]*)\}|([^\s"'=<>`]+)))?/g;
 
-export function createGuideNhDocumentModel(text: string): GuideNhDocumentModel {
+export function createGuideNhDocumentModel(text: string, uri?: string): GuideNhDocumentModel {
 	const parsed = parseGuideNhDocument(text);
 	const tagBoundaries = parsed.tags.map((tag) => createTagBoundary(text, tag));
 	return {
+		uri,
 		text,
 		parsed,
 		frontmatter: extractFrontmatter(text),
 		tagBoundaries,
-		references: findDocumentReferences(text, parsed.tags)
+		references: findDocumentReferences(text, parsed.tags, uri)
 	};
 }
 
@@ -87,7 +92,9 @@ export function findTagContextAtOffset(model: GuideNhDocumentModel, offset: numb
 
 export function findReferenceAtOffset(model: GuideNhDocumentModel, offset: number, kinds?: Array<'page' | 'resource'>): GuideNhTextReference | undefined {
 	return model.references.find((reference) => {
-		if (offset < reference.start || offset > reference.end) {
+		const interactionStart = reference.interactionStart ?? reference.start;
+		const interactionEnd = reference.interactionEnd ?? reference.end;
+		if (offset < interactionStart || offset > interactionEnd) {
 			return false;
 		}
 		return !kinds || kinds.includes(reference.kind);
@@ -207,23 +214,23 @@ function findAttributeContext(boundary: GuideNhTagBoundary, offset: number): Gui
 	return undefined;
 }
 
-function findDocumentReferences(text: string, tags: GuideNhParsedTag[]): GuideNhTextReference[] {
+function findDocumentReferences(text: string, tags: GuideNhParsedTag[], documentUri?: string): GuideNhTextReference[] {
 	return [
-		...findMarkdownPageReferences(text),
-		...findFrontmatterPageReferences(text),
-		...findAttributeReferences(text, tags)
+		...findMarkdownPageReferences(text, documentUri),
+		...findFrontmatterPageReferences(text, documentUri),
+		...findAttributeReferences(text, tags, documentUri)
 	];
 }
 
-function findMarkdownPageReferences(text: string): GuideNhTextReference[] {
-	return findReferencesWithPattern(text, /\[[^\]]+\]\(([^)]+\.md(?:#[^)]+)?)\)/g, 'page', 'markdown');
+function findMarkdownPageReferences(text: string, documentUri?: string): GuideNhTextReference[] {
+	return findReferencesWithPattern(text, /\[[^\]]+\]\(([^)]+\.md(?:#[^)]+)?)\)/g, 'page', 'markdown', documentUri);
 }
 
-function findFrontmatterPageReferences(text: string): GuideNhTextReference[] {
-	return findReferencesWithPattern(text, /^\s{2,}parent:\s*([^\s#]+\.md(?:#[^\s]+)?)/gm, 'page', 'frontmatter');
+function findFrontmatterPageReferences(text: string, documentUri?: string): GuideNhTextReference[] {
+	return findReferencesWithPattern(text, /^\s{2,}parent:\s*([^\s#]+\.md(?:#[^\s]+)?)/gm, 'page', 'frontmatter', documentUri);
 }
 
-function findAttributeReferences(text: string, tags: GuideNhParsedTag[]): GuideNhTextReference[] {
+function findAttributeReferences(text: string, tags: GuideNhParsedTag[], documentUri?: string): GuideNhTextReference[] {
 	const references: GuideNhTextReference[] = [];
 	for (const tag of tags) {
 		if (tag.closing) {
@@ -241,7 +248,7 @@ function findAttributeReferences(text: string, tags: GuideNhParsedTag[]): GuideN
 				references.push({
 					kind: 'page',
 					target: rawValue,
-					normalizedTarget: normalizePageReference(rawValue),
+					normalizedTarget: normalizePageReference(rawValue, documentUri),
 					start: range.start,
 					end: range.end,
 					source: 'attribute',
@@ -254,7 +261,7 @@ function findAttributeReferences(text: string, tags: GuideNhParsedTag[]): GuideN
 				references.push({
 					kind: 'resource',
 					target: rawValue,
-					normalizedTarget: normalizeResourceReference(rawValue),
+					normalizedTarget: normalizeResourceReference(rawValue, documentUri),
 					start: range.start,
 					end: range.end,
 					source: 'attribute',
@@ -271,7 +278,8 @@ function findReferencesWithPattern(
 	text: string,
 	pattern: RegExp,
 	kind: 'page' | 'resource',
-	source: GuideNhTextReference['source']
+	source: GuideNhTextReference['source'],
+	documentUri?: string
 ): GuideNhTextReference[] {
 	const references: GuideNhTextReference[] = [];
 	let match: RegExpExecArray | null;
@@ -280,7 +288,9 @@ function findReferencesWithPattern(
 		if (!rawTarget) {
 			continue;
 		}
-		const normalizedTarget = kind === 'page' ? normalizePageReference(rawTarget) : normalizeResourceReference(rawTarget);
+		const normalizedTarget = kind === 'page'
+			? normalizePageReference(rawTarget, documentUri)
+			: normalizeResourceReference(rawTarget, documentUri);
 		if (!normalizedTarget) {
 			continue;
 		}
@@ -291,30 +301,20 @@ function findReferencesWithPattern(
 			normalizedTarget,
 			start,
 			end: start + rawTarget.length,
+			interactionStart: source === 'markdown' ? match.index : start,
+			interactionEnd: source === 'markdown' ? match.index + match[0].length : start + rawTarget.length,
 			source
 		});
 	}
 	return references;
 }
 
-export function normalizePageReference(value: string | undefined): string | undefined {
-	const withoutAnchor = value?.trim().split('#')[0];
-	if (!withoutAnchor || !withoutAnchor.endsWith('.md')) {
-		return undefined;
-	}
-	const withoutNamespace = withoutAnchor.includes(':') ? withoutAnchor.slice(withoutAnchor.indexOf(':') + 1) : withoutAnchor;
-	return withoutNamespace.replace(/^\.\//, '').replace(/^\//, '');
+export function normalizePageReference(value: string | undefined, documentUri?: string): string | undefined {
+	return resolveGuideNhPageReference(value, documentUri);
 }
 
-export function normalizeResourceReference(value: string | undefined): string | undefined {
-	if (!value) {
-		return undefined;
-	}
-	const trimmed = value.trim();
-	if (trimmed.length === 0 || trimmed.startsWith('#')) {
-		return undefined;
-	}
-	return trimmed.replace(/^\.\//, '').replace(/^\//, '');
+export function normalizeResourceReference(value: string | undefined, documentUri?: string): string | undefined {
+	return resolveGuideNhResourceReference(value, documentUri);
 }
 
 function looksLikePageReference(value: string): boolean {

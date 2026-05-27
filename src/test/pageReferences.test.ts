@@ -10,7 +10,7 @@ suite('GuideNH page reference parser', () => {
 	test('normalizes relative absolute and namespaced page references', () => {
 		assert.strictEqual(normalizePageReference('./crafting.md#smelting'), 'crafting.md');
 		assert.strictEqual(normalizePageReference('/index.md'), 'index.md');
-		assert.strictEqual(normalizePageReference('gregtech:/index.md'), 'index.md');
+		assert.strictEqual(normalizePageReference('gregtech:/index.md'), 'gregtech:index.md');
 		assert.strictEqual(normalizePageReference('#local'), undefined);
 	});
 
@@ -26,7 +26,21 @@ suite('GuideNH page reference parser', () => {
 		const references = createGuideNhDocumentModel(text).references.filter((reference) => reference.kind === 'page');
 		assert.deepStrictEqual(
 			references.map((reference) => reference.normalizedTarget),
-			['crafting.md', 'index.md', 'machines.md']
+			['crafting.md', 'gregtech:index.md', 'machines.md']
+		);
+	});
+
+	test('resolves namespaced and rooted references against the current document namespace', () => {
+		const uri = 'file:///repo/assets/gregtech/guidenh/_en_us/multiblocks/gt-ebf.md';
+		const text = [
+			'[Home](/index.md)',
+			'[Guide](guide.md)',
+			'[External](guidenh:index.md)'
+		].join('\n');
+		const references = createGuideNhDocumentModel(text, uri).references.filter((reference) => reference.kind === 'page');
+		assert.deepStrictEqual(
+			references.map((reference) => reference.normalizedTarget),
+			['gregtech:index.md', 'gregtech:multiblocks/guide.md', 'guidenh:index.md']
 		);
 	});
 

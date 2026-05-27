@@ -350,6 +350,62 @@ suite('GuideNH schema generator', () => {
 		});
 	});
 
+	test('adds tooltip compatibility attributes to link-like inline tags', () => {
+		const enhanced = enhanceGeneratedTagsFromJavaSources({
+			ItemLink: {
+				name: 'ItemLink',
+				kind: 'inline',
+				description: 'Generated from GuideNH ItemLink compiler source.',
+				attributes: {
+					id: { type: 'item', valueStyle: 'string' }
+				},
+				children: [],
+				snippets: []
+			},
+			QuestLink: {
+				name: 'QuestLink',
+				kind: 'inline',
+				description: 'Generated from GuideNH QuestLink compiler source.',
+				attributes: {
+					id: { type: 'string', valueStyle: 'string' }
+				},
+				children: [],
+				snippets: []
+			},
+			QuestCard: {
+				name: 'QuestCard',
+				kind: 'inline',
+				description: 'Generated from GuideNH QuestCard compiler source.',
+				attributes: {
+					id: { type: 'string', valueStyle: 'string' }
+				},
+				children: [],
+				snippets: []
+			}
+		}, []);
+
+		assert.deepStrictEqual(enhanced.ItemLink.attributes.showTooltip, {
+			type: 'boolean',
+			valueStyle: 'string'
+		});
+		assert.deepStrictEqual(enhanced.ItemLink.attributes.show_tooltip, {
+			type: 'boolean',
+			valueStyle: 'string'
+		});
+		assert.deepStrictEqual(enhanced.QuestLink.attributes.showTooltip, {
+			type: 'boolean',
+			valueStyle: 'string'
+		});
+		assert.deepStrictEqual(enhanced.QuestLink.attributes.show_tooltip, {
+			type: 'boolean',
+			valueStyle: 'string'
+		});
+		assert.deepStrictEqual(enhanced.QuestCard.attributes.showTooltip, {
+			type: 'boolean',
+			valueStyle: 'string'
+		});
+	});
+
 	test('adds Mermaid rich node content support', () => {
 		const enhanced = enhanceGeneratedTagsFromJavaSources({
 			Mermaid: {

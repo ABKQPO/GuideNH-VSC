@@ -2,6 +2,7 @@ import * as path from 'path';
 import {
 	CompletionItemKind,
 	createConnection,
+	DocumentLink,
 	InitializeParams,
 	MarkupKind,
 	ProposedFeatures,
@@ -31,6 +32,7 @@ import {
 } from './providers/completion';
 import { createGuideNhDiagnostics } from './providers/diagnostics';
 import { createGuideNhDefinition } from './providers/definition';
+import { createGuideNhDocumentLinks } from './providers/documentLinks';
 import { createGuideNhHover } from './providers/hover';
 import { createGuideNhReferences } from './providers/references';
 import { RuntimeBridgeClient } from './runtime/runtimeBridgeClient';
@@ -59,11 +61,13 @@ const runtimeBridgeClient = new RuntimeBridgeClient(semanticCache, {
 const runtimeBridgeHandlers = createRuntimeBridgeNotificationHandlers(runtimeBridgeClient);
 let workspaceFolders: WorkspaceFolder[] = [];
 let configuredResourcePackPath: string | undefined;
+let preferredLocale: string | undefined;
 
 connection.onInitialize((params: InitializeParams) => {
 	workspaceFolders = params.workspaceFolders ?? [];
 	const initializationOptions = readInitializationOptions(params.initializationOptions);
 	setServerLocale(initializationOptions.locale);
+	preferredLocale = initializationOptions.locale;
 	configuredResourcePackPath = readConfiguredResourcePackPath(initializationOptions);
 	return {
 		capabilities: {
@@ -71,7 +75,10 @@ connection.onInitialize((params: InitializeParams) => {
 			completionProvider: { triggerCharacters: GuideNhCompletionTriggerCharacters },
 			definitionProvider: true,
 			referencesProvider: true,
-			hoverProvider: true
+			hoverProvider: true,
+			documentLinkProvider: {
+				resolveProvider: false
+			}
 		}
 	};
 });
@@ -115,7 +122,8 @@ connection.onCompletion(async (params) => {
 			undefined,
 			semanticCache,
 			workspaceIndex,
-			resourceIndex
+			resourceIndex,
+			document.uri
 		);
 		if (!completionResult.dynamicRequest) {
 			return completionResult.items;
@@ -151,7 +159,7 @@ connection.onHover(async (params) => {
 		}
 		const schema = await schemaPromise;
 		const offset = document.offsetAt(params.position);
-		const hoverResult = createGuideNhHover(document.getText(), offset, schema, workspaceIndex, resourceIndex, semanticCache);
+		const hoverResult = createGuideNhHover(document.getText(), offset, schema, workspaceIndex, resourceIndex, semanticCache, document.uri, preferredLocale);
 		if (hoverResult.hover || !hoverResult.dynamicRequest) {
 			return hoverResult.hover;
 		}
@@ -174,7 +182,7 @@ connection.onDefinition((params) => {
 	if (!document) {
 		return undefined;
 	}
-	return createGuideNhDefinition(document.getText(), document.offsetAt(params.position), workspaceIndex, resourceIndex);
+	return createGuideNhDefinition(document.getText(), document.offsetAt(params.position), workspaceIndex, resourceIndex, document.uri, preferredLocale);
 });
 
 connection.onReferences((params) => {
@@ -183,7 +191,15 @@ connection.onReferences((params) => {
 		return [];
 	}
 	const current = document.uri.slice(document.uri.lastIndexOf('/') + 1);
-	return createGuideNhReferences(document.getText(), document.offsetAt(params.position), current, workspaceIndex);
+	return createGuideNhReferences(document.getText(), document.offsetAt(params.position), current, workspaceIndex, document.uri);
+});
+
+connection.onDocumentLinks((params): DocumentLink[] => {
+	const document = documents.get(params.textDocument.uri);
+	if (!document) {
+		return [];
+	}
+	return createGuideNhDocumentLinks(document.getText(), document.uri, workspaceIndex, preferredLocale);
 });
 
 for (const [method, handler] of Object.entries(runtimeBridgeHandlers)) {
@@ -202,7 +218,7 @@ async function refreshOpenDocumentDiagnostics(): Promise<void> {
 async function publishDiagnostics(document: TextDocument): Promise<void> {
 	try {
 		const schema = await schemaPromise;
-		const diagnostics = createGuideNhDiagnostics(document.getText(), schema, workspaceIndex, resourceIndex);
+		const diagnostics = createGuideNhDiagnostics(document.getText(), schema, workspaceIndex, resourceIndex, document.uri, preferredLocale);
 		connection.sendDiagnostics({ uri: document.uri, diagnostics });
 	} catch (error) {
 		connection.console.error(`publishDiagnostics error: ${error instanceof Error ? error.message : String(error)}`);

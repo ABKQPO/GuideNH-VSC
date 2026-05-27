@@ -95,7 +95,8 @@ export function createGuideNhCompletionResult(
 	parentTag: string | undefined,
 	cache?: SemanticCache,
 	index?: GuideNhWorkspaceIndex,
-	resourceIndex?: GuideNhResourceIndex
+	resourceIndex?: GuideNhResourceIndex,
+	documentUri?: string
 ): GuideNhCompletionResult {
 	const maskedText = maskIgnoredMarkdownRanges(text);
 	const frontmatter = extractFrontmatter(text);
@@ -227,9 +228,10 @@ export function createGuideNhCompletions(
 	parentTag: string | undefined,
 	cache?: SemanticCache,
 	index?: GuideNhWorkspaceIndex,
-	resourceIndex?: GuideNhResourceIndex
+	resourceIndex?: GuideNhResourceIndex,
+	documentUri?: string
 ): CompletionItem[] {
-	return createGuideNhCompletionResult(text, offset, schema, parentTag, cache, index, resourceIndex).items;
+	return createGuideNhCompletionResult(text, offset, schema, parentTag, cache, index, resourceIndex, documentUri).items;
 }
 
 export function findGuideNhAttributeValueCompletionContext(text: string, offset: number): AttributeValueContext | undefined {
@@ -535,11 +537,24 @@ function createPageValueCompletions(prefix: string, index: GuideNhWorkspaceIndex
 	return index
 		.queryPagesByPrefix(prefix)
 		.map((page) => ({
-			label: page.relativePath,
+			label: formatPageCompletionLabel(prefix, page),
 			kind: CompletionItemKind.File,
 			detail: 'GuideNH page',
 			documentation: page.uri
 		}));
+}
+
+function formatPageCompletionLabel(
+	prefix: string,
+	page: { relativePath: string; pageId: string }
+): string {
+	if (prefix.includes(':')) {
+		return page.pageId;
+	}
+	if (prefix.startsWith('/')) {
+		return `/${page.relativePath}`;
+	}
+	return page.relativePath;
 }
 
 function createResourceValueCompletions(prefix: string, resourceIndex: GuideNhResourceIndex | undefined): CompletionItem[] {

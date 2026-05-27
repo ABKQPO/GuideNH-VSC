@@ -91,6 +91,43 @@ suite('GuideNH hover provider', () => {
 		assert.match(JSON.stringify(hover.hover?.contents), /file:\/\/\/repo\/assets\/mod\/guidenh\/_en_us\/images\/test1\.png/);
 	});
 
+	test('returns namespaced page reference hover details', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/gregtech/guidenh/_en_us/index.md', '# Index');
+		const text = '[Index](/index.md)';
+		const hover = createGuideNhHover(
+			text,
+			text.indexOf('index.md') + 1,
+			schema,
+			index,
+			undefined,
+			undefined,
+			'file:///repo/assets/gregtech/guidenh/_en_us/guide.md'
+		);
+		assert.match(JSON.stringify(hover.hover?.contents), /gregtech:index\.md/);
+		assert.match(JSON.stringify(hover.hover?.contents), /Resolved page/);
+	});
+
+	test('shows the preferred locale target when multiple translated pages share one id', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/gregtech/guidenh/_en_us/index.md', '# Index EN');
+		index.updatePage('file:///repo/assets/gregtech/guidenh/_zh_cn/index.md', '# Index ZH');
+		const text = '[Index](/index.md)';
+		const hover = createGuideNhHover(
+			text,
+			text.indexOf('index.md') + 1,
+			schema,
+			index,
+			undefined,
+			undefined,
+			'file:///repo/assets/gregtech/guidenh/_zh_cn/guide.md',
+			'zh-CN'
+		);
+		assert.match(JSON.stringify(hover.hover?.contents), /_zh_cn\/index\.md/);
+	});
+
 	test('returns runtime hover details for runtime-backed attributes', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const cache = new SemanticCache();

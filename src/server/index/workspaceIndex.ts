@@ -1,11 +1,14 @@
 import { createGuideNhDocumentModel, GuideNhDocumentModel } from '../parser/documentModel';
 import { extractIndexedFrontmatterValues } from '../parser/frontmatterIndexing';
-import { extractFrontmatter } from '../parser/frontmatter';
 import { resolveRuntimeAttributeSource } from '../runtime/runtimeAttributeSources';
+import { normalizeGuideNhLocale, resolveGuideNhDocumentLocation } from './guideNhPaths';
 
 export interface GuideNhIndexedPage {
 	uri: string;
 	relativePath: string;
+	pageId: string;
+	namespace?: string;
+	locale?: string;
 	itemIds: string[];
 	oreIds: string[];
 	frontmatterValues: Record<string, string[]>;
@@ -17,7 +20,9 @@ export interface GuideNhIndexedPage {
 
 export class GuideNhWorkspaceIndex {
 	private readonly pages = new Map<string, GuideNhIndexedPage>();
-	private readonly pageUriByRelativePath = new Map<string, string>();
+	private readonly pageUriById = new Map<string, string>();
+	private readonly pageUrisByRelativePath = new Map<string, Set<string>>();
+	private readonly pageUrisByPrefixAlias = new Map<string, Set<string>>();
 	private readonly pageUrisByItemId = new Map<string, Set<string>>();
 	private readonly pageUrisByOreId = new Map<string, Set<string>>();
 	private readonly sourceUrisByLinkedPage = new Map<string, Set<string>>();
@@ -33,17 +38,38 @@ export class GuideNhWorkspaceIndex {
 
 	updatePage(uri: string, text: string): void {
 		this.removePage(uri);
-		const relativePath = resolveGuideNhRelativePath(uri);
+		const location = resolveGuideNhDocumentLocation(uri);
 		const frontmatterValues = extractIndexedFrontmatterValues(text);
-		const model = createGuideNhDocumentModel(text);
+		const model = createGuideNhDocumentModel(text, uri);
 		const itemIds = frontmatterValues.item_ids ?? [];
 		const oreIds = frontmatterValues.ore_ids ?? [];
 		const links = extractPageLinks(model);
 		const resourceLinks = extractResourceLinks(model);
 		const itemLinks = extractSemanticLinks(model, 'items');
 		const oreLinks = extractSemanticLinks(model, 'ores');
-		this.pages.set(uri, { uri, relativePath, itemIds, oreIds, frontmatterValues, links, resourceLinks, itemLinks, oreLinks });
-		this.pageUriByRelativePath.set(relativePath, uri);
+		this.pages.set(uri, {
+			uri,
+			relativePath: location.relativePath,
+			pageId: location.pageId,
+			namespace: location.namespace,
+			locale: location.locale,
+			itemIds,
+			oreIds,
+			frontmatterValues,
+			links,
+			resourceLinks,
+			itemLinks,
+			oreLinks
+		});
+		this.pageUriById.set(location.pageId, uri);
+		const pageUris = this.pageUrisByRelativePath.get(location.relativePath) ?? new Set<string>();
+		pageUris.add(uri);
+		this.pageUrisByRelativePath.set(location.relativePath, pageUris);
+		for (const alias of [location.relativePath, location.pageId]) {
+			const aliases = this.pageUrisByPrefixAlias.get(alias) ?? new Set<string>();
+			aliases.add(uri);
+			this.pageUrisByPrefixAlias.set(alias, aliases);
+		}
 		this.addItemReferences(itemIds, uri);
 		this.addOreReferences(oreIds, uri);
 		this.sortedPagesDirty = true;
@@ -68,7 +94,24 @@ export class GuideNhWorkspaceIndex {
 			return;
 		}
 		this.pages.delete(uri);
-		this.pageUriByRelativePath.delete(page.relativePath);
+		this.pageUriById.delete(page.pageId);
+		const pageUris = this.pageUrisByRelativePath.get(page.relativePath);
+		if (pageUris) {
+			pageUris.delete(uri);
+			if (pageUris.size === 0) {
+				this.pageUrisByRelativePath.delete(page.relativePath);
+			}
+		}
+		for (const alias of [page.relativePath, page.pageId]) {
+			const aliases = this.pageUrisByPrefixAlias.get(alias);
+			if (!aliases) {
+				continue;
+			}
+			aliases.delete(uri);
+			if (aliases.size === 0) {
+				this.pageUrisByPrefixAlias.delete(alias);
+			}
+		}
 		this.removeItemReferences(page.itemIds, uri);
 		this.removeOreReferences(page.oreIds, uri);
 		this.sortedPagesDirty = true;
@@ -88,9 +131,20 @@ export class GuideNhWorkspaceIndex {
 	}
 
 	findPageByRelativePath(relativePath: string): GuideNhIndexedPage | undefined {
+		return this.findPageByRelativePathForLocale(relativePath);
+	}
+
+	findPageByRelativePathForLocale(relativePath: string, preferredLocale?: string): GuideNhIndexedPage | undefined {
 		const normalized = relativePath.replace(/^\.\//, '');
-		const uri = this.pageUriByRelativePath.get(normalized);
-		return uri ? this.pages.get(uri) : undefined;
+		const directUri = this.pageUriById.get(normalized);
+		if (directUri) {
+			return this.pages.get(directUri);
+		}
+		const relativeUris = this.pageUrisByRelativePath.get(normalized);
+		if (!relativeUris || relativeUris.size === 0) {
+			return undefined;
+		}
+		return this.selectPreferredPage(Array.from(relativeUris), preferredLocale);
 	}
 
 	findItemReference(itemId: string): GuideNhIndexedPage | undefined {
@@ -112,8 +166,11 @@ export class GuideNhWorkspaceIndex {
 		if (limit <= 0) {
 			return [];
 		}
-		this.refreshSortedPages();
 		const normalizedPrefix = normalizePagePrefix(prefix);
+		if (normalizedPrefix.includes(':')) {
+			return this.queryPagesByAliasPrefix(normalizedPrefix, limit);
+		}
+		this.refreshSortedPages();
 		const start = lowerBound(this.sortedPageKeys, normalizedPrefix);
 		const matches: GuideNhIndexedPage[] = [];
 		for (let index = start; index < this.sortedPages.length && matches.length < limit; index++) {
@@ -151,16 +208,14 @@ export class GuideNhWorkspaceIndex {
 
 	findReferencesToPage(relativePath: string): GuideNhIndexedPage[] {
 		const normalized = relativePath.replace(/^\.\//, '');
-		return Array.from(this.sourceUrisByLinkedPage.get(normalized) ?? [])
-			.map((uri) => this.pages.get(uri))
-			.filter((page): page is GuideNhIndexedPage => page !== undefined);
+		const keys = this.collectPageLookupKeys(normalized);
+		return this.collectReferencedPagesByKeys(keys, this.sourceUrisByLinkedPage);
 	}
 
 	findReferencesToResource(relativePath: string): GuideNhIndexedPage[] {
 		const normalized = relativePath.replace(/^\.\//, '');
-		return Array.from(this.sourceUrisByLinkedResource.get(normalized) ?? [])
-			.map((uri) => this.pages.get(uri))
-			.filter((page): page is GuideNhIndexedPage => page !== undefined);
+		const keys = this.collectReferenceLookupKeys(normalized, this.sourceUrisByLinkedResource);
+		return this.collectReferencedPagesByKeys(keys, this.sourceUrisByLinkedResource);
 	}
 
 	findReferencesToItem(itemId: string): GuideNhIndexedPage[] {
@@ -311,10 +366,91 @@ export class GuideNhWorkspaceIndex {
 			return;
 		}
 		this.sortedPages = Array.from(this.pages.values()).sort((left, right) => {
-			return left.relativePath.localeCompare(right.relativePath);
+			return left.relativePath.localeCompare(right.relativePath) || left.pageId.localeCompare(right.pageId);
 		});
 		this.sortedPageKeys = this.sortedPages.map((page) => page.relativePath);
 		this.sortedPagesDirty = false;
+	}
+
+	private collectPageLookupKeys(normalized: string): string[] {
+		const keys = new Set<string>(this.collectReferenceLookupKeys(normalized, this.sourceUrisByLinkedPage));
+		const relativeUris = this.pageUrisByRelativePath.get(normalized);
+		for (const uri of relativeUris ?? []) {
+			const page = this.pages.get(uri);
+			if (page) {
+				keys.add(page.pageId);
+			}
+		}
+		return Array.from(keys);
+	}
+
+	private collectReferenceLookupKeys(normalized: string, references: Map<string, Set<string>>): string[] {
+		const keys = new Set<string>([normalized]);
+		for (const key of references.keys()) {
+			if (key.endsWith(`:${normalized}`)) {
+				keys.add(key);
+			}
+		}
+		return Array.from(keys);
+	}
+
+	private collectReferencedPagesByKeys(
+		keys: string[],
+		referenceUris: Map<string, Set<string>>
+	): GuideNhIndexedPage[] {
+		const pages = new Map<string, GuideNhIndexedPage>();
+		for (const key of keys) {
+			for (const uri of referenceUris.get(key) ?? []) {
+				const page = this.pages.get(uri);
+				if (page) {
+					pages.set(uri, page);
+				}
+			}
+		}
+		return Array.from(pages.values());
+	}
+
+	private queryPagesByAliasPrefix(prefix: string, limit: number): GuideNhIndexedPage[] {
+		const pages = new Map<string, GuideNhIndexedPage>();
+		const aliases = Array.from(this.pageUrisByPrefixAlias.keys()).sort((left, right) => left.localeCompare(right));
+		const start = lowerBound(aliases, prefix);
+		for (let index = start; index < aliases.length && pages.size < limit; index++) {
+			const alias = aliases[index];
+			if (!alias.startsWith(prefix)) {
+				break;
+			}
+			for (const uri of this.pageUrisByPrefixAlias.get(alias) ?? []) {
+				const page = this.pages.get(uri);
+				if (page) {
+					pages.set(uri, page);
+				}
+			}
+		}
+		return Array.from(pages.values()).sort((left, right) => left.pageId.localeCompare(right.pageId));
+	}
+
+	private selectPreferredPage(uris: string[], preferredLocale?: string): GuideNhIndexedPage | undefined {
+		const pages = uris
+			.map((uri) => this.pages.get(uri))
+			.filter((page): page is GuideNhIndexedPage => page !== undefined);
+		if (pages.length === 0) {
+			return undefined;
+		}
+		if (pages.length === 1) {
+			return pages[0];
+		}
+		const normalizedLocale = normalizeGuideNhLocale(preferredLocale);
+		if (normalizedLocale) {
+			const localeMatch = pages.find((page) => page.locale === normalizedLocale);
+			if (localeMatch) {
+				return localeMatch;
+			}
+		}
+		const englishFallback = pages.find((page) => page.locale === 'en_us');
+		if (englishFallback) {
+			return englishFallback;
+		}
+		return pages.sort((left, right) => left.uri.localeCompare(right.uri))[0];
 	}
 
 	private refreshSortedFrontmatterValues(path: string): void {
@@ -406,14 +542,4 @@ function lowerBound(values: string[], target: string): number {
 		}
 	}
 	return low;
-}
-
-function resolveGuideNhRelativePath(uri: string): string {
-	const normalized = uri.replace(/\\/g, '/');
-	const localeMatch = normalized.match(/\/guidenh\/(?:guidenh\/)?_[a-z]{2}_[a-z]{2}\/(.+\.md)$/i);
-	if (localeMatch) {
-		return decodeURIComponent(localeMatch[1]);
-	}
-	const fileName = normalized.slice(normalized.lastIndexOf('/') + 1);
-	return decodeURIComponent(fileName);
 }

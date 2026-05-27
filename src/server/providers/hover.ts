@@ -30,7 +30,9 @@ export function createGuideNhHover(
 	schema: GuideNhSchemaBundle,
 	index?: GuideNhWorkspaceIndex,
 	resourceIndex?: GuideNhResourceIndex,
-	cache?: SemanticCache
+	cache?: SemanticCache,
+	documentUri?: string,
+	preferredLocale?: string
 ): GuideNhHoverResult {
 	const frontmatterValueHover = createIndexedFrontmatterValueHover(text, offset, index);
 	if (frontmatterValueHover) {
@@ -40,8 +42,8 @@ export function createGuideNhHover(
 	if (frontmatterHover) {
 		return { hover: frontmatterHover };
 	}
-	const model = createGuideNhDocumentModel(text);
-	const referenceHover = createReferenceHover(model, offset, index, resourceIndex);
+	const model = createGuideNhDocumentModel(text, documentUri);
+	const referenceHover = createReferenceHover(model, offset, index, resourceIndex, preferredLocale);
 	if (referenceHover) {
 		return { hover: referenceHover };
 	}
@@ -149,14 +151,15 @@ function createReferenceHover(
 	model: ReturnType<typeof createGuideNhDocumentModel>,
 	offset: number,
 	index?: GuideNhWorkspaceIndex,
-	resourceIndex?: GuideNhResourceIndex
+	resourceIndex?: GuideNhResourceIndex,
+	preferredLocale?: string
 ): Hover | undefined {
 	const reference = findReferenceAtOffset(model, offset);
 	if (!reference || !reference.normalizedTarget) {
 		return undefined;
 	}
 	if (reference.kind === 'page') {
-		const page = index?.findPageByRelativePath(reference.normalizedTarget);
+		const page = index?.findPageByRelativePathForLocale(reference.normalizedTarget, preferredLocale);
 		const status = page ? 'Resolved page' : 'Unresolved page';
 		const location = page?.uri ?? reference.normalizedTarget;
 		return createMarkdownHover(`**GuideNH page reference**\n\n${status}\n\n\`${reference.normalizedTarget}\`\n\n${location}`);

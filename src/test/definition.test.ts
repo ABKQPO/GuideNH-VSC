@@ -14,6 +14,24 @@ suite('GuideNH definition provider', () => {
 		assert.strictEqual((definition as Location | undefined)?.uri, 'file:///repo/b.md');
 	});
 
+	test('resolves the markdown link when the cursor is on the link label', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/gregtech/guidenh/_en_us/multiblocks/index.md', '# Index EN');
+		const text = 'tier [multiblock](/multiblocks/index.md) for smelting.';
+		const definition = createGuideNhDefinition(
+			text,
+			text.indexOf('multiblock') + 1,
+			index,
+			undefined,
+			'file:///repo/assets/gregtech/guidenh/_en_us/multiblocks/gt-ebf.md',
+			'en-US'
+		);
+		assert.strictEqual(
+			(definition as Location | undefined)?.uri,
+			'file:///repo/assets/gregtech/guidenh/_en_us/multiblocks/index.md'
+		);
+	});
+
 	test('ignores markdown links away from the cursor position', () => {
 		const index = new GuideNhWorkspaceIndex();
 		index.updatePage('file:///repo/a.md', '[A](a.md)');
@@ -68,5 +86,36 @@ suite('GuideNH definition provider', () => {
 		index.updatePage('file:///repo/items.md', text);
 		const definition = createGuideNhDefinition(text, text.indexOf('minecraft:stone') + 1, index);
 		assert.strictEqual((definition as Location | undefined)?.uri, 'file:///repo/items.md');
+	});
+
+	test('prefers the current locale when multiple page translations share the same relative path', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/gregtech/guidenh/_en_us/index.md', '# Index EN');
+		index.updatePage('file:///repo/assets/gregtech/guidenh/_zh_cn/index.md', '# Index ZH');
+		const text = '---\nnavigation:\n  parent: /index.md\n---\n';
+		const definition = createGuideNhDefinition(
+			text,
+			text.indexOf('index.md') + 1,
+			index,
+			undefined,
+			'file:///repo/assets/gregtech/guidenh/_zh_cn/guide.md',
+			'zh-CN'
+		);
+		assert.strictEqual((definition as Location | undefined)?.uri, 'file:///repo/assets/gregtech/guidenh/_zh_cn/index.md');
+	});
+
+	test('falls back to en_us when the preferred locale page is missing', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/gregtech/guidenh/_en_us/index.md', '# Index EN');
+		const text = '---\nnavigation:\n  parent: /index.md\n---\n';
+		const definition = createGuideNhDefinition(
+			text,
+			text.indexOf('index.md') + 1,
+			index,
+			undefined,
+			'file:///repo/assets/gregtech/guidenh/_zh_cn/guide.md',
+			'zh-CN'
+		);
+		assert.strictEqual((definition as Location | undefined)?.uri, 'file:///repo/assets/gregtech/guidenh/_en_us/index.md');
 	});
 });

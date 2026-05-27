@@ -1472,6 +1472,11 @@
       "kind": "scene",
       "description": "Imports an SNBT or NBT structure resource.",
       "attributes": {
+        "formed": {
+          "type": "boolean",
+          "valueStyle": "expression",
+          "description": "Whether imported structure controllers should be treated as formed during preview sync. Defaults to false."
+        },
         "offsetX": {
           "type": "number",
           "valueStyle": "string"
@@ -1483,11 +1488,6 @@
         "offsetZ": {
           "type": "number",
           "valueStyle": "string"
-        },
-        "formed": {
-          "type": "boolean",
-          "valueStyle": "expression",
-          "description": "Whether imported structure controllers should be treated as formed during preview sync. Defaults to false."
         },
         "src": {
           "type": "resource",
@@ -1648,6 +1648,10 @@
           "type": "number",
           "valueStyle": "expression"
         },
+        "show_tooltip": {
+          "type": "boolean",
+          "valueStyle": "string"
+        },
         "showIcon": {
           "type": "string",
           "valueStyle": "string"
@@ -1691,6 +1695,11 @@
           "type": "ore",
           "valueStyle": "string",
           "description": "Ore dictionary name."
+        },
+        "show_tooltip": {
+          "type": "boolean",
+          "valueStyle": "string",
+          "description": "Whether hover tooltip is shown."
         },
         "showIcon": {
           "type": "enum",
@@ -2265,14 +2274,14 @@
           "type": "number",
           "valueStyle": "string"
         },
-        "id": {
-          "type": "string",
-          "valueStyle": "string"
-        },
         "formed": {
           "type": "boolean",
           "valueStyle": "expression",
           "description": "Whether placed controllers should be treated as formed during preview sync. Defaults to false."
+        },
+        "id": {
+          "type": "string",
+          "valueStyle": "string"
         },
         "nbt": {
           "type": "string",
@@ -2477,6 +2486,14 @@
         "show_desc": {
           "type": "string",
           "valueStyle": "string"
+        },
+        "show_tooltip": {
+          "type": "boolean",
+          "valueStyle": "string"
+        },
+        "showTooltip": {
+          "type": "boolean",
+          "valueStyle": "string"
         }
       },
       "children": [],
@@ -2489,6 +2506,14 @@
       "attributes": {
         "id": {
           "type": "string",
+          "valueStyle": "string"
+        },
+        "show_tooltip": {
+          "type": "boolean",
+          "valueStyle": "string"
+        },
+        "showTooltip": {
+          "type": "boolean",
           "valueStyle": "string"
         },
         "text": {
@@ -2741,14 +2766,14 @@
           "type": "number",
           "valueStyle": "string"
         },
-        "from": {
-          "type": "string",
-          "valueStyle": "string"
-        },
         "formed": {
           "type": "boolean",
           "valueStyle": "expression",
           "description": "Whether replacement result controllers should be treated as formed during preview sync. Defaults to false."
+        },
+        "from": {
+          "type": "string",
+          "valueStyle": "string"
         },
         "from_nbt": {
           "type": "string",

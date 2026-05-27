@@ -24,6 +24,8 @@ interface MaskRange {
 	end: number;
 }
 
+const IgnoredHtmlTagNames = new Set(['a', 'abbr', 'b', 'code', 'del', 'em', 'i', 'mark', 's', 'small', 'span', 'strong', 'sub', 'sup', 'u']);
+
 export function maskIgnoredMarkdownRanges(text: string): string {
 	const ranges = [
 		...collectRegexRanges(text, /\{\/\*[\s\S]*?\*\/\}/g),
@@ -152,6 +154,9 @@ export function parseGuideNhDocument(text: string): GuideNhParsedDocument {
 	const tagPattern = /<\/?([A-Za-z][A-Za-z0-9]*)(\s[^<>]*?)?(\/?)>/g;
 	let match: RegExpExecArray | null;
 	while ((match = tagPattern.exec(masked)) !== null) {
+		if (IgnoredHtmlTagNames.has(match[1].toLowerCase())) {
+			continue;
+		}
 		const closing = match[0].startsWith('</');
 		const parsedAttributes = closing ? { attributes: {}, ranges: {}, valueStyles: {} } : parseAttributes(match[2] ?? '', match.index + match[0].indexOf(match[2] ?? ''));
 		tags.push({

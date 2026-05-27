@@ -141,6 +141,12 @@ suite('GuideNH diagnostics', () => {
 		});
 	});
 
+	test('does not report unknown nested keys for indented frontmatter list items without dash markers', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('---\nitem_ids:\n    gregtech:gt.blockmachines:1000\n---\n', schema);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown frontmatter key item_ids.gregtech')), false);
+	});
+
 	test('does not cascade unknown frontmatter parent diagnostics to children', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const diagnostics = createGuideNhDiagnostics('---\nunknown_parent:\n  child: value\n---\n', schema);
@@ -242,6 +248,52 @@ suite('GuideNH diagnostics', () => {
 		const resourceIndex = new GuideNhResourceIndex();
 		resourceIndex.updateResource('file:///repo/assets/mod/guidenh/_en_us/images/test1.png');
 		const diagnostics = createGuideNhDiagnostics('<FloatingImage src="./images/test1.png" />', schema, undefined, resourceIndex);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown GuideNH resource')), false);
+	});
+
+	test('accepts namespaced page references inside the matching namespace', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/gregtech/guidenh/_en_us/index.md', '# Index');
+		const diagnostics = createGuideNhDiagnostics(
+			'---\nnavigation:\n  parent: /index.md\n---\n[Back](guidenh:index.md)\n',
+			schema,
+			index,
+			undefined,
+			'file:///repo/assets/gregtech/guidenh/_en_us/guide.md'
+		);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown GuideNH page')), true);
+	});
+
+	test('accepts resolved absolute assets resource references', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const resourceIndex = new GuideNhResourceIndex();
+		resourceIndex.updateResource('file:///repo/assets/structures/ponders/multiblocks/ebf_ponder.snbt');
+		resourceIndex.updateResource('file:///repo/assets/structures/ponders/multiblocks/ebf_ponder.json');
+		const text = [
+			'<ImportStructure src="/assets/structures/ponders/multiblocks/ebf_ponder.snbt" />',
+			'<ImportPonder src="/assets/structures/ponders/multiblocks/ebf_ponder.json" />'
+		].join('\n');
+		const diagnostics = createGuideNhDiagnostics(text, schema, undefined, resourceIndex);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown GuideNH resource')), false);
+	});
+
+	test('accepts absolute assets references resolved from guide-local assets roots', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const resourceIndex = new GuideNhResourceIndex();
+		resourceIndex.updateResource('file:///repo/assets/gregtech/guidenh/assets/structures/ponders/multiblocks/ebf_ponder.snbt');
+		resourceIndex.updateResource('file:///repo/assets/gregtech/guidenh/assets/structures/ponders/multiblocks/ebf_ponder.json');
+		const text = [
+			'<ImportStructure src="/assets/structures/ponders/multiblocks/ebf_ponder.snbt" />',
+			'<ImportPonder src="/assets/structures/ponders/multiblocks/ebf_ponder.json" />'
+		].join('\n');
+		const diagnostics = createGuideNhDiagnostics(
+			text,
+			schema,
+			undefined,
+			resourceIndex,
+			'file:///repo/assets/gregtech/guidenh/_en_us/multiblocks/gt-ebf.md'
+		);
 		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown GuideNH resource')), false);
 	});
 
@@ -464,5 +516,20 @@ suite('GuideNH diagnostics', () => {
 		const diagnostics = createGuideNhDiagnostics('<importstructurelib controller="gregtech:gt.blockmachines:1000" />', schema);
 		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown GuideNH tag')), false);
 		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown attribute')), false);
+	});
+
+	test('ignores inline html formatting tags such as u', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const diagnostics = createGuideNhDiagnostics('Place <u>four</u> turbines nearby.', schema);
+		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message.includes('Unknown GuideNH tag u')), false);
+	});
+
+	test('accepts QuestLink tooltip compatibility attributes', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = [
+			'<QuestLink id="AAAAAAAAAAAAAAAAAAAAHw==" text="Tin" showTooltip="false" />',
+			'<QuestLink id="AAAAAAAAAAAAAAAAAAAAHw==" text="Tin" show_tooltip="false" />'
+		].join('\n');
+		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);
 	});
 });

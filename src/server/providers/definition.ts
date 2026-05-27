@@ -9,19 +9,21 @@ export function createGuideNhDefinition(
 	text: string,
 	offset: number,
 	index: GuideNhWorkspaceIndex,
-	resourceIndex?: GuideNhResourceIndex
+	resourceIndex?: GuideNhResourceIndex,
+	documentUri?: string,
+	preferredLocale?: string
 ): Definition | undefined {
 	const frontmatterDefinition = resolveIndexedFrontmatterValueDefinition(text, offset, index);
 	if (frontmatterDefinition) {
 		return frontmatterDefinition;
 	}
-	const model = createGuideNhDocumentModel(text);
+	const model = createGuideNhDocumentModel(text, documentUri);
 	const reference = findReferenceAtOffset(model, offset);
 	if (!reference) {
 		return resolveRuntimeAttributeDefinition(model, offset, index);
 	}
 	if (reference.kind === 'page') {
-		const page = reference.normalizedTarget ? index.findPageByRelativePath(reference.normalizedTarget) : undefined;
+		const page = reference.normalizedTarget ? index.findPageByRelativePathForLocale(reference.normalizedTarget, preferredLocale) : undefined;
 		if (!page) {
 			return undefined;
 		}

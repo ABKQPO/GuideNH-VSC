@@ -1,22 +1,28 @@
+import { resolveGuideNhResourceLocation } from './guideNhPaths';
+
 export interface GuideNhIndexedResource {
 	uri: string;
 	relativePath: string;
+	aliases: string[];
 }
 
 export class GuideNhResourceIndex {
 	private readonly resources = new Map<string, GuideNhIndexedResource>();
-	private readonly resourceUriByRelativePath = new Map<string, string>();
+	private readonly resourceUrisByAlias = new Map<string, string>();
 	private sortedResources: GuideNhIndexedResource[] = [];
 	private sortedKeys: string[] = [];
 	private dirty = true;
 
 	updateResource(uri: string): void {
-		const relativePath = resolveGuideNhResourceRelativePath(uri);
-		if (!relativePath) {
+		const location = resolveGuideNhResourceLocation(uri);
+		if (!location) {
 			return;
 		}
-		this.resources.set(uri, { uri, relativePath });
-		this.resourceUriByRelativePath.set(relativePath, uri);
+		const relativePath = location.relativePath ?? location.aliases[0];
+		this.resources.set(uri, { uri, relativePath, aliases: location.aliases });
+		for (const alias of location.aliases) {
+			this.resourceUrisByAlias.set(alias, uri);
+		}
 		this.dirty = true;
 	}
 
@@ -26,13 +32,15 @@ export class GuideNhResourceIndex {
 			return;
 		}
 		this.resources.delete(uri);
-		this.resourceUriByRelativePath.delete(resource.relativePath);
+		for (const alias of resource.aliases) {
+			this.resourceUrisByAlias.delete(alias);
+		}
 		this.dirty = true;
 	}
 
 	findResourceByRelativePath(relativePath: string): GuideNhIndexedResource | undefined {
 		const normalized = normalizeResourcePrefix(relativePath);
-		const uri = this.resourceUriByRelativePath.get(normalized);
+		const uri = this.resourceUrisByAlias.get(normalized);
 		return uri ? this.resources.get(uri) : undefined;
 	}
 
@@ -62,12 +70,6 @@ export class GuideNhResourceIndex {
 		this.sortedKeys = this.sortedResources.map((resource) => resource.relativePath);
 		this.dirty = false;
 	}
-}
-
-function resolveGuideNhResourceRelativePath(uri: string): string | undefined {
-	const normalized = uri.replace(/\\/g, '/');
-	const match = normalized.match(/\/guidenh\/(?:guidenh\/)?_[a-z]{2}_[a-z]{2}\/(.+)$/i);
-	return match ? decodeURIComponent(match[1]) : undefined;
 }
 
 function normalizeResourcePrefix(prefix: string): string {

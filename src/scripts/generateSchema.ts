@@ -764,6 +764,10 @@ function applyRecipeEnhancements(tags: Record<string, GuideNhTagSchema>): void {
 }
 
 function applyReferenceEnhancements(tags: Record<string, GuideNhTagSchema>): void {
+	const tooltipCompatibilityAttributes: Record<string, GuideNhAttributeSchema> = {
+		showTooltip: { type: 'boolean', valueStyle: 'string' },
+		show_tooltip: { type: 'boolean', valueStyle: 'string' }
+	};
 	mergeAttributes(tags.Block, {
 		ore: { type: 'ore', valueStyle: 'string' }
 	});
@@ -788,9 +792,12 @@ function applyReferenceEnhancements(tags: Record<string, GuideNhTagSchema>): voi
 	mergeAttributes(tags.ItemImage, {
 		align: { type: 'string', valueStyle: 'string' },
 		noTooltip: { type: 'boolean', valueStyle: 'expression' },
-		showTooltip: { type: 'boolean', valueStyle: 'string' },
+		...tooltipCompatibilityAttributes,
 		tooltip: { type: 'string', valueStyle: 'string' }
 	});
+	for (const name of ['ItemLink', 'QuestCard', 'QuestLink']) {
+		mergeAttributes(tags[name], tooltipCompatibilityAttributes);
+	}
 	mergeAttributes(tags.FloatingImage, {
 		height: { type: 'number', valueStyle: 'string' },
 		sound: { type: 'string', valueStyle: 'string' },

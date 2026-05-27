@@ -23,16 +23,18 @@ export function createGuideNhDiagnostics(
 	text: string,
 	schema: GuideNhSchemaBundle,
 	index?: GuideNhWorkspaceIndex,
-	resourceIndex?: GuideNhResourceIndex
+	resourceIndex?: GuideNhResourceIndex,
+	documentUri?: string,
+	preferredLocale?: string
 ): Diagnostic[] {
-	const model = createGuideNhDocumentModel(text);
+	const model = createGuideNhDocumentModel(text, documentUri);
 	const parsed = model.parsed;
 	const diagnostics: Diagnostic[] = [];
 	if (parsed.frontmatter) {
 		diagnostics.push(...createFrontmatterDiagnostics(text, parsed.frontmatter.text, schema));
 	}
 	if (index) {
-		diagnostics.push(...createPageReferenceDiagnostics(model, text, index));
+		diagnostics.push(...createPageReferenceDiagnostics(model, text, index, preferredLocale));
 	}
 	if (resourceIndex) {
 		diagnostics.push(...createResourceReferenceDiagnostics(model, text, resourceIndex));
@@ -86,10 +88,11 @@ export function createGuideNhDiagnostics(
 function createPageReferenceDiagnostics(
 	model: ReturnType<typeof createGuideNhDocumentModel>,
 	text: string,
-	index: GuideNhWorkspaceIndex
+	index: GuideNhWorkspaceIndex,
+	preferredLocale?: string
 ): Diagnostic[] {
 	return model.references
-		.filter((reference) => reference.kind === 'page' && reference.normalizedTarget && !index.findPageByRelativePath(reference.normalizedTarget))
+		.filter((reference) => reference.kind === 'page' && reference.normalizedTarget && !index.findPageByRelativePathForLocale(reference.normalizedTarget, preferredLocale))
 		.map((reference) => createDiagnostic(text, reference.start, reference.end, localizeServer('diagnostic.unknownPage', String(reference.normalizedTarget))));
 }
 
@@ -132,6 +135,16 @@ function createFrontmatterDiagnostics(text: string, frontmatter: string, schema:
 	const unknownParentIndents = new Set<number>();
 	let lineStart = 0;
 	for (const line of frontmatter.split(/\r?\n/)) {
+		const listItemMatch = line.match(/^\s*-\s+(.+?)\s*$/);
+		if (listItemMatch) {
+			lineStart += line.length + 1;
+			continue;
+		}
+		const indentedScalarMatch = line.match(/^(\s+)(\S.*)$/);
+		if (indentedScalarMatch && shouldTreatAsFrontmatterListValue(schema, parentByIndent, indentedScalarMatch[1].length)) {
+			lineStart += line.length + 1;
+			continue;
+		}
 		const match = line.match(/^(\s*)([A-Za-z_][\w.-]*)\s*:(.*)$/);
 		if (match) {
 			const indent = match[1].length;
@@ -176,6 +189,25 @@ function createFrontmatterDiagnostics(text: string, frontmatter: string, schema:
 		lineStart += line.length + 1;
 	}
 	return diagnostics;
+}
+
+function shouldTreatAsFrontmatterListValue(
+	schema: GuideNhSchemaBundle,
+	parentByIndent: Map<number, string>,
+	indent: number
+): boolean {
+	const parentEntry = Array.from(parentByIndent.entries())
+		.filter(([parentIndent]) => parentIndent < indent)
+		.sort(([left], [right]) => right - left)[0];
+	if (!parentEntry) {
+		return false;
+	}
+	const parentPath = Array.from(parentByIndent.entries())
+		.filter(([parentIndent]) => parentIndent <= parentEntry[0])
+		.sort(([left], [right]) => left - right)
+		.map(([, parent]) => parent);
+	const parentKey = resolveFrontmatterAllowedKeys(schema.frontmatter.keys, parentPath.slice(0, -1))[parentPath[parentPath.length - 1]];
+	return parentKey?.type === 'list' || parentKey?.type === 'string_or_list';
 }
 
 function hasUnknownParent(unknownParentIndents: Set<number>, indent: number): boolean {

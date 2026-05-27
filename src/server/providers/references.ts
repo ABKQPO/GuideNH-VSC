@@ -3,22 +3,30 @@ import { GuideNhWorkspaceIndex } from '../index/workspaceIndex';
 import { createGuideNhDocumentModel, findReferenceAtOffset, findTagContextAtOffset } from '../parser/documentModel';
 import { findIndexedFrontmatterValueAtOffset } from '../parser/frontmatterIndexing';
 import { resolveRuntimeAttributeSource } from '../runtime/runtimeAttributeSources';
+import { resolveGuideNhPageId } from '../index/guideNhPaths';
 
-export function createGuideNhReferences(text: string, offset: number, fallbackTarget: string, index: GuideNhWorkspaceIndex): Location[] {
+export function createGuideNhReferences(
+	text: string,
+	offset: number,
+	fallbackTarget: string,
+	index: GuideNhWorkspaceIndex,
+	documentUri?: string
+): Location[] {
 	const frontmatterValueReferences = findIndexedFrontmatterValueReferences(text, offset, index);
 	if (frontmatterValueReferences.length > 0) {
 		return frontmatterValueReferences.map((page) => Location.create(page.uri, Range.create(Position.create(0, 0), Position.create(0, 0))));
 	}
-	const model = createGuideNhDocumentModel(text);
+	const model = createGuideNhDocumentModel(text, documentUri);
+	const fallbackPageId = documentUri ? resolveGuideNhPageId(documentUri) : fallbackTarget;
 	const reference = findReferenceAtOffset(model, offset);
 	const runtimeAttributeReferences = reference ? [] : findRuntimeAttributeReferences(model, offset, index);
 	const locations = (reference
 		? reference.kind === 'resource'
 			? reference.normalizedTarget ? index.findReferencesToResource(reference.normalizedTarget) : []
-			: index.findReferencesToPage(reference.normalizedTarget ?? fallbackTarget)
+			: index.findReferencesToPage(reference.normalizedTarget ?? fallbackPageId)
 		: runtimeAttributeReferences.length > 0
 			? runtimeAttributeReferences
-			: index.findReferencesToPage(fallbackTarget))
+			: index.findReferencesToPage(fallbackPageId))
 		.map((page) => Location.create(page.uri, Range.create(Position.create(0, 0), Position.create(0, 0))));
 	return deduplicateLocations(locations);
 }

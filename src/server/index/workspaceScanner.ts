@@ -79,10 +79,7 @@ function isGuideNhMarkdownPath(filePath: string): boolean {
 
 function isGuideNhResourcePath(filePath: string): boolean {
 	const normalized = filePath.replace(/\\/g, '/');
-	if (!/\/assets\/[^/]+\/guidenh\/(?:guidenh\/)?_[a-z]{2}_[a-z]{2}\//i.test(normalized)) {
-		return false;
-	}
-	return !normalized.toLowerCase().endsWith('.md');
+	return /\/assets\//i.test(normalized) && !normalized.toLowerCase().endsWith('.md');
 }
 
 class LimitedTaskRunner {
