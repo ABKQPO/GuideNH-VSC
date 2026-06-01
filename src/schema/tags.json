@@ -3522,6 +3522,16 @@
       "children": [],
       "snippets": []
     },
+    "Spoiler": {
+      "name": "Spoiler",
+      "kind": "inline",
+      "description": "Inline spoiler text revealed on hover.",
+      "attributes": {},
+      "children": [],
+      "snippets": [
+        "guidenh.spoiler"
+      ]
+    },
     "Weather": {
       "name": "Weather",
       "kind": "any",
