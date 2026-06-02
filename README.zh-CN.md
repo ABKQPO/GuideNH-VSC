@@ -1,4 +1,10 @@
-# GuideVSC
+<p align="center">
+    <img width="690" src="./logo.png" alt="GuideNH" style="image-rendering: pixelated;">
+</p>
+<hr>
+<p align="center">
+    <img src="https://img.shields.io/badge/license-LGPL--3.0-green" alt="License">
+</p>
 
 GuideVSC 是用于编写 GuideNH Markdown 内容的 Visual Studio Code 插件。它提供 GuideNH MDX 风格标签、项目导航数据，以及可选的运行时语义补全能力。
 

@@ -1,4 +1,10 @@
-# GuideVSC
+<p align="center">
+    <img width="690" src="./logo.png" alt="GuideNH" style="image-rendering: pixelated;">
+</p>
+<hr>
+<p align="center">
+    <img src="https://img.shields.io/badge/license-LGPL--3.0-green" alt="License">
+</p>
 
 GuideVSC is a Visual Studio Code extension for authoring GuideNH Markdown content. It provides language tooling for GuideNH MDX-style tags, project navigation data, and optional runtime semantic completion from a manually configured GuideNH client bridge.
 
