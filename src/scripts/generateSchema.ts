@@ -47,6 +47,7 @@ export function enhanceGeneratedTagsFromJavaSources(
 	const enhanced = { ...tags };
 	applyChartAttributeEnhancements(enhanced, sources);
 	applyChartChildTagEnhancements(enhanced, sources);
+	applyContentTabsEnhancements(enhanced);
 	applyDetailsEnhancements(enhanced);
 	applyMermaidEnhancements(enhanced);
 	applyFunctionGraphEnhancements(enhanced, sources);
@@ -358,6 +359,31 @@ function applyChartChildTagEnhancements(tags: Record<string, GuideNhTagSchema>, 
 		};
 	}
 	applyChartParentChildren(tags);
+}
+
+function applyContentTabsEnhancements(tags: Record<string, GuideNhTagSchema>): void {
+	tags.ContentTabs = {
+		name: 'ContentTabs',
+		kind: 'block',
+		description: 'Generated from GuideNH ContentTabs compiler source.',
+		attributes: sortAttributes({
+			color: { type: 'color', valueStyle: 'string' },
+			default: { type: 'string', valueStyle: 'string' },
+			defaultIndex: { type: 'number', valueStyle: 'string' }
+		}),
+		children: ['Tab'],
+		snippets: []
+	};
+	tags.Tab = {
+		name: 'Tab',
+		kind: 'block',
+		description: 'Generated from GuideNH ContentTabs tab child support.',
+		attributes: sortAttributes({
+			title: { type: 'string', valueStyle: 'string' }
+		}),
+		children: [],
+		snippets: []
+	};
 }
 
 function applySceneTagEnhancements(tags: Record<string, GuideNhTagSchema>, sources: JavaSourceFile[]): void {
@@ -1063,6 +1089,7 @@ async function mergeGeneratedTags(generatedTags: Record<string, GuideNhTagSchema
 	const schemaPath = path.join(__dirname, '..', '..', 'src', 'schema', 'tags.json');
 	const existing = JSON.parse(await fs.readFile(schemaPath, 'utf8')) as GuideNhTagsFile;
 	const mergedTags = mergeTagMaps(generatedTags, existing.tags);
+	applyGeneratedTagFixups(mergedTags, generatedTags, existing.tags);
 	const gameScene = mergedTags.GameScene;
 	const sceneAlias = mergedTags.Scene;
 	if (gameScene && sceneAlias) {
@@ -1124,6 +1151,32 @@ function mergeAttributesMap(
 		} as GuideNhAttributeSchema;
 	}
 	return merged;
+}
+
+function applyGeneratedTagFixups(
+	mergedTags: Record<string, GuideNhTagSchema>,
+	generatedTags: Record<string, GuideNhTagSchema>,
+	existingTags: Record<string, GuideNhTagSchema>
+): void {
+	overwriteGeneratedTag(mergedTags, generatedTags, existingTags, 'ContentTabs');
+	overwriteGeneratedTag(mergedTags, generatedTags, existingTags, 'Tab');
+}
+
+function overwriteGeneratedTag(
+	mergedTags: Record<string, GuideNhTagSchema>,
+	generatedTags: Record<string, GuideNhTagSchema>,
+	existingTags: Record<string, GuideNhTagSchema>,
+	tagName: string
+): void {
+	const generated = generatedTags[tagName];
+	if (!generated) {
+		return;
+	}
+	const existing = existingTags[tagName];
+	mergedTags[tagName] = {
+		...generated,
+		snippets: mergeChildren(generated.snippets, existing?.snippets ?? [])
+	};
 }
 
 if (require.main === module) {

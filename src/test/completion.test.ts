@@ -99,6 +99,19 @@ suite('GuideNH completion provider', () => {
 		assert.strictEqual(wrap?.insertText, 'wrap="${1:value}"');
 	});
 
+	test('completes ContentTabs attributes with the correct value styles', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const items = createGuideNhCompletions('<ContentTabs ', 13, schema, undefined);
+		const defaultAttr = items.find((item: CompletionItem) => item.label === 'default');
+		const defaultIndex = items.find((item: CompletionItem) => item.label === 'defaultIndex');
+		const color = items.find((item: CompletionItem) => item.label === 'color');
+		const title = items.find((item: CompletionItem) => item.label === 'title');
+		assert.strictEqual(defaultAttr?.insertText, 'default="${1:value}"');
+		assert.strictEqual(defaultIndex?.insertText, 'defaultIndex="${1:0}"');
+		assert.strictEqual(color?.insertText, 'color="${1:#ffffff}"');
+		assert.strictEqual(title, undefined);
+	});
+
 	test('completes partial attribute names inside an open tag', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const text = '<GameScene wid';
@@ -267,6 +280,23 @@ suite('GuideNH completion provider', () => {
 		const items = createGuideNhCompletions(text, text.length, schema, undefined);
 		assert.ok(items.some((item: CompletionItem) => item.label === 'summary'));
 		assert.ok(items.some((item: CompletionItem) => item.label === 'BlockImage'));
+	});
+
+	test('filters tag completions inside ContentTabs to Tab children', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '<ContentTabs>\n  <';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'Tab' && item.kind === CompletionItemKind.Class));
+		assert.strictEqual(items.some((item: CompletionItem) => item.label === 'BlockImage'), false);
+	});
+
+	test('completes Tab attributes inside ContentTabs', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const items = createGuideNhCompletions('<ContentTabs>\n  <Tab ', 21, schema, undefined);
+		const title = items.find((item: CompletionItem) => item.label === 'title');
+		const color = items.find((item: CompletionItem) => item.label === 'color');
+		assert.strictEqual(title?.insertText, 'title="${1:value}"');
+		assert.strictEqual(color, undefined);
 	});
 
 	test('offers Mermaid node content completions inside Mermaid blocks', async () => {

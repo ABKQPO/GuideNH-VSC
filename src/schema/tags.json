@@ -286,12 +286,20 @@
           "type": "string",
           "valueStyle": "string"
         },
+        "height": {
+          "type": "number",
+          "valueStyle": "string"
+        },
         "id": {
-          "type": "item",
+          "type": "string",
           "valueStyle": "string",
           "requiredWhenMissing": [
             "ore"
           ]
+        },
+        "meta": {
+          "type": "number",
+          "valueStyle": "string"
         },
         "nbt": {
           "type": "string",
@@ -309,11 +317,23 @@
           "type": "number",
           "valueStyle": "expression"
         },
+        "width": {
+          "type": "number",
+          "valueStyle": "string"
+        },
         "wrap": {
           "type": "string",
           "valueStyle": "string"
         }
       },
+      "children": [],
+      "snippets": []
+    },
+    "blockquote": {
+      "name": "blockquote",
+      "kind": "block",
+      "description": "Generated from GuideNH blockquote compiler source.",
+      "attributes": {},
       "children": [],
       "snippets": []
     },
@@ -461,6 +481,14 @@
           "valueStyle": "string"
         }
       },
+      "children": [],
+      "snippets": []
+    },
+    "code": {
+      "name": "code",
+      "kind": "inline",
+      "description": "Generated from GuideNH code compiler source.",
+      "attributes": {},
       "children": [],
       "snippets": []
     },
@@ -680,6 +708,29 @@
       "children": [],
       "snippets": []
     },
+    "ContentTabs": {
+      "name": "ContentTabs",
+      "kind": "block",
+      "description": "Generated from GuideNH ContentTabs compiler source.",
+      "attributes": {
+        "color": {
+          "type": "color",
+          "valueStyle": "string"
+        },
+        "default": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "defaultIndex": {
+          "type": "number",
+          "valueStyle": "string"
+        }
+      },
+      "children": [
+        "Tab"
+      ],
+      "snippets": []
+    },
     "CsvTable": {
       "name": "CsvTable",
       "kind": "block",
@@ -698,6 +749,14 @@
           "valueStyle": "string"
         }
       },
+      "children": [],
+      "snippets": []
+    },
+    "del": {
+      "name": "del",
+      "kind": "inline",
+      "description": "Generated from GuideNH del compiler source.",
+      "attributes": {},
       "children": [],
       "snippets": []
     },
@@ -767,6 +826,22 @@
       "name": "div",
       "kind": "any",
       "description": "Generated from GuideNH div compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "dotted": {
+      "name": "dotted",
+      "kind": "inline",
+      "description": "Generated from GuideNH dotted compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "em": {
+      "name": "em",
+      "kind": "inline",
+      "description": "Generated from GuideNH em compiler source.",
       "attributes": {},
       "children": [],
       "snippets": []
@@ -987,11 +1062,11 @@
           "valueStyle": "string"
         },
         "background": {
-          "type": "color",
+          "type": "string",
           "valueStyle": "string"
         },
         "border": {
-          "type": "color",
+          "type": "string",
           "valueStyle": "string"
         },
         "color": {
@@ -1003,7 +1078,7 @@
           "valueStyle": "string"
         },
         "cornerLegendBackground": {
-          "type": "color",
+          "type": "string",
           "valueStyle": "string"
         },
         "cornerLegendHeight": {
@@ -1124,11 +1199,11 @@
           "valueStyle": "string"
         },
         "background": {
-          "type": "color",
+          "type": "string",
           "valueStyle": "string"
         },
         "border": {
-          "type": "color",
+          "type": "string",
           "valueStyle": "string"
         },
         "cornerLegend": {
@@ -1136,7 +1211,7 @@
           "valueStyle": "string"
         },
         "cornerLegendBackground": {
-          "type": "color",
+          "type": "string",
           "valueStyle": "string"
         },
         "cornerLegendHeight": {
@@ -1401,6 +1476,92 @@
         "guidenh.gameScene"
       ]
     },
+    "h1": {
+      "name": "h1",
+      "kind": "block",
+      "description": "Generated from GuideNH h1 compiler source.",
+      "attributes": {
+        "depth": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "h2": {
+      "name": "h2",
+      "kind": "block",
+      "description": "Generated from GuideNH h2 compiler source.",
+      "attributes": {
+        "depth": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "h3": {
+      "name": "h3",
+      "kind": "block",
+      "description": "Generated from GuideNH h3 compiler source.",
+      "attributes": {
+        "depth": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "h4": {
+      "name": "h4",
+      "kind": "block",
+      "description": "Generated from GuideNH h4 compiler source.",
+      "attributes": {
+        "depth": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "h5": {
+      "name": "h5",
+      "kind": "block",
+      "description": "Generated from GuideNH h5 compiler source.",
+      "attributes": {
+        "depth": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "h6": {
+      "name": "h6",
+      "kind": "block",
+      "description": "Generated from GuideNH h6 compiler source.",
+      "attributes": {
+        "depth": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "hr": {
+      "name": "hr",
+      "kind": "block",
+      "description": "Generated from GuideNH hr compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
+    },
     "ImageAnnotation": {
       "name": "ImageAnnotation",
       "kind": "block",
@@ -1448,6 +1609,27 @@
         },
         "y": {
           "type": "number",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "img": {
+      "name": "img",
+      "kind": "inline",
+      "description": "Generated from GuideNH img compiler source.",
+      "attributes": {
+        "alt": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "src": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "title": {
+          "type": "string",
           "valueStyle": "string"
         }
       },
@@ -1597,7 +1779,7 @@
       "description": "Generated from GuideNH ItemGrid compiler source.",
       "attributes": {
         "id": {
-          "type": "item",
+          "type": "string",
           "valueStyle": "string"
         },
         "ore": {
@@ -1622,7 +1804,7 @@
           "valueStyle": "string"
         },
         "id": {
-          "type": "item",
+          "type": "string",
           "valueStyle": "string",
           "requiredWhenMissing": [
             "ore"
@@ -1641,7 +1823,7 @@
           "valueStyle": "expression"
         },
         "ore": {
-          "type": "ore",
+          "type": "string",
           "valueStyle": "string"
         },
         "scale": {
@@ -1653,8 +1835,8 @@
           "valueStyle": "string"
         },
         "showIcon": {
-          "type": "string",
-          "valueStyle": "string"
+          "type": "boolean",
+          "valueStyle": "expression"
         },
         "showTooltip": {
           "type": "boolean",
@@ -1788,6 +1970,14 @@
           "valueStyle": "string"
         }
       },
+      "children": [],
+      "snippets": []
+    },
+    "li": {
+      "name": "li",
+      "kind": "block",
+      "description": "Generated from GuideNH li compiler source.",
+      "attributes": {},
       "children": [],
       "snippets": []
     },
@@ -2107,6 +2297,27 @@
           "valueStyle": "string"
         }
       },
+      "children": [],
+      "snippets": []
+    },
+    "ol": {
+      "name": "ol",
+      "kind": "block",
+      "description": "Generated from GuideNH ol compiler source.",
+      "attributes": {
+        "start": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "p": {
+      "name": "p",
+      "kind": "block",
+      "description": "Generated from GuideNH p compiler source.",
+      "attributes": {},
       "children": [],
       "snippets": []
     },
@@ -2469,6 +2680,23 @@
         "y": {
           "type": "number",
           "valueStyle": "expression"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "pre": {
+      "name": "pre",
+      "kind": "block",
+      "description": "Generated from GuideNH pre compiler source.",
+      "attributes": {
+        "lang": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "meta": {
+          "type": "string",
+          "valueStyle": "string"
         }
       },
       "children": [],
@@ -3301,7 +3529,7 @@
           "valueStyle": "string"
         },
         "name": {
-          "type": "enum",
+          "type": "string",
           "valueStyle": "string",
           "values": [
             "SpecialPages",
@@ -3342,11 +3570,33 @@
           "type": "string",
           "valueStyle": "string"
         },
+        "query": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "rows": {
           "type": "number",
           "valueStyle": "string"
         }
       },
+      "children": [],
+      "snippets": []
+    },
+    "Spoiler": {
+      "name": "Spoiler",
+      "kind": "inline",
+      "description": "Inline spoiler text revealed on hover.",
+      "attributes": {},
+      "children": [],
+      "snippets": [
+        "guidenh.spoiler"
+      ]
+    },
+    "strong": {
+      "name": "strong",
+      "kind": "inline",
+      "description": "Generated from GuideNH strong compiler source.",
+      "attributes": {},
       "children": [],
       "snippets": []
     },
@@ -3405,6 +3655,36 @@
       "kind": "inline",
       "description": "Generated from GuideNH sup compiler source.",
       "attributes": {},
+      "children": [],
+      "snippets": []
+    },
+    "Tab": {
+      "name": "Tab",
+      "kind": "block",
+      "description": "Generated from GuideNH ContentTabs tab child support.",
+      "attributes": {
+        "title": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "table": {
+      "name": "table",
+      "kind": "block",
+      "description": "Generated from GuideNH table compiler source.",
+      "attributes": {
+        "align": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "content": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
       "children": [],
       "snippets": []
     },
@@ -3522,15 +3802,34 @@
       "children": [],
       "snippets": []
     },
-    "Spoiler": {
-      "name": "Spoiler",
+    "u": {
+      "name": "u",
       "kind": "inline",
-      "description": "Inline spoiler text revealed on hover.",
+      "description": "Generated from GuideNH u compiler source.",
       "attributes": {},
       "children": [],
-      "snippets": [
-        "guidenh.spoiler"
-      ]
+      "snippets": []
+    },
+    "ul": {
+      "name": "ul",
+      "kind": "block",
+      "description": "Generated from GuideNH ul compiler source.",
+      "attributes": {
+        "start": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "wavy": {
+      "name": "wavy",
+      "kind": "inline",
+      "description": "Generated from GuideNH wavy compiler source.",
+      "attributes": {},
+      "children": [],
+      "snippets": []
     },
     "Weather": {
       "name": "Weather",
