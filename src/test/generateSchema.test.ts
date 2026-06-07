@@ -406,6 +406,18 @@ suite('GuideNH schema generator', () => {
 		});
 	});
 
+	test('adds ContentTabs width and height attributes', () => {
+		const enhanced = enhanceGeneratedTagsFromJavaSources({}, []);
+
+		assert.deepStrictEqual(enhanced.ContentTabs.attributes.width, {
+			type: 'number',
+			valueStyle: 'string'
+		});
+		assert.deepStrictEqual(enhanced.ContentTabs.attributes.height, {
+			type: 'number',
+			valueStyle: 'string'
+		});
+	});
 	test('adds Mermaid rich node content support', () => {
 		const enhanced = enhanceGeneratedTagsFromJavaSources({
 			Mermaid: {
@@ -431,5 +443,6 @@ suite('GuideNH schema generator', () => {
 		});
 	});
 });
+
 
 

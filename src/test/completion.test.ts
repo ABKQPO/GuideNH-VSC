@@ -106,10 +106,20 @@ suite('GuideNH completion provider', () => {
 		const defaultIndex = items.find((item: CompletionItem) => item.label === 'defaultIndex');
 		const color = items.find((item: CompletionItem) => item.label === 'color');
 		const title = items.find((item: CompletionItem) => item.label === 'title');
+		const icon = items.find((item: CompletionItem) => item.label === 'icon');
+		const iconPng = items.find((item: CompletionItem) => item.label === 'iconPng');
+		const iconItem = items.find((item: CompletionItem) => item.label === 'iconItem');
+		const width = items.find((item: CompletionItem) => item.label === 'width');
+		const height = items.find((item: CompletionItem) => item.label === 'height');
 		assert.strictEqual(defaultAttr?.insertText, 'default="${1:value}"');
 		assert.strictEqual(defaultIndex?.insertText, 'defaultIndex="${1:0}"');
 		assert.strictEqual(color?.insertText, 'color="${1:#ffffff}"');
-		assert.strictEqual(title, undefined);
+		assert.strictEqual(title?.insertText, 'title="${1:value}"');
+		assert.strictEqual(icon?.insertText, 'icon="${1:value}"');
+		assert.strictEqual(iconPng?.insertText, 'iconPng="${1:value}"');
+		assert.strictEqual(iconItem?.insertText, 'iconItem="${1:minecraft:stone}"');
+		assert.strictEqual(width?.insertText, 'width="${1:0}"');
+		assert.strictEqual(height?.insertText, 'height="${1:0}"');
 	});
 
 	test('completes partial attribute names inside an open tag', async () => {

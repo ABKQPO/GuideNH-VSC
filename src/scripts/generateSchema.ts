@@ -369,7 +369,15 @@ function applyContentTabsEnhancements(tags: Record<string, GuideNhTagSchema>): v
 		attributes: sortAttributes({
 			color: { type: 'color', valueStyle: 'string' },
 			default: { type: 'string', valueStyle: 'string' },
-			defaultIndex: { type: 'number', valueStyle: 'string' }
+			defaultIndex: { type: 'number', valueStyle: 'string' },
+			icon: { type: 'string', valueStyle: 'string' },
+			iconItem: { type: 'item', valueStyle: 'string' },
+			iconPng: { type: 'string', valueStyle: 'string' },
+			icon_item: { type: 'item', valueStyle: 'string' },
+			icon_png: { type: 'string', valueStyle: 'string' },
+			title: { type: 'string', valueStyle: 'string' },
+			width: { type: 'number', valueStyle: 'string' },
+			height: { type: 'number', valueStyle: 'string' }
 		}),
 		children: ['Tab'],
 		snippets: []
