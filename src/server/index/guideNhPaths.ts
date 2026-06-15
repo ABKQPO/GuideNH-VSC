@@ -144,6 +144,14 @@ export function buildNamespacedId(namespace: string, relativePath: string): stri
 	return `${decodeURIComponent(namespace)}:${normalizeRootedGuidePath(relativePath)}`;
 }
 
+export function normalizeGuideNhReferencePath(value: string): string {
+	const explicitNamespace = splitExplicitNamespace(value);
+	if (explicitNamespace) {
+		return buildNamespacedId(explicitNamespace.namespace, explicitNamespace.value);
+	}
+	return normalizeRootedGuidePath(value);
+}
+
 export function normalizeGuideNhLocale(locale: string | undefined): string | undefined {
 	if (!locale) {
 		return undefined;
@@ -191,7 +199,8 @@ function normalizeRootedGuidePath(reference: string): string {
 }
 
 function normalizePath(value: string): string {
-	return path.posix.normalize(value).replace(/^\/+/, '');
+	const normalized = path.posix.normalize(value).replace(/^\/+/, '').replace(/^(?:\.\.\/)+/, '');
+	return normalized === '.' ? '' : normalized;
 }
 
 function toPosixDirectory(relativePath: string): string {

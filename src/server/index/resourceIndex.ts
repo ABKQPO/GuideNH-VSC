@@ -1,4 +1,4 @@
-import { resolveGuideNhResourceLocation } from './guideNhPaths';
+import { normalizeGuideNhReferencePath, resolveGuideNhResourceLocation } from './guideNhPaths';
 
 export interface GuideNhIndexedResource {
 	uri: string;
@@ -73,7 +73,7 @@ export class GuideNhResourceIndex {
 }
 
 function normalizeResourcePrefix(prefix: string): string {
-	return prefix.replace(/^\.\//, '').replace(/^\//, '');
+	return normalizeGuideNhReferencePath(prefix);
 }
 
 function lowerBound(values: string[], target: string): number {

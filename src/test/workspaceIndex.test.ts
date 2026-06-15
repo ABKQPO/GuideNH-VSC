@@ -175,6 +175,26 @@ categories:
 		);
 	});
 
+	test('normalizes parent-directory segments in page lookups', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/machines/index.md', '# Machines');
+		assert.strictEqual(
+			index.findPageByRelativePath('multiblocks/../machines/index.md')?.uri,
+			'file:///repo/assets/guidenh/guidenh/_zh_cn/machines/index.md'
+		);
+		assert.strictEqual(
+			index.findPageByRelativePath('guidenh:multiblocks/../machines/index.md')?.uri,
+			'file:///repo/assets/guidenh/guidenh/_zh_cn/machines/index.md'
+		);
+	});
+
+	test('indexes parent-directory page references under their resolved target', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/multiblocks/source.md', '[Machines](../machines/index.md)');
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/machines/index.md', '# Machines');
+		assert.strictEqual(index.findReferencesToPage('machines/index.md').length, 1);
+	});
+
 	test('keeps listed pages sorted after updates and removals', () => {
 		const index = new GuideNhWorkspaceIndex();
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/b.md', '# B');
@@ -253,6 +273,12 @@ navigation:
 	test('indexes resource references from GuideNH attributes', () => {
 		const index = new GuideNhWorkspaceIndex();
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/source.md', '<FloatingImage src="./images/test1.png" />');
+		assert.strictEqual(index.findReferencesToResource('images/test1.png').length, 1);
+	});
+
+	test('indexes parent-directory resource references under their resolved target', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/pages/source.md', '<FloatingImage src="../images/test1.png" />');
 		assert.strictEqual(index.findReferencesToResource('images/test1.png').length, 1);
 	});
 

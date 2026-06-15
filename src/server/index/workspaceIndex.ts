@@ -1,7 +1,7 @@
 import { createGuideNhDocumentModel, GuideNhDocumentModel } from '../parser/documentModel';
 import { extractIndexedFrontmatterValues } from '../parser/frontmatterIndexing';
 import { resolveRuntimeAttributeSource } from '../runtime/runtimeAttributeSources';
-import { normalizeGuideNhLocale, resolveGuideNhDocumentLocation } from './guideNhPaths';
+import { normalizeGuideNhLocale, normalizeGuideNhReferencePath, resolveGuideNhDocumentLocation } from './guideNhPaths';
 
 export interface GuideNhIndexedPage {
 	uri: string;
@@ -135,7 +135,7 @@ export class GuideNhWorkspaceIndex {
 	}
 
 	findPageByRelativePathForLocale(relativePath: string, preferredLocale?: string): GuideNhIndexedPage | undefined {
-		const normalized = relativePath.replace(/^\.\//, '');
+		const normalized = normalizeGuideNhReferencePath(relativePath);
 		const directUri = this.pageUriById.get(normalized);
 		if (directUri) {
 			return this.pages.get(directUri);
@@ -207,13 +207,13 @@ export class GuideNhWorkspaceIndex {
 	}
 
 	findReferencesToPage(relativePath: string): GuideNhIndexedPage[] {
-		const normalized = relativePath.replace(/^\.\//, '');
+		const normalized = normalizeGuideNhReferencePath(relativePath);
 		const keys = this.collectPageLookupKeys(normalized);
 		return this.collectReferencedPagesByKeys(keys, this.sourceUrisByLinkedPage);
 	}
 
 	findReferencesToResource(relativePath: string): GuideNhIndexedPage[] {
-		const normalized = relativePath.replace(/^\.\//, '');
+		const normalized = normalizeGuideNhReferencePath(relativePath);
 		const keys = this.collectReferenceLookupKeys(normalized, this.sourceUrisByLinkedResource);
 		return this.collectReferencedPagesByKeys(keys, this.sourceUrisByLinkedResource);
 	}
@@ -227,14 +227,14 @@ export class GuideNhWorkspaceIndex {
 	}
 
 	private addPageReference(relativePath: string, sourceUri: string): void {
-		const normalized = relativePath.replace(/^\.\//, '');
+		const normalized = normalizeGuideNhReferencePath(relativePath);
 		const sourceUris = this.sourceUrisByLinkedPage.get(normalized) ?? new Set<string>();
 		sourceUris.add(sourceUri);
 		this.sourceUrisByLinkedPage.set(normalized, sourceUris);
 	}
 
 	private removePageReference(relativePath: string, sourceUri: string): void {
-		const normalized = relativePath.replace(/^\.\//, '');
+		const normalized = normalizeGuideNhReferencePath(relativePath);
 		const sourceUris = this.sourceUrisByLinkedPage.get(normalized);
 		if (!sourceUris) {
 			return;
@@ -246,14 +246,14 @@ export class GuideNhWorkspaceIndex {
 	}
 
 	private addResourceReference(relativePath: string, sourceUri: string): void {
-		const normalized = relativePath.replace(/^\.\//, '');
+		const normalized = normalizeGuideNhReferencePath(relativePath);
 		const sourceUris = this.sourceUrisByLinkedResource.get(normalized) ?? new Set<string>();
 		sourceUris.add(sourceUri);
 		this.sourceUrisByLinkedResource.set(normalized, sourceUris);
 	}
 
 	private removeResourceReference(relativePath: string, sourceUri: string): void {
-		const normalized = relativePath.replace(/^\.\//, '');
+		const normalized = normalizeGuideNhReferencePath(relativePath);
 		const sourceUris = this.sourceUrisByLinkedResource.get(normalized);
 		if (!sourceUris) {
 			return;
@@ -527,7 +527,7 @@ function extractSemanticLinks(model: GuideNhDocumentModel, capability: 'items' |
 }
 
 function normalizePagePrefix(prefix: string): string {
-	return prefix.replace(/^\.\//, '').replace(/^\//, '');
+	return normalizeGuideNhReferencePath(prefix);
 }
 
 function lowerBound(values: string[], target: string): number {
