@@ -72,6 +72,19 @@ navigation:
 		assert.deepStrictEqual(index.listFrontmatterValues('navigation.required_mods'), ['gregtech']);
 	});
 
+	test('indexes nested navigation icon list values under navigation.icons', () => {
+		const index = new GuideNhWorkspaceIndex();
+		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/index.md', `---
+navigation:
+  icons:
+    - minecraft:compass
+    - minecraft:book
+---
+`);
+
+		assert.deepStrictEqual(index.listFrontmatterValues('navigation.icons'), ['minecraft:book', 'minecraft:compass']);
+	});
+
 	test('normalizes category sort keys in indexed frontmatter values', () => {
 		const index = new GuideNhWorkspaceIndex();
 		index.updatePage('file:///repo/assets/guidenh/guidenh/_zh_cn/index.md', `---

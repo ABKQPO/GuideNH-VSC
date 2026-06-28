@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import {
+	findBestMatchingItemStackContext,
 	findItemStackContextAtPosition,
 	findNearestItemStackContextInEditor,
 	findNearestItemStackContextAtPosition,
@@ -66,5 +67,53 @@ suite('GuideNH item stack context resolver', () => {
 		const context = findNearestItemStackContextInEditor(editor);
 		assert.ok(context);
 		assert.strictEqual(context?.value, 'minecraft:crafting_table');
+	});
+
+	test('relocates a stale context to the same tag and attribute instead of the nearest unrelated item stack', async () => {
+		const document = await vscode.workspace.openTextDocument({
+			language: 'markdown',
+			content: [
+				'<ReplaceBlock from="minecraft:stone" to="minecraft:dirt" />',
+				'<ItemLink id="minecraft:apple" />'
+			].join('\n')
+		});
+		const fullRange = new vscode.Range(new vscode.Position(0, 0), document.lineAt(document.lineCount - 1).range.end);
+		const contexts = findVisibleItemStackContexts(document, [fullRange]);
+		const fromContext = contexts.find((context) => context.tagName === 'ReplaceBlock' && context.attributeName === 'from');
+		assert.ok(fromContext);
+		const staleContext = {
+			...fromContext!,
+			value: 'minecraft:stone',
+			valueRange: new vscode.Range(new vscode.Position(0, 21), new vscode.Position(0, 36))
+		};
+		const shiftedDocument = await vscode.workspace.openTextDocument({
+			language: 'markdown',
+			content: [
+				'<ReplaceBlock from="  minecraft:stone" to="minecraft:dirt" />',
+				'<ItemLink id="minecraft:apple" />'
+			].join('\n')
+		});
+		const match = findBestMatchingItemStackContext(shiftedDocument, staleContext);
+		assert.ok(match);
+		assert.strictEqual(match?.tagName, 'ReplaceBlock');
+		assert.strictEqual(match?.attributeName, 'from');
+		assert.strictEqual(match?.value.trim(), 'minecraft:stone');
+	});
+
+	test('refuses relocation when only a different attribute remains nearby', async () => {
+		const document = await vscode.workspace.openTextDocument({
+			language: 'markdown',
+			content: '<ReplaceBlock from="minecraft:stone" to="minecraft:dirt" />'
+		});
+		const fullRange = new vscode.Range(new vscode.Position(0, 0), document.lineAt(0).range.end);
+		const contexts = findVisibleItemStackContexts(document, [fullRange]);
+		const fromContext = contexts.find((context) => context.attributeName === 'from');
+		assert.ok(fromContext);
+		const rewrittenDocument = await vscode.workspace.openTextDocument({
+			language: 'markdown',
+			content: '<ReplaceBlock to="minecraft:dirt" />'
+		});
+		const match = findBestMatchingItemStackContext(rewrittenDocument, fromContext!);
+		assert.strictEqual(match, undefined);
 	});
 });

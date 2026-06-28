@@ -106,4 +106,10 @@ suite('GuideNH extension automation', () => {
 		});
 		assert.strictEqual(resolvedModule, path.join(extensionRoot, 'out', 'server.js'));
 	});
+
+	test('does not register the item stack code lens provider in extension activation source', () => {
+		const extensionSource = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'extension.ts'), 'utf8');
+		assert.strictEqual(extensionSource.includes('ItemStackCodeLensProvider'), false);
+		assert.strictEqual(extensionSource.includes('registerCodeLensProvider'), false);
+	});
 });

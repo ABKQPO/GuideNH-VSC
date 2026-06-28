@@ -429,6 +429,26 @@ suite('GuideNH completion provider', () => {
 		assert.strictEqual(modItems[0].detail, 'GregTech');
 	});
 
+	test('completes navigation icons list values from indexed and runtime item sources', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const index = new GuideNhWorkspaceIndex();
+		const cache = new SemanticCache();
+		index.updatePage('file:///repo/source.md', '---\nnavigation:\n  icons:\n    - minecraft:book\n---\n');
+		cache.replace('items', 1, [{ id: 'minecraft:compass', label: 'Compass', detail: 'minecraft:compass:0' }]);
+		const text = '---\nnavigation:\n  icons:\n    - minecraft:\n---\n';
+		const items = createGuideNhCompletions(
+			text,
+			text.indexOf('minecraft:') + 'minecraft:'.length,
+			schema,
+			undefined,
+			cache,
+			index
+		);
+
+		assert.ok(items.some((item: CompletionItem) => item.label === 'minecraft:book' && item.detail === 'Indexed navigation icon'));
+		assert.ok(items.some((item: CompletionItem) => item.label === 'Compass' && item.insertText === 'minecraft:compass'));
+	});
+
 	test('completes normalized category names from indexed frontmatter values', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const index = new GuideNhWorkspaceIndex();
@@ -625,5 +645,21 @@ suite('GuideNH completion provider', () => {
 		const items = createGuideNhCompletions(text, text.length, schema, undefined);
 		assert.ok(items.some((item: CompletionItem) => item.label === 'Block'));
 		assert.ok(items.some((item: CompletionItem) => item.label === 'BlockStats'));
+	});
+
+	test('completes current recent-month scene attributes', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const items = createGuideNhCompletions('<GameScene ', 11, schema, undefined);
+
+		assert.ok(items.some((item: CompletionItem) => item.label === 'showGrid'));
+		assert.ok(items.some((item: CompletionItem) => item.label === 'allowLayerSlider'));
+		assert.ok(items.some((item: CompletionItem) => item.label === 'gridButtonEnabled'));
+	});
+
+	test('completes inline Latex attributes using the current schema contract', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const items = createGuideNhCompletions('<Latex ', 7, schema, undefined);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'formula'));
+		assert.ok(items.some((item: CompletionItem) => item.label === 'scale'));
 	});
 });

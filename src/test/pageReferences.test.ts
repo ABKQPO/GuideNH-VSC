@@ -67,12 +67,21 @@ suite('GuideNH page reference parser', () => {
 	test('finds indexed frontmatter values at the cursor position', () => {
 		const text = [
 			'---',
+			'navigation:',
+			'  icons:',
+			'    - minecraft:compass',
 			'item_ids:',
 			'  - minecraft:stone',
 			'ore_ids:',
 			'  - oreIron',
 			'---'
 		].join('\n');
+		assert.deepStrictEqual(findIndexedFrontmatterValueAtOffset(text, text.indexOf('minecraft:compass') + 1), {
+			path: 'navigation.icons',
+			value: 'minecraft:compass',
+			start: text.indexOf('minecraft:compass'),
+			end: text.indexOf('minecraft:compass') + 'minecraft:compass'.length
+		});
 		assert.deepStrictEqual(findIndexedFrontmatterValueAtOffset(text, text.indexOf('minecraft:stone') + 1), {
 			path: 'item_ids',
 			value: 'minecraft:stone',

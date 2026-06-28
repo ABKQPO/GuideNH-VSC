@@ -442,6 +442,114 @@ suite('GuideNH schema generator', () => {
 			snippets: []
 		});
 	});
+
+	test('adds current FloatingImage crop, scale, and child support from recent GuideNH source', () => {
+		const enhanced = enhanceGeneratedTagsFromJavaSources({
+			FloatingImage: {
+				name: 'FloatingImage',
+				kind: 'inline',
+				description: 'Generated from GuideNH FloatingImage compiler source.',
+				attributes: {
+					src: { type: 'resource', valueStyle: 'string' }
+				},
+				children: [],
+				snippets: []
+			}
+		}, [
+			{
+				path: 'src/FloatingImageCompiler.java',
+				text: `
+					public class FloatingImageCompiler {
+						public Set<String> getTagNames() { return Collections.singleton("FloatingImage"); }
+						protected void compile(PageCompiler compiler, LytFlowParent parent, MdxJsxElementFields el) {
+							String src = el.getAttributeString("src", null);
+							String align = el.getAttributeString("align", "left");
+							String title = el.getAttributeString("title", null);
+							String alt = el.getAttributeString("alt", null);
+							int x = MdxAttrs.getInt(compiler, parent, el, "x", 0);
+							int y = MdxAttrs.getInt(compiler, parent, el, "y", 0);
+							int width = MdxAttrs.getInt(compiler, parent, el, "width", 0);
+							int w = MdxAttrs.getInt(compiler, parent, el, "w", 0);
+							int height = MdxAttrs.getInt(compiler, parent, el, "height", 0);
+							int h = MdxAttrs.getInt(compiler, parent, el, "h", 0);
+							double scaleX = Double.parseDouble(el.getAttributeString("scaleX", "1"));
+							double scaleY = Double.parseDouble(el.getAttributeString("scaleY", "1"));
+							GuideSoundParsers.parseAttributes(compiler, parent, el, "soundSrc");
+						}
+					}
+				`
+			}
+		]);
+
+		assert.deepStrictEqual(enhanced.FloatingImage.attributes.width, {
+			type: 'number',
+			valueStyle: 'string'
+		});
+		assert.deepStrictEqual(enhanced.FloatingImage.attributes.w, {
+			type: 'number',
+			valueStyle: 'string'
+		});
+		assert.deepStrictEqual(enhanced.FloatingImage.attributes.scaleX, {
+			type: 'number',
+			valueStyle: 'string'
+		});
+		assert.deepStrictEqual(enhanced.FloatingImage.attributes.scaleY, {
+			type: 'number',
+			valueStyle: 'string'
+		});
+		assert.deepStrictEqual(enhanced.FloatingImage.children, ['ImageAnnotation', 'SoundArea']);
+	});
+
+	test('preserves FloatingImage width height aliases and soundSrc resource typing', () => {
+		const enhanced = enhanceGeneratedTagsFromJavaSources({
+			FloatingImage: {
+				name: 'FloatingImage',
+				kind: 'inline',
+				description: 'Generated from GuideNH FloatingImage compiler source.',
+				attributes: {},
+				children: [],
+				snippets: []
+			}
+		}, []);
+
+		assert.deepStrictEqual(enhanced.FloatingImage.attributes.soundSrc, {
+			type: 'resource',
+			valueStyle: 'string'
+		});
+		assert.deepStrictEqual(enhanced.FloatingImage.attributes.width, {
+			type: 'number',
+			valueStyle: 'string'
+		});
+		assert.deepStrictEqual(enhanced.FloatingImage.attributes.height, {
+			type: 'number',
+			valueStyle: 'string'
+		});
+	});
+
+	test('extracts current recent-month scene attributes from SceneTagCompiler style source', () => {
+		const source = `
+			public Set<String> getTagNames() { return new LinkedHashSet<>(Arrays.asList("GameScene", "Scene")); }
+			protected void compile(PageCompiler compiler, LytBlockContainer parent, MdxJsxElementFields el) {
+				boolean allowLayerSlider = MdxAttrs.getBoolean(compiler, parent, el, "allowLayerSlider", true);
+				boolean gridButtonEnabled = MdxAttrs.getBoolean(compiler, parent, el, "gridButtonEnabled", true);
+				boolean showGrid = MdxAttrs.getBoolean(compiler, parent, el, "showGrid", false);
+			}
+		`;
+		const result = scanJavaCompilerSource(source);
+
+		assert.deepStrictEqual(result.tags.GameScene.attributes.allowLayerSlider, {
+			type: 'boolean',
+			valueStyle: 'expression'
+		});
+		assert.deepStrictEqual(result.tags.GameScene.attributes.gridButtonEnabled, {
+			type: 'boolean',
+			valueStyle: 'expression'
+		});
+		assert.deepStrictEqual(result.tags.GameScene.attributes.showGrid, {
+			type: 'boolean',
+			valueStyle: 'expression'
+		});
+	});
 });
 
 

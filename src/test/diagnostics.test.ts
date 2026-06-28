@@ -405,16 +405,16 @@ suite('GuideNH diagnostics', () => {
 	test('accepts floating image annotations and sound regions used by bundled image docs', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const text = [
-			'<FloatingImage src="test1.png" align="right" width="200" height="80" title="stretch 200x80">',
+			'<FloatingImage src="test1.png" align="right" x="0" y="0" width="64" height="64" scaleX="3.125" scaleY="1.25" title="stretch 200x80">',
 			'  <ImageAnnotation x="10" y="10" w="60" h="40" border borderColor="#FFFF4444" borderThickness="2">',
 			'    Highlighted tooltip',
 			'  </ImageAnnotation>',
-			'  <SoundArea x="64" y="0" w="64" h="128" sound="guidenh:guide.sample_hover" trigger="hover" />',
+			'  <SoundArea x="32" y="0" w="32" h="64" sound="guidenh:guide.sample_hover" trigger="hover" />',
 			'</FloatingImage>',
 			'<SoundLink sound="guidenh:guide.sample_click" volume={0.8}>',
 			'  Rich sound content',
 			'</SoundLink>',
-			'<FloatingImage src="test1.png" align="left" width="128" sound="guidenh:guide.sample_click" volume={0.8} />'
+			'<FloatingImage src="test1.png" align="left" x="0" y="0" width="128" height="128" sound="guidenh:guide.sample_click" volume={0.8} />'
 		].join('\n');
 
 		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);
@@ -530,6 +530,30 @@ suite('GuideNH diagnostics', () => {
 			'<QuestLink id="AAAAAAAAAAAAAAAAAAAAHw==" text="Tin" showTooltip="false" />',
 			'<QuestLink id="AAAAAAAAAAAAAAAAAAAAHw==" text="Tin" show_tooltip="false" />'
 		].join('\n');
+		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);
+	});
+
+	test('accepts current FloatingImage crop aliases and rejects conflicting alias pairs', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const validText = '<FloatingImage src="test1.png" x="0" y="0" w="64" h="64" scaleX="1.5" scaleY="2" />';
+		const conflictingAliasText = '<FloatingImage src="test1.png" x="0" y="0" width="64" w="64" height="64" />';
+
+		assert.deepStrictEqual(createGuideNhDiagnostics(validText, schema), []);
+		assert.strictEqual(
+			createGuideNhDiagnostics(conflictingAliasText, schema).map((item: Diagnostic) => item.message).join('\n'),
+			'FloatingImage cannot use both width and w'
+		);
+	});
+
+	test('accepts recent-month scene root attributes used by current GuideNH source', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '<GameScene allowLayerSlider={true} gridButtonEnabled={false} showGrid={true} />';
+		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);
+	});
+
+	test('accepts current inline latex usage reflected by recent GuideNH docs', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = 'Inline math <Latex formula="E=mc^2" scale={1.0} /> inside markdown.';
 		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);
 	});
 });

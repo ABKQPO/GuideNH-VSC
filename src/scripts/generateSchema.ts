@@ -833,13 +833,21 @@ function applyReferenceEnhancements(tags: Record<string, GuideNhTagSchema>): voi
 		mergeAttributes(tags[name], tooltipCompatibilityAttributes);
 	}
 	mergeAttributes(tags.FloatingImage, {
+		alt: { type: 'string', valueStyle: 'string' },
+		h: { type: 'number', valueStyle: 'string' },
 		height: { type: 'number', valueStyle: 'string' },
+		scaleX: { type: 'number', valueStyle: 'string' },
+		scaleY: { type: 'number', valueStyle: 'string' },
 		sound: { type: 'string', valueStyle: 'string' },
+		soundSrc: { type: 'resource', valueStyle: 'string' },
 		src: { type: 'resource', valueStyle: 'string' },
 		trigger: { type: 'string', valueStyle: 'string' },
 		volume: { type: 'number', valueStyle: 'expression' },
+		w: { type: 'number', valueStyle: 'string' },
 		wrap: { type: 'string', valueStyle: 'string' },
-		width: { type: 'number', valueStyle: 'string' }
+		width: { type: 'number', valueStyle: 'string' },
+		x: { type: 'number', valueStyle: 'string' },
+		y: { type: 'number', valueStyle: 'string' }
 	});
 	mergeAttributes(tags.SoundLink, {
 		cooldown: { type: 'number', valueStyle: 'string' },

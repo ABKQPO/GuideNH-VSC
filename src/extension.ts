@@ -5,7 +5,6 @@ import {
 } from './client/commands';
 import { registerGuideNhCompletionAssist } from './client/completionAssist';
 import { readGuideNhDefaults } from './client/config';
-import { ItemStackCodeLensProvider } from './client/itemStack/itemStackCodeLensProvider';
 import { ItemStackContextCache } from './client/itemStack/itemStackContextCache';
 import { ItemStackDecorationController } from './client/itemStack/itemStackDecorationController';
 import { ItemStackDocumentDropProvider } from './client/itemStack/itemStackDocumentDropProvider';
@@ -28,7 +27,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const pickerPanel = new ItemStackPickerPanel(previewClient);
 	const itemStackContextCache = new ItemStackContextCache();
 	const itemStackDocumentDropProvider = new ItemStackDocumentDropProvider();
-	const itemStackCodeLensProvider = new ItemStackCodeLensProvider(itemStackContextCache);
 	const itemStackDecorationController = new ItemStackDecorationController(
 		previewClient,
 		pickerPanel,
@@ -42,18 +40,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(
 		previewClient,
 		pickerPanel,
-		itemStackCodeLensProvider,
 		itemStackDecorationController,
 		itemStackHoverWarmupController
 	);
 	context.subscriptions.push(
-		vscode.languages.registerCodeLensProvider(
-			[
-				{ language: 'markdown' },
-				{ language: 'guidenh-md' }
-			],
-			itemStackCodeLensProvider
-		),
 		vscode.languages.registerDocumentDropEditProvider(
 			[
 				{ language: 'markdown' },

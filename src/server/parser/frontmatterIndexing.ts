@@ -71,9 +71,15 @@ export function findIndexedFrontmatterValueAtOffset(text: string, offset: number
 	return undefined;
 }
 
+const NestedNavigationListPaths = new Map<string, string>([
+	['required_mods', 'navigation.required_mods'],
+	['icons', 'navigation.icons'],
+	['icon_textures', 'navigation.icon_textures']
+]);
+
 function resolveIndexedFrontmatterPath(indent: number, key: string): string {
-	if (indent > 0 && key === 'required_mods') {
-		return 'navigation.required_mods';
+	if (indent > 0) {
+		return NestedNavigationListPaths.get(key) ?? key;
 	}
 	return key;
 }

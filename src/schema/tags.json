@@ -725,6 +725,10 @@
           "type": "number",
           "valueStyle": "string"
         },
+        "height": {
+          "type": "number",
+          "valueStyle": "string"
+        },
         "icon": {
           "type": "string",
           "valueStyle": "string"
@@ -739,10 +743,6 @@
         },
         "iconItem": {
           "type": "item",
-          "valueStyle": "string"
-        },
-        "height": {
-          "type": "number",
           "valueStyle": "string"
         },
         "iconPng": {
@@ -988,6 +988,10 @@
           "type": "string",
           "valueStyle": "string"
         },
+        "alt": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "border": {
           "type": "boolean",
           "valueStyle": "expression"
@@ -1008,8 +1012,20 @@
           "type": "number",
           "valueStyle": "string"
         },
+        "scaleX": {
+          "type": "number",
+          "valueStyle": "string"
+        },
+        "scaleY": {
+          "type": "number",
+          "valueStyle": "string"
+        },
         "sound": {
           "type": "string",
+          "valueStyle": "string"
+        },
+        "soundSrc": {
+          "type": "resource",
           "valueStyle": "string"
         },
         "src": {
@@ -1923,6 +1939,10 @@
             "right"
           ],
           "description": "Icon side."
+        },
+        "showText": {
+          "type": "boolean",
+          "valueStyle": "expression"
         },
         "showTooltip": {
           "type": "boolean",

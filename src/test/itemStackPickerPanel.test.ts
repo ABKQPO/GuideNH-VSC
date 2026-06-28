@@ -209,6 +209,82 @@ suite('GuideNH item stack picker panel', () => {
 			panel.dispose();
 		}
 	});
+
+	test('renders composition-aware search scheduling hooks', async () => {
+		const panel = createPanelForHtmlTests();
+		const webview = createWebviewHarness();
+		const restore = stubWebviewPanel(webview);
+
+		try {
+			await panel.show(createContext('minecraft:stone'), createEditor('file:///picker.md'));
+			assert.ok(webview.html.includes("searchInput.addEventListener('compositionstart'"));
+			assert.ok(webview.html.includes("searchInput.addEventListener('compositionend'"));
+			assert.ok(webview.html.includes("searchInput.addEventListener('keydown'"));
+		} finally {
+			restore();
+			panel.dispose();
+		}
+	});
+
+	test('renders immediate search dispatch on Enter', async () => {
+		const panel = createPanelForHtmlTests();
+		const webview = createWebviewHarness();
+		const restore = stubWebviewPanel(webview);
+
+		try {
+			await panel.show(createContext('minecraft:stone'), createEditor('file:///picker.md'));
+			assert.ok(webview.html.includes("if (event.key === 'Enter')"));
+			assert.ok(webview.html.includes("vscode.postMessage({ type: 'search', query: searchInput.value });"));
+		} finally {
+			restore();
+			panel.dispose();
+		}
+	});
+
+	test('uses same-binding relocation instead of nearest-context fallback during apply', async () => {
+		const panel = createPanelForHtmlTests();
+		const shifted = '<ReplaceBlock from="  minecraft:stone" to="minecraft:dirt" />';
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: shifted });
+		let appliedRange: vscode.Range | undefined;
+		let appliedValue: string | undefined;
+		const editor = createEditableEditor(document, (range, value) => {
+			appliedRange = range;
+			appliedValue = value;
+		});
+		const originalVisibleTextEditors = vscode.window.visibleTextEditors;
+		const originalOpenTextDocument = vscode.workspace.openTextDocument;
+		const originalShowTextDocument = vscode.window.showTextDocument;
+		Object.defineProperty(vscode.window, 'visibleTextEditors', {
+			configurable: true,
+			get: () => [editor]
+		});
+		(vscode.workspace as unknown as { openTextDocument: typeof vscode.workspace.openTextDocument }).openTextDocument = async () => document;
+		(vscode.window as unknown as { showTextDocument: typeof vscode.window.showTextDocument }).showTextDocument = async () => editor;
+		const context = {
+			tagName: 'ReplaceBlock',
+			attributeName: 'from',
+			value: 'minecraft:stone',
+			tagRange: new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, shifted.length)),
+			valueRange: new vscode.Range(new vscode.Position(0, 20), new vscode.Position(0, 35)),
+			line: 0
+		};
+
+		try {
+			await panel.show(context, editor);
+			await (panel as unknown as { applySelection: (id: string) => Promise<void> }).applySelection('gregtech:machine');
+			assert.strictEqual(appliedValue, 'gregtech:machine');
+			assert.ok(appliedRange);
+			assert.strictEqual(document.getText(appliedRange!).includes('minecraft:dirt'), false);
+		} finally {
+			Object.defineProperty(vscode.window, 'visibleTextEditors', {
+				configurable: true,
+				get: () => originalVisibleTextEditors
+			});
+			(vscode.workspace as unknown as { openTextDocument: typeof vscode.workspace.openTextDocument }).openTextDocument = originalOpenTextDocument;
+			(vscode.window as unknown as { showTextDocument: typeof vscode.window.showTextDocument }).showTextDocument = originalShowTextDocument;
+			panel.dispose();
+		}
+	});
 });
 
 function createSearchEntry(id: string) {
@@ -233,10 +309,36 @@ function createContext(value: string) {
 	};
 }
 
+function createPanelForHtmlTests() {
+	return new ItemStackPickerPanel({
+		search: async (): Promise<PreviewSearchResultPayload> => ({
+			capability: 'items',
+			version: 1,
+			entries: [createSearchEntry('minecraft:stone')],
+			nextCursor: null
+		}),
+		resolve: async (payload: PreviewResolvePayload): Promise<PreviewResolveResultPayload> => ({
+			capability: payload.capability,
+			previewKey: payload.id,
+			id: payload.id,
+			displayName: payload.id,
+			detail: payload.id,
+			meta: 0,
+			count: 1,
+			nbt: '',
+			tooltipLines: [payload.id],
+			iconPngBase64: 'AAAA',
+			pixelWidth: 16,
+			pixelHeight: 16
+		})
+	} as never);
+}
+
 function createEditor(uri: string) {
 	const document = {
 		uri: vscode.Uri.parse(uri),
 		getText: () => '',
+		lineAt: () => ({ range: new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0)) }),
 		languageId: 'markdown'
 	};
 	return {
@@ -245,6 +347,52 @@ function createEditor(uri: string) {
 		revealRange: () => undefined,
 		edit: async () => true
 	} as unknown as vscode.TextEditor;
+}
+
+function createEditableEditor(
+	document: vscode.TextDocument,
+	onReplace: (range: vscode.Range, value: string) => void
+) {
+	return {
+		document,
+		selection: new vscode.Selection(new vscode.Position(0, 0), new vscode.Position(0, 0)),
+		visibleRanges: [new vscode.Range(new vscode.Position(0, 0), document.lineAt(document.lineCount - 1).range.end)],
+		revealRange: () => undefined,
+		setDecorations: () => undefined,
+		edit: async (callback: (editBuilder: vscode.TextEditorEdit) => void) => {
+			callback({
+				replace: (range: vscode.Range, value: string) => {
+					onReplace(range, value);
+				}
+			} as vscode.TextEditorEdit);
+			return true;
+		}
+	} as unknown as vscode.TextEditor;
+}
+
+function createWebviewHarness() {
+	return {
+		html: '',
+		postMessage: async () => true,
+		onDidReceiveMessage: () => ({ dispose: () => undefined })
+	};
+}
+
+function stubWebviewPanel(webview: ReturnType<typeof createWebviewHarness>) {
+	const createdPanel = {
+		webview,
+		onDidDispose: (_listener: () => void, _thisArg?: unknown, targetDisposables?: Array<{ dispose: () => void }>) => {
+			targetDisposables?.push({ dispose: () => undefined });
+			return { dispose: () => undefined };
+		},
+		reveal: () => undefined,
+		dispose: () => undefined
+	};
+	const originalCreateWebviewPanel = vscode.window.createWebviewPanel;
+	(vscode.window as unknown as { createWebviewPanel: typeof vscode.window.createWebviewPanel }).createWebviewPanel = () => createdPanel as unknown as vscode.WebviewPanel;
+	return () => {
+		(vscode.window as unknown as { createWebviewPanel: typeof vscode.window.createWebviewPanel }).createWebviewPanel = originalCreateWebviewPanel;
+	};
 }
 
 async function tick(): Promise<void> {

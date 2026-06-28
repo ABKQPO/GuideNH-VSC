@@ -66,6 +66,34 @@ export function findNearestItemStackContextInEditor(
 		?? findItemStackContextAtPosition(editor.document, targetPosition);
 }
 
+export function findBestMatchingItemStackContext(
+	document: vscode.TextDocument,
+	target: ItemStackContext
+): ItemStackContext | undefined {
+	const range = expandRangeToNearbyLines(document, target.line, 8);
+	const nearbyMatches = findVisibleItemStackContexts(document, [range]).filter((context) => {
+		return isSameItemStackBinding(context, target);
+	});
+	const currentRangeText = safeReadRangeText(document, target.valueRange);
+	if (currentRangeText !== undefined) {
+		const directMatch = nearbyMatches.find((context) => {
+			return context.valueRange.start.isEqual(target.valueRange.start)
+				&& context.valueRange.end.isEqual(target.valueRange.end);
+		});
+		if (directMatch) {
+			return directMatch;
+		}
+	}
+	return nearbyMatches.find((context) => context.line === target.line)
+		?? nearbyMatches.find((context) => context.tagRange.start.isEqual(target.tagRange.start))
+		?? undefined;
+}
+
+export function isSameItemStackBinding(left: ItemStackContext, right: ItemStackContext): boolean {
+	return left.tagName.toLowerCase() === right.tagName.toLowerCase()
+		&& left.attributeName.toLowerCase() === right.attributeName.toLowerCase();
+}
+
 function scanDocumentRange(
 	document: vscode.TextDocument,
 	range: vscode.Range,
@@ -165,4 +193,15 @@ function createContextKey(context: ItemStackContext): string {
 		context.valueRange.start.character,
 		context.valueRange.end.character
 	].join(':');
+}
+
+function safeReadRangeText(
+	document: vscode.TextDocument,
+	range: vscode.Range
+): string | undefined {
+	try {
+		return document.getText(range);
+	} catch {
+		return undefined;
+	}
 }

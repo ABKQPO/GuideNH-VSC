@@ -2,7 +2,12 @@ import * as vscode from 'vscode';
 import { PreviewResolvePayload, PreviewResolveResultPayload, PreviewSearchEntry } from '../../common/protocol';
 import { localize } from '../localization';
 import { createPreviewDataUri, escapeHtml } from './itemStackDecorationAssets';
-import { findNearestItemStackContextInEditor, ItemStackContext } from './itemStackContextResolver';
+import {
+	findBestMatchingItemStackContext,
+	findNearestItemStackContextInEditor,
+	isSameItemStackBinding,
+	ItemStackContext
+} from './itemStackContextResolver';
 import { GuideNhItemStackDropMime } from './itemStackDropPayload';
 import { ItemStackPreviewClient } from './itemStackPreviewClient';
 import { renderMinecraftFormattingHtml, serializeMinecraftTooltipLines, stripMinecraftFormatting } from './itemStackTextFormatting';
@@ -250,7 +255,17 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 			await vscode.window.showErrorMessage(localize('Reopen the GuideNH document before applying an ItemStack id.'));
 			return;
 		}
-		const targetRange = this.resolveApplyRange(editor);
+		let targetRange: vscode.Range;
+		try {
+			targetRange = this.resolveApplyRange(editor);
+		} catch (error) {
+			await vscode.window.showErrorMessage(
+				error instanceof Error
+					? error.message
+					: localize('The original ItemStack target is no longer valid. Reopen the picker from the intended attribute and try again.')
+			);
+			return;
+		}
 		const didApply = await editor.edit((editBuilder) => {
 			editBuilder.replace(targetRange, id);
 		});
@@ -310,20 +325,15 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 		if (!this.currentState) {
 			return new vscode.Range(editor.selection.active, editor.selection.active);
 		}
-		const currentValue = editor.document.getText(this.currentState.context.valueRange);
-		if (currentValue === this.currentState.context.value) {
-			return this.currentState.context.valueRange;
+		const currentContext = findBestMatchingItemStackContext(editor.document, this.currentState.context);
+		if (currentContext) {
+			return currentContext.valueRange;
 		}
-		const nearestContext = findNearestItemStackContextInEditor(editor);
-		if (nearestContext) {
-			return nearestContext.valueRange;
+		const selectionContext = findNearestItemStackContextInEditor(editor);
+		if (selectionContext && isSameItemStackBinding(selectionContext, this.currentState.context)) {
+			return selectionContext.valueRange;
 		}
-		const selection = editor.selection;
-		if (!selection.isEmpty) {
-			return new vscode.Range(selection.start, selection.end);
-		}
-		const cursor = selection.active;
-		return new vscode.Range(cursor, cursor);
+		throw new Error(localize('The original ItemStack target is no longer valid. Reopen the picker from the intended attribute and try again.'));
 	}
 
 	private async resolveTargetEditor(): Promise<vscode.TextEditor | undefined> {
@@ -638,6 +648,7 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 		const preview = document.getElementById('preview');
 		let currentState = initialState;
 		let debounceTimer;
+		let isComposing = false;
 
 		function setDragData(event, id, source) {
 			if (!event.dataTransfer) {
@@ -654,7 +665,9 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 
 		function render(state) {
 			currentState = state;
-			searchInput.value = state.query;
+			if (!isComposing && searchInput.value !== state.query) {
+				searchInput.value = state.query;
+			}
 			list.innerHTML = state.isLoading && state.entries.length === 0
 				? '<div class="empty">${escapeHtml(localize('Loading runtime items...'))}</div>'
 				: state.entries.length === 0
@@ -727,11 +740,38 @@ export class ItemStackPickerPanel implements vscode.Disposable {
 			});
 		}
 
-		searchInput.addEventListener('input', () => {
+		function dispatchSearch(immediate) {
 			clearTimeout(debounceTimer);
+			if (immediate) {
+				vscode.postMessage({ type: 'search', query: searchInput.value });
+				return;
+			}
 			debounceTimer = setTimeout(() => {
 				vscode.postMessage({ type: 'search', query: searchInput.value });
 			}, 140);
+		}
+
+		searchInput.addEventListener('compositionstart', () => {
+			isComposing = true;
+		});
+
+		searchInput.addEventListener('compositionend', () => {
+			isComposing = false;
+			dispatchSearch(true);
+		});
+
+		searchInput.addEventListener('input', () => {
+			if (isComposing) {
+				return;
+			}
+			dispatchSearch(false);
+		});
+
+		searchInput.addEventListener('keydown', (event) => {
+			if (event.key === 'Enter') {
+				event.preventDefault();
+				dispatchSearch(true);
+			}
 		});
 
 		list.addEventListener('click', (event) => {

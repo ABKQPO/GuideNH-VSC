@@ -75,12 +75,27 @@ export function createGuideNhDiagnostics(
 				diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.missingAttribute', attributeName, tag.name)));
 			}
 		}
+		diagnostics.push(...createTagSpecificDiagnostics(text, tag));
 		if (!tag.selfClosing) {
 			parentStack.push(tag);
 		}
 	}
 	for (const tag of parentStack) {
 		diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.unclosedTag', tag.name)));
+	}
+	return diagnostics;
+}
+
+function createTagSpecificDiagnostics(text: string, tag: GuideNhParsedTag): Diagnostic[] {
+	if (!matchesTagName(tag.name, 'FloatingImage')) {
+		return [];
+	}
+	const diagnostics: Diagnostic[] = [];
+	if (hasAttributeValue(tag.attributes, 'width') && hasAttributeValue(tag.attributes, 'w')) {
+		diagnostics.push(createDiagnostic(text, tag.start, tag.end, 'FloatingImage cannot use both width and w'));
+	}
+	if (hasAttributeValue(tag.attributes, 'height') && hasAttributeValue(tag.attributes, 'h')) {
+		diagnostics.push(createDiagnostic(text, tag.start, tag.end, 'FloatingImage cannot use both height and h'));
 	}
 	return diagnostics;
 }
