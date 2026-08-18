@@ -106,12 +106,17 @@ export function createGuideNhCompletionResult(
 			? createCompletionReplacementRange(text, offset, frontmatterValueContext.prefix)
 			: undefined;
 		if (frontmatterValueContext?.path.join('.') === 'navigation.parent') {
+			const dynamicRequest = resolveFrontmatterDynamicCompletionRequest(text, offset, frontmatter, documentUri);
 			return {
-				items: createPageValueCompletions(frontmatterValueContext.prefix, index, documentUri),
+				items: mergeCompletionItems([
+					...createPageValueCompletions(frontmatterValueContext.prefix, index, documentUri),
+					...(documentUri ? [] : createRuntimeValueCompletions('pages', frontmatterValueContext.prefix, cache))
+				]),
+				dynamicRequest,
 				runtimeReplacement
 			};
 		}
-		const dynamicRequest = resolveFrontmatterDynamicCompletionRequest(text, offset, frontmatter);
+		const dynamicRequest = resolveFrontmatterDynamicCompletionRequest(text, offset, frontmatter, documentUri);
 		const valueCompletions = createFrontmatterValueCompletions(
 			text,
 			offset,
@@ -324,14 +329,15 @@ function resolveDynamicCompletionRequest(
 function resolveFrontmatterDynamicCompletionRequest(
 	text: string,
 	offset: number,
-	frontmatter: FrontmatterBlock
+	frontmatter: FrontmatterBlock,
+	documentUri?: string
 ): DynamicCompletionRequest | undefined {
 	const context = findFrontmatterValueContext(text.slice(frontmatter.start, offset));
 	if (!context) {
 		return undefined;
 	}
 	const capability = resolveFrontmatterRuntimeCapability(context.path.join('.'));
-	if (context.path.join('.') === 'navigation.parent') {
+	if (documentUri && context.path.join('.') === 'navigation.parent') {
 		return undefined;
 	}
 	if (!capability || !DynamicCompletionCapabilities.has(capability)) {
@@ -705,7 +711,7 @@ function resolveFrontmatterIndexDetail(path: string): string | undefined {
 	switch (path) {
 		case 'item_ids':
 		case 'item_id':
-			return 'Indexed item expression';
+			return 'Indexed item id';
 		case 'ore_ids':
 			return 'Indexed ore id';
 		case 'quest_ids':
