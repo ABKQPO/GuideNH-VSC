@@ -8,6 +8,11 @@ import { GuideNhWorkspaceIndex } from './workspaceIndex';
 
 const WorkspaceScanReadConcurrency = 8;
 
+export interface GuideNhWorkspaceDocument {
+	uri: string;
+	text: string;
+}
+
 export async function indexGuideNhWorkspaceFolders(
 	folders: WorkspaceFolder[],
 	index: GuideNhWorkspaceIndex,
@@ -25,14 +30,31 @@ export async function indexGuideNhWorkspaceFolder(
 ): Promise<void> {
 	const folderPath = URI.parse(folderUri).fsPath;
 	const runner = new LimitedTaskRunner(WorkspaceScanReadConcurrency);
-	await visitDirectory(folderPath, runner, index, resourceIndex);
+	await visitDirectory(folderPath, runner, (filePath) => indexGuideNhMarkdownFile(filePath, index), resourceIndex);
 	await runner.waitForIdle();
+}
+
+export async function forEachGuideNhMarkdownDocument(
+	folders: WorkspaceFolder[],
+	consumer: (document: GuideNhWorkspaceDocument) => Promise<void>
+): Promise<void> {
+	for (const folder of folders) {
+		const folderPath = URI.parse(folder.uri).fsPath;
+		const runner = new LimitedTaskRunner(WorkspaceScanReadConcurrency);
+		await visitDirectory(folderPath, runner, async (filePath) => {
+			const document = await readGuideNhMarkdownFile(filePath);
+			if (document) {
+				await consumer(document);
+			}
+		});
+		await runner.waitForIdle();
+	}
 }
 
 async function visitDirectory(
 	dir: string,
 	runner: LimitedTaskRunner,
-	index: GuideNhWorkspaceIndex,
+	processMarkdownFile: (filePath: string) => Promise<void>,
 	resourceIndex?: GuideNhResourceIndex
 ): Promise<void> {
 	let entries: Dirent[];
@@ -48,11 +70,9 @@ async function visitDirectory(
 			if (shouldSkipDirectory(entry.name)) {
 				continue;
 			}
-			await visitDirectory(fullPath, runner, index, resourceIndex);
+			await visitDirectory(fullPath, runner, processMarkdownFile, resourceIndex);
 		} else if (isGuideNhMarkdownPath(fullPath)) {
-			runner.schedule(async () => {
-				await indexGuideNhMarkdownFile(fullPath, index);
-			});
+			runner.schedule(() => processMarkdownFile(fullPath));
 		} else if (resourceIndex && isGuideNhResourcePath(fullPath)) {
 			resourceIndex.updateResource(pathToFileURL(fullPath).toString());
 		}
@@ -60,11 +80,20 @@ async function visitDirectory(
 }
 
 async function indexGuideNhMarkdownFile(filePath: string, index: GuideNhWorkspaceIndex): Promise<void> {
+	const document = await readGuideNhMarkdownFile(filePath);
+	if (document) {
+		index.updatePage(document.uri, document.text);
+	}
+}
+
+async function readGuideNhMarkdownFile(filePath: string): Promise<GuideNhWorkspaceDocument | undefined> {
 	try {
-		const text = await fs.readFile(filePath, 'utf8');
-		index.updatePage(pathToFileURL(filePath).toString(), text);
+		return {
+			uri: pathToFileURL(filePath).toString(),
+			text: await fs.readFile(filePath, 'utf8')
+		};
 	} catch {
-		return;
+		return undefined;
 	}
 }
 

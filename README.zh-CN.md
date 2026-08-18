@@ -15,6 +15,8 @@ GuideVSC 是用于编写 GuideNH Markdown 内容的 Visual Studio Code 插件。
 - 支持 GuideNH 标签、属性、可复用代码片段，以及运行时桥接后的物品或矿辞 id 补全。
 - 基于本地 GuideNH schema 提供悬停说明。
 - 基于工作区索引提供定义跳转和引用查找。
+- 支持 `item_id` 与 `item_ids` 的 NEI 风格物品表达式，包括工作区索引和语义补全；同时支持 `navigation.required_mod`/`required_mods` 模组需求和 `navigation.excluded_mod`/`excluded_mods` 排除条件。
+- 为未闭合的 GuideNH 标签提供快速修复，支持嵌套标签栈。
 - 可以从本地 GuideNH Java compiler 源码生成 schema。
 - 支持可选的、带 token 保护的 WebSocket 运行时语义缓存。
 

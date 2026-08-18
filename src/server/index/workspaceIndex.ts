@@ -1,3 +1,4 @@
+import * as path from 'path';
 import { createGuideNhDocumentModel, GuideNhDocumentModel } from '../parser/documentModel';
 import { extractIndexedFrontmatterValues } from '../parser/frontmatterIndexing';
 import { resolveRuntimeAttributeSource } from '../runtime/runtimeAttributeSources';
@@ -18,6 +19,11 @@ export interface GuideNhIndexedPage {
 	oreLinks: string[];
 }
 
+export interface GuideNhPageReference {
+	page: GuideNhIndexedPage;
+	value: string;
+}
+
 export class GuideNhWorkspaceIndex {
 	private readonly pages = new Map<string, GuideNhIndexedPage>();
 	private readonly pageUriById = new Map<string, string>();
@@ -30,18 +36,24 @@ export class GuideNhWorkspaceIndex {
 	private readonly sourceUrisByLinkedItem = new Map<string, Set<string>>();
 	private readonly sourceUrisByLinkedOre = new Map<string, Set<string>>();
 	private readonly valueCountsByFrontmatterPath = new Map<string, Map<string, number>>();
+	private readonly namespaceCounts = new Map<string, number>();
 	private sortedPages: GuideNhIndexedPage[] = [];
 	private sortedPageKeys: string[] = [];
 	private sortedPagesDirty = true;
 	private readonly sortedFrontmatterValues = new Map<string, string[]>();
 	private readonly dirtyFrontmatterPaths = new Set<string>();
+	private sortedNamespaces: string[] = [];
+	private namespacesDirty = true;
 
 	updatePage(uri: string, text: string): void {
 		this.removePage(uri);
 		const location = resolveGuideNhDocumentLocation(uri);
 		const frontmatterValues = extractIndexedFrontmatterValues(text);
 		const model = createGuideNhDocumentModel(text, uri);
-		const itemIds = frontmatterValues.item_ids ?? [];
+		const itemIds = [
+			...(frontmatterValues.item_id ?? []),
+			...(frontmatterValues.item_ids ?? [])
+		];
 		const oreIds = frontmatterValues.ore_ids ?? [];
 		const links = extractPageLinks(model);
 		const resourceLinks = extractResourceLinks(model);
@@ -61,6 +73,7 @@ export class GuideNhWorkspaceIndex {
 			itemLinks,
 			oreLinks
 		});
+		this.addNamespace(location.namespace);
 		this.pageUriById.set(location.pageId, uri);
 		const pageUris = this.pageUrisByRelativePath.get(location.relativePath) ?? new Set<string>();
 		pageUris.add(uri);
@@ -94,6 +107,7 @@ export class GuideNhWorkspaceIndex {
 			return;
 		}
 		this.pages.delete(uri);
+		this.removeNamespace(page.namespace);
 		this.pageUriById.delete(page.pageId);
 		const pageUris = this.pageUrisByRelativePath.get(page.relativePath);
 		if (pageUris) {
@@ -179,6 +193,55 @@ export class GuideNhWorkspaceIndex {
 				break;
 			}
 			matches.push(page);
+		}
+		return matches;
+	}
+
+	queryPageReferencesByPrefix(prefix: string, documentUri?: string, limit = 200): GuideNhPageReference[] {
+		if (limit <= 0) {
+			return [];
+		}
+		const location = documentUri ? resolveGuideNhDocumentLocation(documentUri) : undefined;
+		if (!location?.namespace || prefix.includes(':')) {
+			return this.queryPagesByPrefix(prefix, limit).map((page) => ({
+				page,
+				value: prefix.includes(':') ? page.pageId : page.relativePath
+			}));
+		}
+		const normalizedPrefix = prefix.toLowerCase();
+		const references = new Map<string, GuideNhPageReference>();
+		for (const page of this.listPages()) {
+			if (page.uri === documentUri || page.namespace?.toLowerCase() !== location.namespace.toLowerCase()) {
+				continue;
+			}
+			const value = createRelativePageReference(location.directoryPath, page.relativePath, prefix);
+			if (!value.toLowerCase().startsWith(normalizedPrefix)) {
+				continue;
+			}
+			const existing = references.get(value);
+			if (!existing || isPreferredPageReference(page, existing.page, location.locale)) {
+				references.set(value, { page, value });
+			}
+		}
+		return Array.from(references.values())
+			.sort((left, right) => left.value.localeCompare(right.value))
+			.slice(0, limit);
+	}
+
+	queryModIdsByPrefix(prefix: string, limit = 200): string[] {
+		if (limit <= 0) {
+			return [];
+		}
+		this.refreshSortedNamespaces();
+		const normalizedPrefix = prefix.toLowerCase();
+		const start = lowerBound(this.sortedNamespaces, normalizedPrefix);
+		const matches: string[] = [];
+		for (let index = start; index < this.sortedNamespaces.length && matches.length < limit; index++) {
+			const namespace = this.sortedNamespaces[index];
+			if (!namespace.startsWith(normalizedPrefix)) {
+				break;
+			}
+			matches.push(namespace);
 		}
 		return matches;
 	}
@@ -372,6 +435,14 @@ export class GuideNhWorkspaceIndex {
 		this.sortedPagesDirty = false;
 	}
 
+	private refreshSortedNamespaces(): void {
+		if (!this.namespacesDirty) {
+			return;
+		}
+		this.sortedNamespaces = Array.from(this.namespaceCounts.keys()).sort((left, right) => left.localeCompare(right));
+		this.namespacesDirty = false;
+	}
+
 	private collectPageLookupKeys(normalized: string): string[] {
 		const keys = new Set<string>(this.collectReferenceLookupKeys(normalized, this.sourceUrisByLinkedPage));
 		const relativeUris = this.pageUrisByRelativePath.get(normalized);
@@ -474,6 +545,29 @@ export class GuideNhWorkspaceIndex {
 		}
 	}
 
+	private addNamespace(namespace: string | undefined): void {
+		if (!namespace) {
+			return;
+		}
+		const normalized = namespace.toLowerCase();
+		this.namespaceCounts.set(normalized, (this.namespaceCounts.get(normalized) ?? 0) + 1);
+		this.namespacesDirty = true;
+	}
+
+	private removeNamespace(namespace: string | undefined): void {
+		if (!namespace) {
+			return;
+		}
+		const normalized = namespace.toLowerCase();
+		const count = this.namespaceCounts.get(normalized) ?? 0;
+		if (count <= 1) {
+			this.namespaceCounts.delete(normalized);
+		} else {
+			this.namespaceCounts.set(normalized, count - 1);
+		}
+		this.namespacesDirty = true;
+	}
+
 	private removeFrontmatterValues(values: Record<string, string[]>): void {
 		for (const [path, pathValues] of Object.entries(values)) {
 			const counts = this.valueCountsByFrontmatterPath.get(path);
@@ -542,4 +636,29 @@ function lowerBound(values: string[], target: string): number {
 		}
 	}
 	return low;
+}
+
+function createRelativePageReference(directoryPath: string, relativePath: string, prefix: string): string {
+	if (prefix.startsWith('/')) {
+		return `/${relativePath}`;
+	}
+	const reference = path.posix.relative(directoryPath || '.', relativePath);
+	if (!prefix.startsWith('./') || reference.startsWith('../')) {
+		return reference;
+	}
+	return `./${reference}`;
+}
+
+function isPreferredPageReference(
+	candidate: GuideNhIndexedPage,
+	existing: GuideNhIndexedPage,
+	preferredLocale: string | undefined
+): boolean {
+	if (candidate.locale === preferredLocale && existing.locale !== preferredLocale) {
+		return true;
+	}
+	if (candidate.locale !== preferredLocale && existing.locale === preferredLocale) {
+		return false;
+	}
+	return candidate.uri.localeCompare(existing.uri) < 0;
 }

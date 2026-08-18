@@ -121,13 +121,13 @@ function createIndexedFrontmatterValueHover(
 	if (!context) {
 		return undefined;
 	}
-	const page = context.path === 'item_ids'
+	const page = context.path === 'item_id' || context.path === 'item_ids'
 		? index?.findItemReference(context.value)
 		: context.path === 'ore_ids'
 			? index?.findOreReference(context.value)
 			: undefined;
-	const kind = context.path === 'item_ids'
-		? 'GuideNH item id'
+	const kind = context.path === 'item_id' || context.path === 'item_ids'
+		? 'GuideNH item expression'
 		: context.path === 'ore_ids'
 			? 'GuideNH ore id'
 			: context.path === 'quest_ids'

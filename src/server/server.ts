@@ -1,5 +1,6 @@
 import * as path from 'path';
 import {
+	CodeActionKind,
 	CompletionItemKind,
 	createConnection,
 	DocumentLink,
@@ -21,7 +22,7 @@ import {
 } from '../common/protocol';
 import { GuideNhResourceIndex } from './index/resourceIndex';
 import { GuideNhWorkspaceIndex } from './index/workspaceIndex';
-import { indexGuideNhWorkspaceFolders } from './index/workspaceScanner';
+import { forEachGuideNhMarkdownDocument, indexGuideNhWorkspaceFolders } from './index/workspaceScanner';
 import { localizeServer, setServerLocale } from './localization';
 import {
 	applyCompletionReplacementRange,
@@ -30,6 +31,7 @@ import {
 	GuideNhCompletionTriggerCharacters,
 	resolveGuideNhCompletionOffset
 } from './providers/completion';
+import { createGuideNhCodeActions } from './providers/codeActions';
 import { createGuideNhDiagnostics } from './providers/diagnostics';
 import { createGuideNhDefinition } from './providers/definition';
 import { createGuideNhDocumentLinks } from './providers/documentLinks';
@@ -76,6 +78,9 @@ connection.onInitialize((params: InitializeParams) => {
 			definitionProvider: true,
 			referencesProvider: true,
 			hoverProvider: true,
+			codeActionProvider: {
+				codeActionKinds: [CodeActionKind.QuickFix]
+			},
 			documentLinkProvider: {
 				resolveProvider: false
 			}
@@ -85,11 +90,7 @@ connection.onInitialize((params: InitializeParams) => {
 
 connection.onInitialized(() => {
 	const folders = resolveInitialWorkspaceFolders(workspaceFolders, configuredResourcePackPath);
-	void indexGuideNhWorkspaceFolders(folders, workspaceIndex, resourceIndex).catch((error: unknown) => {
-		connection.console.warn(`GuideNH workspace scan failed: ${error instanceof Error ? error.message : String(error)}`);
-	}).finally(() => {
-		void refreshOpenDocumentDiagnostics();
-	});
+	void initializeWorkspace(folders);
 });
 
 connection.onRequest(RuntimePreviewSearchRequest, async (payload: PreviewSearchPayload) => {
@@ -202,6 +203,15 @@ connection.onDocumentLinks((params): DocumentLink[] => {
 	return createGuideNhDocumentLinks(document.getText(), document.uri, workspaceIndex, preferredLocale);
 });
 
+connection.onCodeAction(async (params) => {
+	const document = documents.get(params.textDocument.uri);
+	if (!document) {
+		return [];
+	}
+	const schema = await schemaPromise;
+	return createGuideNhCodeActions(document.uri, document.getText(), schema, params.context.diagnostics);
+});
+
 for (const [method, handler] of Object.entries(runtimeBridgeHandlers)) {
 	connection.onNotification(method, handler);
 }
@@ -236,6 +246,32 @@ function deduplicateCompletionItems<T extends { label: string }>(primary: T[], s
 		merged.push(item);
 	}
 	return merged;
+}
+
+async function initializeWorkspace(folders: WorkspaceFolder[]): Promise<void> {
+	try {
+		await indexGuideNhWorkspaceFolders(folders, workspaceIndex, resourceIndex);
+		await publishWorkspaceDiagnostics(folders);
+	} catch (error) {
+		connection.console.warn(`GuideNH workspace scan failed: ${error instanceof Error ? error.message : String(error)}`);
+	} finally {
+		await refreshOpenDocumentDiagnostics();
+	}
+}
+
+async function publishWorkspaceDiagnostics(folders: WorkspaceFolder[]): Promise<void> {
+	const schema = await schemaPromise;
+	await forEachGuideNhMarkdownDocument(folders, async (document) => {
+		const diagnostics = createGuideNhDiagnostics(
+			document.text,
+			schema,
+			workspaceIndex,
+			resourceIndex,
+			document.uri,
+			preferredLocale
+		);
+		connection.sendDiagnostics({ uri: document.uri, diagnostics });
+	});
 }
 
 function shouldQueryRuntimeCompletion(existingItemCount: number, filters: Record<string, string>): boolean {

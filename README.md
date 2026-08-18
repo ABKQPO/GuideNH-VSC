@@ -15,6 +15,8 @@ GuideVSC is a Visual Studio Code extension for authoring GuideNH Markdown conten
 - Completion for GuideNH tags, attributes, reusable snippets, and runtime item or ore ids when the bridge is connected.
 - Hover information from the local GuideNH schema.
 - Definition and reference support backed by the workspace index.
+- Frontmatter support for `item_id` and `item_ids` NEI-style item expressions, including workspace indexing and semantic completion, plus `navigation.required_mod`/`required_mods` requirements and `navigation.excluded_mod`/`excluded_mods` exclusions.
+- Quick fixes for unclosed GuideNH tags, including nested tag stacks.
 - Schema generation from the local GuideNH Java compiler sources.
 - Optional runtime semantic cache over a token-protected WebSocket bridge.
 

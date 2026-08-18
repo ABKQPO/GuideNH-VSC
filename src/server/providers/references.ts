@@ -40,7 +40,7 @@ function findIndexedFrontmatterValueReferences(
 	if (!context) {
 		return [];
 	}
-	if (context.path === 'item_ids') {
+	if (context.path === 'item_id' || context.path === 'item_ids') {
 		return index.findReferencesToItem(context.value);
 	}
 	if (context.path === 'ore_ids') {

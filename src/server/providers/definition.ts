@@ -47,7 +47,7 @@ function resolveIndexedFrontmatterValueDefinition(
 	if (!context) {
 		return undefined;
 	}
-	const target = context.path === 'item_ids'
+	const target = context.path === 'item_id' || context.path === 'item_ids'
 		? index.findItemReference(context.value)
 		: context.path === 'ore_ids'
 			? index.findOreReference(context.value)

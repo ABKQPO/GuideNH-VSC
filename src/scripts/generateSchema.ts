@@ -805,6 +805,15 @@ function applyReferenceEnhancements(tags: Record<string, GuideNhTagSchema>): voi
 	mergeAttributes(tags.Block, {
 		ore: { type: 'ore', valueStyle: 'string' }
 	});
+	for (const name of ['GameScene', 'Scene']) {
+		mergeAttributes(tags[name], {
+			background: {
+				type: 'string',
+				valueStyle: 'string',
+				description: 'Legacy scene background mode, such as transparent.'
+			}
+		});
+	}
 	if (tags.Block?.attributes.id) {
 		tags.Block.attributes.id.requiredWhenMissing = ['ore'];
 	}
@@ -825,6 +834,7 @@ function applyReferenceEnhancements(tags: Record<string, GuideNhTagSchema>): voi
 	}
 	mergeAttributes(tags.ItemImage, {
 		align: { type: 'string', valueStyle: 'string' },
+		nbt: { type: 'string', valueStyle: 'string' },
 		noTooltip: { type: 'boolean', valueStyle: 'expression' },
 		...tooltipCompatibilityAttributes,
 		tooltip: { type: 'string', valueStyle: 'string' }
@@ -834,6 +844,8 @@ function applyReferenceEnhancements(tags: Record<string, GuideNhTagSchema>): voi
 	}
 	mergeAttributes(tags.FloatingImage, {
 		alt: { type: 'string', valueStyle: 'string' },
+		displayHeight: { type: 'number', valueStyle: 'string' },
+		displayWidth: { type: 'number', valueStyle: 'string' },
 		h: { type: 'number', valueStyle: 'string' },
 		height: { type: 'number', valueStyle: 'string' },
 		scaleX: { type: 'number', valueStyle: 'string' },

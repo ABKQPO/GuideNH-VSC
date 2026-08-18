@@ -7,6 +7,9 @@ import { createGuideNhDocumentModel } from '../parser/documentModel';
 import { GuideNhParsedTag, parseGuideNhDocument } from '../parser/documentParser';
 import { findAttributeSchema, findTagSchema, hasAttributeValue, isChildTagAllowed, matchesTagName } from '../schema/schemaLookup';
 
+export const GuideNhUnclosedTagDiagnosticCode = 'guidenh.unclosedTag';
+export const GuideNhClosingTagMismatchDiagnosticCode = 'guidenh.closingTagMismatch';
+
 function createDiagnostic(text: string, start: number, end: number, message: string): Diagnostic {
 	return {
 		range: {
@@ -44,7 +47,14 @@ export function createGuideNhDiagnostics(
 		if (tag.closing) {
 			const parentTag = parentStack[parentStack.length - 1];
 			if (parentTag && !matchesTagName(parentTag.name, tag.name)) {
-				diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.closingTagMismatch', tag.name, parentTag.name)));
+				diagnostics.push({
+					...createDiagnostic(
+						text,
+						tag.start,
+						tag.end,
+						localizeServer('diagnostic.closingTagMismatch', tag.name, parentTag.name)),
+					code: GuideNhClosingTagMismatchDiagnosticCode
+				});
 			}
 			popParentTag(parentStack, tag.name);
 			continue;
@@ -81,7 +91,10 @@ export function createGuideNhDiagnostics(
 		}
 	}
 	for (const tag of parentStack) {
-		diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.unclosedTag', tag.name)));
+		diagnostics.push({
+			...createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.unclosedTag', tag.name)),
+			code: GuideNhUnclosedTagDiagnosticCode
+		});
 	}
 	return diagnostics;
 }
@@ -96,6 +109,10 @@ function createTagSpecificDiagnostics(text: string, tag: GuideNhParsedTag): Diag
 	}
 	if (hasAttributeValue(tag.attributes, 'height') && hasAttributeValue(tag.attributes, 'h')) {
 		diagnostics.push(createDiagnostic(text, tag.start, tag.end, 'FloatingImage cannot use both height and h'));
+	}
+	const hasDisplaySize = hasAttributeValue(tag.attributes, 'displayWidth') || hasAttributeValue(tag.attributes, 'displayHeight');
+	if (hasDisplaySize && (hasAttributeValue(tag.attributes, 'scaleX') || hasAttributeValue(tag.attributes, 'scaleY'))) {
+		diagnostics.push(createDiagnostic(text, tag.start, tag.end, 'FloatingImage displayWidth/displayHeight cannot be used with scaleX/scaleY'));
 	}
 	return diagnostics;
 }

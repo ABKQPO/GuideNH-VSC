@@ -18,7 +18,12 @@ type LocaleKey =
 	| 'diagnostic.unknownPage'
 	| 'diagnostic.unknownResource'
 	| 'diagnostic.unknownFrontmatterKey'
-	| 'diagnostic.frontmatterExpects';
+	| 'diagnostic.frontmatterExpects'
+	| 'codeAction.addClosingTag'
+	| 'codeAction.addClosingTagAfterTag'
+	| 'codeAction.closeNestedTags'
+	| 'codeAction.closeNestedTagsAfterTag'
+	| 'codeAction.insertMissingClosures';
 
 type LocaleMessages = Record<LocaleKey, string>;
 
@@ -42,7 +47,12 @@ const EnglishMessages: LocaleMessages = {
 	'diagnostic.unknownPage': 'Unknown GuideNH page {0}',
 	'diagnostic.unknownResource': 'Unknown GuideNH resource {0}',
 	'diagnostic.unknownFrontmatterKey': 'Unknown frontmatter key {0}',
-	'diagnostic.frontmatterExpects': 'Frontmatter key {0} expects {1} value'
+	'diagnostic.frontmatterExpects': 'Frontmatter key {0} expects {1} value',
+	'codeAction.addClosingTag': 'Add closing tag </{0}>',
+	'codeAction.addClosingTagAfterTag': 'Add closing tag </{0}> after </{1}>',
+	'codeAction.closeNestedTags': 'Close unclosed tags through </{0}>',
+	'codeAction.closeNestedTagsAfterTag': 'Close unclosed tags through </{0}> after </{1}>',
+	'codeAction.insertMissingClosures': 'Insert missing closing tags before </{0}>'
 };
 
 const ChineseMessages: LocaleMessages = {
@@ -65,7 +75,12 @@ const ChineseMessages: LocaleMessages = {
 	'diagnostic.unknownPage': '未知 GuideNH 页面 {0}',
 	'diagnostic.unknownResource': '未知 GuideNH 资源 {0}',
 	'diagnostic.unknownFrontmatterKey': '未知 frontmatter 键 {0}',
-	'diagnostic.frontmatterExpects': 'frontmatter 键 {0} 需要 {1} 类型的值'
+	'diagnostic.frontmatterExpects': 'frontmatter 键 {0} 需要 {1} 类型的值',
+	'codeAction.addClosingTag': '添加结束标签 </{0}>',
+	'codeAction.addClosingTagAfterTag': '在 </{1}> 后添加结束标签 </{0}>',
+	'codeAction.closeNestedTags': '补齐未闭合标签，直到 </{0}>',
+	'codeAction.closeNestedTagsAfterTag': '在 </{1}> 后补齐未闭合标签，直到 </{0}>',
+	'codeAction.insertMissingClosures': '在 </{0}> 前补齐缺失的结束标签'
 };
 
 let activeMessages = EnglishMessages;

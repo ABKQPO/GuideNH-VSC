@@ -37,12 +37,16 @@ const RuntimeAttributeSources: RuntimeAttributeSource[] = [
 ];
 
 const FrontmatterRuntimeCapabilities = new Map<string, string>([
+	['item_id', 'items'],
 	['item_ids', 'items'],
 	['ore_ids', 'ores'],
 	['quest_ids', 'quests'],
 	['categories', 'categories'],
 	['navigation.parent', 'pages'],
+	['navigation.required_mod', 'mods'],
 	['navigation.required_mods', 'mods'],
+	['navigation.excluded_mod', 'mods'],
+	['navigation.excluded_mods', 'mods'],
 	['navigation.icon', 'items'],
 	['navigation.icons', 'items']
 ]);

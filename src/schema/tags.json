@@ -1004,6 +1004,14 @@
           "type": "number",
           "valueStyle": "string"
         },
+        "displayHeight": {
+          "type": "number",
+          "valueStyle": "string"
+        },
+        "displayWidth": {
+          "type": "number",
+          "valueStyle": "string"
+        },
         "h": {
           "type": "number",
           "valueStyle": "string"
@@ -1360,6 +1368,11 @@
         "allowLayerSlider": {
           "type": "boolean",
           "valueStyle": "expression"
+        },
+        "background": {
+          "type": "string",
+          "valueStyle": "string",
+          "description": "Legacy scene background mode, such as transparent."
         },
         "buttonEnabled": {
           "type": "boolean",
@@ -1863,6 +1876,10 @@
           "valueStyle": "string"
         },
         "labelYOffset": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "nbt": {
           "type": "string",
           "valueStyle": "string"
         },
@@ -3243,6 +3260,11 @@
         "allowLayerSlider": {
           "type": "boolean",
           "valueStyle": "expression"
+        },
+        "background": {
+          "type": "string",
+          "valueStyle": "string",
+          "description": "Legacy scene background mode, such as transparent."
         },
         "buttonEnabled": {
           "type": "boolean",
