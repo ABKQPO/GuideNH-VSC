@@ -1943,6 +1943,10 @@
           "valueStyle": "string",
           "description": "Ore dictionary name."
         },
+        "scale": {
+          "type": "number",
+          "valueStyle": "expression"
+        },
         "show_tooltip": {
           "type": "boolean",
           "valueStyle": "string",
