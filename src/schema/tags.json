@@ -460,8 +460,14 @@
       "description": "Generated from GuideNH br compiler source.",
       "attributes": {
         "clear": {
-          "type": "string",
-          "valueStyle": "string"
+          "type": "enum",
+          "valueStyle": "string",
+          "values": [
+            "none",
+            "left",
+            "right",
+            "all"
+          ]
         }
       },
       "children": [],
@@ -1166,6 +1172,10 @@
           "valueStyle": "expression"
         },
         "label": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "name": {
           "type": "string",
           "valueStyle": "string"
         },
@@ -1953,13 +1963,9 @@
           "description": "Whether hover tooltip is shown."
         },
         "showIcon": {
-          "type": "enum",
+          "type": "string",
           "valueStyle": "string",
-          "values": [
-            "left",
-            "right"
-          ],
-          "description": "Icon side."
+          "description": "Icon side, or a truthy value for the right side."
         },
         "showText": {
           "type": "boolean",
@@ -2701,6 +2707,10 @@
           "type": "string",
           "valueStyle": "string"
         },
+        "name": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "pointEveryX": {
           "type": "string",
           "valueStyle": "string"
@@ -2839,6 +2849,10 @@
           "valueStyle": "string",
           "description": "Fallback text."
         },
+        "float": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "handlerId": {
           "type": "string",
           "valueStyle": "string",
@@ -2890,7 +2904,15 @@
       "kind": "block",
       "description": "Generated from GuideNH RecipeFor compiler source.",
       "attributes": {
+        "align": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "fallbackText": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "float": {
           "type": "string",
           "valueStyle": "string"
         },
@@ -2923,6 +2945,10 @@
           "valueStyle": "string"
         },
         "recipeIndex": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "wrap": {
           "type": "string",
           "valueStyle": "string"
         }
@@ -2935,7 +2961,15 @@
       "kind": "block",
       "description": "Generated from GuideNH RecipesFor compiler source.",
       "attributes": {
+        "align": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "fallbackText": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "float": {
           "type": "string",
           "valueStyle": "string"
         },
@@ -2968,6 +3002,67 @@
           "valueStyle": "string"
         },
         "recipeIndex": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "wrap": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "RecipesUsage": {
+      "name": "RecipesUsage",
+      "kind": "block",
+      "description": "Generated from GuideNH RecipesUsage compiler source.",
+      "attributes": {
+        "align": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "fallbackText": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "float": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "handlerId": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "handlerName": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "handlerOrder": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "id": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "input": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "limit": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "output": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "recipeIndex": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "wrap": {
           "type": "string",
           "valueStyle": "string"
         }
@@ -2980,7 +3075,15 @@
       "kind": "block",
       "description": "Generated from GuideNH RecipeUsage compiler source.",
       "attributes": {
+        "align": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "fallbackText": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "float": {
           "type": "string",
           "valueStyle": "string"
         },
@@ -3013,6 +3116,10 @@
           "valueStyle": "string"
         },
         "recipeIndex": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "wrap": {
           "type": "string",
           "valueStyle": "string"
         }
@@ -3894,6 +4001,63 @@
       "description": "Generated from GuideNH ul compiler source.",
       "attributes": {
         "start": {
+          "type": "string",
+          "valueStyle": "string"
+        }
+      },
+      "children": [],
+      "snippets": []
+    },
+    "Usage": {
+      "name": "Usage",
+      "kind": "block",
+      "description": "Generated from GuideNH Usage compiler source.",
+      "attributes": {
+        "align": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "fallbackText": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "float": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "handlerId": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "handlerName": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "handlerOrder": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "id": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "input": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "limit": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "output": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "recipeIndex": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "wrap": {
           "type": "string",
           "valueStyle": "string"
         }

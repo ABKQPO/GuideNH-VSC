@@ -792,8 +792,14 @@ function applyRecipeEnhancements(tags: Record<string, GuideNhTagSchema>): void {
 		input: { type: 'string', valueStyle: 'string' as const },
 		output: { type: 'string', valueStyle: 'string' as const }
 	};
-	for (const name of ['Recipe', 'RecipeFor', 'RecipeUsage', 'RecipesFor']) {
+	const blockLayoutAttributes: Record<string, GuideNhAttributeSchema> = {
+		align: { type: 'string', valueStyle: 'string' },
+		float: { type: 'string', valueStyle: 'string' },
+		wrap: { type: 'string', valueStyle: 'string' }
+	};
+	for (const name of ['Recipe', 'Usage', 'RecipeFor', 'RecipeUsage', 'RecipesFor', 'RecipesUsage']) {
 		mergeAttributes(tags[name], recipeFilterAttributes);
+		mergeAttributes(tags[name], blockLayoutAttributes);
 	}
 }
 
@@ -842,6 +848,20 @@ function applyReferenceEnhancements(tags: Record<string, GuideNhTagSchema>): voi
 	for (const name of ['ItemLink', 'QuestCard', 'QuestLink']) {
 		mergeAttributes(tags[name], tooltipCompatibilityAttributes);
 	}
+	mergeAttributes(tags.br, {
+		clear: {
+			type: 'enum',
+			valueStyle: 'string',
+			values: ['none', 'left', 'right', 'all']
+		}
+	});
+	mergeAttributes(tags.ItemLink, {
+		showIcon: {
+			type: 'string',
+			valueStyle: 'string',
+			description: 'Icon side, or a truthy value for the right side.'
+		}
+	});
 	mergeAttributes(tags.FloatingImage, {
 		alt: { type: 'string', valueStyle: 'string' },
 		displayHeight: { type: 'number', valueStyle: 'string' },

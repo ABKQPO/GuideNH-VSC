@@ -24,7 +24,11 @@ interface MaskRange {
 	end: number;
 }
 
-const IgnoredHtmlTagNames = new Set(['a', 'abbr', 'b', 'code', 'del', 'em', 'i', 'mark', 's', 'small', 'span', 'strong', 'sub', 'sup', 'u']);
+const IgnoredHtmlTagNames = new Set([
+	'a', 'abbr', 'area', 'b', 'base', 'code', 'col', 'del', 'em', 'embed', 'hr', 'i', 'img', 'input', 'link', 'mark',
+	'meta', 'param', 's', 'small', 'source', 'span', 'strong', 'sub', 'sup', 'track', 'u', 'wbr'
+]);
+const GuideNhVoidTagNames = new Set(['br']);
 
 export function maskIgnoredMarkdownRanges(text: string): string {
 	const ranges = [
@@ -130,7 +134,7 @@ function parseAttributes(source: string, sourceOffset: number): ParsedAttributes
 	const attributes: Record<string, string | true> = {};
 	const ranges: Record<string, { start: number; end: number }> = {};
 	const valueStyles: Record<string, GuideNhAttributeValueStyle> = {};
-	const pattern = /([A-Za-z_][\w.-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|\{([^}]*)\}|([^\s"'=<>`]+)))?/g;
+	const pattern = /([A-Za-z_][\w.:-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|\{([^}]*)\}|([^\s"'=<>`]+)))?/g;
 	let match: RegExpExecArray | null;
 	while ((match = pattern.exec(source)) !== null) {
 		const name = match[1];
@@ -151,7 +155,7 @@ export function parseGuideNhDocument(text: string): GuideNhParsedDocument {
 	const masked = maskIgnoredMarkdownRanges(text);
 	const frontmatter = extractFrontmatter(masked);
 	const tags: GuideNhParsedTag[] = [];
-	const tagPattern = /<\/?([A-Za-z][A-Za-z0-9]*)(\s[^<>]*?)?(\/?)>/g;
+	const tagPattern = /<\/?([A-Za-z][A-Za-z0-9]*)(\s(?:[^>"']+|"[^"]*"|'[^']*')*?)?(\/?)>/g;
 	let match: RegExpExecArray | null;
 	while ((match = tagPattern.exec(masked)) !== null) {
 		if (IgnoredHtmlTagNames.has(match[1].toLowerCase())) {
@@ -167,7 +171,7 @@ export function parseGuideNhDocument(text: string): GuideNhParsedDocument {
 			attributeValueStyles: parsedAttributes.valueStyles,
 			start: match.index,
 			end: match.index + match[0].length,
-			selfClosing: match[3] === '/',
+			selfClosing: /\/\s*>$/.test(match[0]) || GuideNhVoidTagNames.has(match[1].toLowerCase()),
 			closing
 		});
 	}
