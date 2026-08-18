@@ -1175,10 +1175,6 @@
           "type": "string",
           "valueStyle": "string"
         },
-        "name": {
-          "type": "string",
-          "valueStyle": "string"
-        },
         "plot": {
           "type": "number",
           "valueStyle": "string"
@@ -1199,11 +1195,23 @@
           "type": "boolean",
           "valueStyle": "expression"
         },
+        "showFunction": {
+          "type": "boolean",
+          "valueStyle": "expression"
+        },
         "showGrid": {
           "type": "boolean",
           "valueStyle": "expression"
         },
+        "showValues": {
+          "type": "boolean",
+          "valueStyle": "expression"
+        },
         "title": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "tooltip": {
           "type": "string",
           "valueStyle": "string"
         },
@@ -1212,6 +1220,10 @@
           "valueStyle": "string"
         },
         "x": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "xLabel": {
           "type": "string",
           "valueStyle": "string"
         },
@@ -1232,6 +1244,10 @@
           "valueStyle": "string"
         },
         "y": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "yLabel": {
           "type": "string",
           "valueStyle": "string"
         },
@@ -1288,6 +1304,14 @@
           "type": "number",
           "valueStyle": "string"
         },
+        "domain": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "expr": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "gridColor": {
           "type": "color",
           "valueStyle": "string"
@@ -1320,6 +1344,10 @@
           "type": "number",
           "valueStyle": "string"
         },
+        "xLabel": {
+          "type": "string",
+          "valueStyle": "string"
+        },
         "xMax": {
           "type": "string",
           "valueStyle": "string"
@@ -1333,6 +1361,10 @@
           "valueStyle": "string"
         },
         "xStep": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "yLabel": {
           "type": "string",
           "valueStyle": "string"
         },
@@ -2707,15 +2739,23 @@
           "type": "string",
           "valueStyle": "string"
         },
-        "name": {
-          "type": "string",
-          "valueStyle": "string"
-        },
         "pointEveryX": {
           "type": "string",
           "valueStyle": "string"
         },
         "pointEveryY": {
+          "type": "string",
+          "valueStyle": "string"
+        },
+        "showFunction": {
+          "type": "boolean",
+          "valueStyle": "expression"
+        },
+        "showValues": {
+          "type": "boolean",
+          "valueStyle": "expression"
+        },
+        "tooltip": {
           "type": "string",
           "valueStyle": "string"
         },

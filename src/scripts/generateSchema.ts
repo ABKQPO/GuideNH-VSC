@@ -641,20 +641,22 @@ function applyFunctionGraphEnhancements(tags: Record<string, GuideNhTagSchema>, 
 	const attrsSource = findSourceByClassName(sources, 'FunctionGraphAttrs');
 	if (!attrsSource) {
 		applyFallbackFunctionGraphEnhancements(tags);
-		return;
+	} else {
+		const attributeMap = extractFunctionGraphAttributes(attrsSource.text);
+		mergeAttributes(tags.FunctionGraph, attributeMap.container);
+		mergeAttributes(tags.Function, attributeMap.container);
+		mergeAttributes(tags.Function, attributeMap.plot);
+		tags.Plot = {
+			name: 'Plot',
+			kind: 'block',
+			description: 'Generated from GuideNH function graph plot support.',
+			attributes: sortAttributes(attributeMap.plot),
+			children: [],
+			snippets: []
+		};
 	}
-	const attributeMap = extractFunctionGraphAttributes(attrsSource.text);
-	mergeAttributes(tags.FunctionGraph, attributeMap.container);
-	mergeAttributes(tags.Function, attributeMap.container);
-	mergeAttributes(tags.Function, attributeMap.plot);
-	tags.Plot = {
-		name: 'Plot',
-		kind: 'block',
-		description: 'Generated from GuideNH function graph plot support.',
-		attributes: sortAttributes(attributeMap.plot),
-		children: [],
-		snippets: []
-	};
+	delete tags.Plot?.attributes.name;
+	delete tags.Function?.attributes.name;
 	setChildren(tags.FunctionGraph, ['Plot', 'Function', 'Point']);
 }
 
@@ -724,6 +726,7 @@ function isFunctionContainerAttribute(name: string): boolean {
 		'cornerLegendBackground',
 		'cornerLegendHeight',
 		'cornerLegendWidth',
+		'domain',
 		'gridColor',
 		'height',
 		'quadrants',
@@ -731,12 +734,14 @@ function isFunctionContainerAttribute(name: string): boolean {
 		'showGrid',
 		'title',
 		'width',
+		'xLabel',
 		'xMax',
 		'xMin',
 		'xRange',
 		'xStep',
 		'yMax',
 		'yMin',
+		'yLabel',
 		'yRange',
 		'yStep'
 	].includes(name);
@@ -755,6 +760,7 @@ function createFallbackFunctionGraphContainerAttributes(): Record<string, GuideN
 		cornerLegendBackground: { type: 'color', valueStyle: 'string' },
 		cornerLegendHeight: { type: 'number', valueStyle: 'string' },
 		cornerLegendWidth: { type: 'number', valueStyle: 'string' },
+		domain: { type: 'string', valueStyle: 'string' },
 		gridColor: { type: 'color', valueStyle: 'string' },
 		height: { type: 'number', valueStyle: 'string' },
 		quadrants: { type: 'string', valueStyle: 'string' },
@@ -762,12 +768,14 @@ function createFallbackFunctionGraphContainerAttributes(): Record<string, GuideN
 		showGrid: { type: 'boolean', valueStyle: 'expression' },
 		title: { type: 'string', valueStyle: 'string' },
 		width: { type: 'number', valueStyle: 'string' },
+		xLabel: { type: 'string', valueStyle: 'string' },
 		xMax: { type: 'string', valueStyle: 'string' },
 		xMin: { type: 'string', valueStyle: 'string' },
 		xRange: { type: 'string', valueStyle: 'string' },
 		xStep: { type: 'string', valueStyle: 'string' },
 		yMax: { type: 'string', valueStyle: 'string' },
 		yMin: { type: 'string', valueStyle: 'string' },
+		yLabel: { type: 'string', valueStyle: 'string' },
 		yRange: { type: 'string', valueStyle: 'string' },
 		yStep: { type: 'string', valueStyle: 'string' }
 	};
@@ -783,7 +791,10 @@ function createFallbackFunctionPlotAttributes(): Record<string, GuideNhAttribute
 		inverse: { type: 'boolean', valueStyle: 'expression' },
 		label: { type: 'string', valueStyle: 'string' },
 		pointEveryX: { type: 'string', valueStyle: 'string' },
-		pointEveryY: { type: 'string', valueStyle: 'string' }
+		pointEveryY: { type: 'string', valueStyle: 'string' },
+		showFunction: { type: 'boolean', valueStyle: 'expression' },
+		showValues: { type: 'boolean', valueStyle: 'expression' },
+		tooltip: { type: 'string', valueStyle: 'string' }
 	};
 }
 
@@ -1208,6 +1219,10 @@ function applyGeneratedTagFixups(
 ): void {
 	overwriteGeneratedTag(mergedTags, generatedTags, existingTags, 'ContentTabs');
 	overwriteGeneratedTag(mergedTags, generatedTags, existingTags, 'Tab');
+	// FunctionGraph curves use label exclusively. The general schema merge retains historical
+	// fields unless they are explicitly removed after that merge.
+	delete mergedTags.Plot?.attributes.name;
+	delete mergedTags.Function?.attributes.name;
 }
 
 function overwriteGeneratedTag(

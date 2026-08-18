@@ -471,7 +471,9 @@ suite('GuideNH diagnostics', () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const text = [
 			'<FunctionGraph width="360" height="220" xRange="-6..6" yRange="-3..3" quadrants="all" showGrid={true}>',
-			'  <Plot expr="sin(x)" color="#ff5566" label="sin x" />',
+			'  <Plot expr="sin(x)" color="#ff5566" label="sin x" tooltip="Sampled live" showFunction={false} showValues={false}>',
+			'    **Rich tooltip** content with <ItemLink id="minecraft:coal" />.',
+			'  </Plot>',
 			'  <Plot expr="x^2 / 4" color="#3399ff" domain="-4..4" label="x^2 / 4" />',
 			'  <Point plot={0} atX={0} label="origin-ish" />',
 			'</FunctionGraph>',
@@ -479,6 +481,21 @@ suite('GuideNH diagnostics', () => {
 		].join('\n');
 
 		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);
+	});
+
+	test('rejects the removed name attribute on function graph curves', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = [
+			'<FunctionGraph>',
+			'  <Plot expr="sin(x)" name="legacy plot" />',
+			'  <Point x={0} y={0} name="legacy point" />',
+			'</FunctionGraph>',
+			'<Function expr="x^2" name="legacy function" />'
+		].join('\n');
+
+		const diagnostics = createGuideNhDiagnostics(text, schema);
+		assert.strictEqual(diagnostics.length, 3);
+		assert.ok(diagnostics.every((diagnostic) => diagnostic.message.includes('Unknown attribute name')));
 	});
 
 	test('accepts extended scene entity and line point attributes', async () => {
