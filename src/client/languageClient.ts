@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node';
 import { GuideNhInitializationOptions } from '../common/protocol';
-import { readGuideNhDefaults } from './config';
+import { readGuideNhDefaults, resolveGuideNhResourcePackWatchPattern } from './config';
 
 export interface ExtensionPathResolver {
 	asAbsolutePath(relativePath: string): string;
@@ -30,7 +30,11 @@ export function createGuideNhLanguageClient(context: vscode.ExtensionContext): L
 		debug: { module: serverModule, transport: TransportKind.ipc }
 	};
 	const assetWatcher = vscode.workspace.createFileSystemWatcher('**/assets/**/*');
+	const configuredResourcePackWatcher = createConfiguredResourcePackWatcher(defaults.resourcePackPath);
 	context.subscriptions.push(assetWatcher);
+	if (configuredResourcePackWatcher) {
+		context.subscriptions.push(configuredResourcePackWatcher);
+	}
 	const clientOptions: LanguageClientOptions = {
 		documentSelector: [
 			{ scheme: 'file', language: 'markdown' },
@@ -43,4 +47,14 @@ export function createGuideNhLanguageClient(context: vscode.ExtensionContext): L
 		initializationOptions
 	};
 	return new LanguageClient('guide-vsc', 'GuideNH Language Server', serverOptions, clientOptions);
+}
+
+function createConfiguredResourcePackWatcher(resourcePackPath: string | undefined): vscode.FileSystemWatcher | undefined {
+	if (!resourcePackPath || resourcePackPath.trim().length === 0) {
+		return undefined;
+	}
+	const root = path.resolve(resourcePackPath);
+	return vscode.workspace.createFileSystemWatcher(
+		new vscode.RelativePattern(root, resolveGuideNhResourcePackWatchPattern(root))
+	);
 }

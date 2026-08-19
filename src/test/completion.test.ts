@@ -516,6 +516,39 @@ suite('GuideNH completion provider', () => {
 		assert.strictEqual(edit.range.end.character, text.indexOf('"', valueStart));
 	});
 
+	test('keeps a single slash for rooted resource completion paths', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const resourceIndex = new GuideNhResourceIndex();
+		resourceIndex.updateResource('file:///repo/assets/structures/coke_oven.snbt');
+		const text = '<ImportStructure src="/old.snbt" />';
+		const valueStart = text.indexOf('/old.snbt');
+		const cursor = valueStart + 1;
+		const items = createGuideNhCompletions(text, cursor, schema, undefined, undefined, undefined, resourceIndex);
+		const item = items.find((candidate: CompletionItem) => candidate.label === 'assets/structures/coke_oven.snbt');
+		assert.ok(item);
+		const edit = item.textEdit as { newText: string };
+		assert.strictEqual(edit.newText, '/assets/structures/coke_oven.snbt');
+		assert.strictEqual(edit.newText.includes('//'), false);
+	});
+
+	test('offers resource completions after a parent-directory prefix', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const resourceIndex = new GuideNhResourceIndex();
+		resourceIndex.updateResource('file:///repo/assets/appliedenergistics2/guidenh/assets/structures/import_storage_pipe.snbt');
+		const text = '<ImportStructure src="../ass';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined, undefined, undefined, resourceIndex);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'assets/structures/import_storage_pipe.snbt'));
+	});
+
+	test('does not offer GuideNH tag snippets while completing an item id', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		for (const tagName of ['ItemLink', 'ItemImage', 'BlockImage', 'Block', 'PlaceBlock', 'RemoveBlocks', 'Recipe', 'RecipeFor', 'QuestCard', 'QuestLink', 'Entity']) {
+			const text = `<${tagName} id="appliedenergistics2:item.ItemMultiPart`;
+			const items = createGuideNhCompletions(text, text.length, schema, undefined);
+			assert.strictEqual(items.some((item: CompletionItem) => item.kind === CompletionItemKind.Class), false, tagName);
+		}
+	});
+
 	test('completes ImportStructureLib controller values from runtime semantic cache', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const cache = new SemanticCache();

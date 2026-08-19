@@ -1,3 +1,4 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 
 export interface GuideNhExtensionDefaults {
@@ -13,6 +14,11 @@ export interface GuideNhExtensionDefaults {
 export function isGuideNhDocumentSelector(path: string): boolean {
 	const normalized = path.replace(/\\/g, '/');
 	return /(^|\/)assets\/[^/]+\/guidenh\/(?:guidenh\/)?_[^/]+\/.+\.md$/i.test(normalized);
+}
+
+export function resolveGuideNhResourcePackWatchPattern(resourcePackPath: string): string {
+	const root = path.resolve(resourcePackPath);
+	return path.basename(root).toLowerCase() === 'assets' ? '**/*' : 'assets/**/*';
 }
 
 export function readGuideNhDefaults(): GuideNhExtensionDefaults {

@@ -132,26 +132,6 @@ export function createGuideNhCompletionResult(
 		};
 	}
 
-	const markdownLinkCompletions = createMarkdownLinkTargetCompletions(text, offset, index, documentUri);
-	if (markdownLinkCompletions) {
-		return { items: markdownLinkCompletions };
-	}
-
-	const fencedBlockCompletions = createFencedBlockCompletions(text, offset, schema);
-	if (fencedBlockCompletions.length > 0) {
-		return { items: fencedBlockCompletions };
-	}
-
-	const inlineMarkerCompletions = createInlineMarkerCompletions(text, offset, schema);
-	if (inlineMarkerCompletions.length > 0) {
-		return { items: inlineMarkerCompletions };
-	}
-
-	const closingTagCompletions = createClosingTagCompletions(maskedText, text, offset, schema);
-	if (closingTagCompletions) {
-		return { items: closingTagCompletions };
-	}
-
 	const attributeValueContext = findAttributeValueContext(maskedText, offset);
 	const dynamicRequest = attributeValueContext ? resolveDynamicCompletionRequest(text, offset, schema, attributeValueContext) : undefined;
 	const runtimeReplacement = attributeValueContext
@@ -195,6 +175,26 @@ export function createGuideNhCompletionResult(
 			dynamicRequest,
 			runtimeReplacement
 		};
+	}
+
+	const markdownLinkCompletions = createMarkdownLinkTargetCompletions(text, offset, index, documentUri);
+	if (markdownLinkCompletions) {
+		return { items: markdownLinkCompletions };
+	}
+
+	const fencedBlockCompletions = createFencedBlockCompletions(text, offset, schema);
+	if (fencedBlockCompletions.length > 0) {
+		return { items: fencedBlockCompletions };
+	}
+
+	const inlineMarkerCompletions = createInlineMarkerCompletions(text, offset, schema);
+	if (inlineMarkerCompletions.length > 0) {
+		return { items: inlineMarkerCompletions };
+	}
+
+	const closingTagCompletions = createClosingTagCompletions(maskedText, text, offset, schema);
+	if (closingTagCompletions) {
+		return { items: closingTagCompletions };
 	}
 
 	const attributeNameContext = findAttributeNameContext(maskedText, offset);
@@ -598,10 +598,11 @@ function createResourceValueCompletions(prefix: string, resourceIndex: GuideNhRe
 
 function preserveResourcePathPrefix(prefix: string, relativePath: string): string {
 	const leadingRelative = prefix.match(/^(?:(?:\.\.\/)|(?:\.\/))+/)?.[0];
+	const normalizedPath = relativePath.replace(/^\/+/, '');
 	if (leadingRelative) {
-		return leadingRelative + relativePath;
+		return leadingRelative + normalizedPath;
 	}
-	return prefix.startsWith('/') ? `/${relativePath}` : relativePath;
+	return prefix.startsWith('/') ? `/${normalizedPath}` : normalizedPath;
 }
 
 function createFrontmatterValueCompletions(

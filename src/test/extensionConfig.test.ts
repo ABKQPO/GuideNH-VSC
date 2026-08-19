@@ -1,5 +1,9 @@
 import * as assert from 'assert';
-import { isGuideNhDocumentSelector, readGuideNhDefaults } from '../client/config';
+import {
+	isGuideNhDocumentSelector,
+	readGuideNhDefaults,
+	resolveGuideNhResourcePackWatchPattern
+} from '../client/config';
 
 suite('GuideNH extension configuration', () => {
 	test('detects GuideNH resource pack Markdown paths', () => {
@@ -19,5 +23,10 @@ suite('GuideNH extension configuration', () => {
 	test('uses the wiki resource pack as the default local index path', () => {
 		const defaults = readGuideNhDefaults();
 		assert.strictEqual(defaults.resourcePackPath, 'E:\\Github\\GuideNH\\wiki\\resourcepack');
+	});
+
+	test('covers configured resource pack roots when watching assets', () => {
+		assert.strictEqual(resolveGuideNhResourcePackWatchPattern('E:\\Github\\GTNH-Guide-Pack-NH'), 'assets/**/*');
+		assert.strictEqual(resolveGuideNhResourcePackWatchPattern('E:\\Github\\GTNH-Guide-Pack-NH\\assets'), '**/*');
 	});
 });
