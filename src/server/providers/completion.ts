@@ -166,7 +166,15 @@ export function createGuideNhCompletionResult(
 		}
 		const referenceCompletions = createAttributeReferenceValueCompletions(attributeValueContext, schema, index, resourceIndex, cache);
 		if (referenceCompletions.length > 0) {
-			return { items: referenceCompletions, dynamicRequest, runtimeReplacement };
+			const attribute = findAttributeSchema(schema, attributeValueContext.tagName, attributeValueContext.attributeName);
+			const referenceReplacement = attribute?.type === 'resource'
+				? createResourceCompletionReplacementRange(text, offset, attributeValueContext.prefix)
+				: runtimeReplacement;
+			return {
+				items: applyCompletionReplacementRange(referenceCompletions, referenceReplacement),
+				dynamicRequest,
+				runtimeReplacement
+			};
 		}
 	}
 	if (attributeValueContext && cache) {
@@ -583,8 +591,17 @@ function createResourceValueCompletions(prefix: string, resourceIndex: GuideNhRe
 			label: resource.relativePath,
 			kind: CompletionItemKind.File,
 			detail: 'GuideNH resource',
-			documentation: resource.uri
+			documentation: resource.uri,
+			insertText: preserveResourcePathPrefix(prefix, resource.relativePath)
 		}));
+}
+
+function preserveResourcePathPrefix(prefix: string, relativePath: string): string {
+	const leadingRelative = prefix.match(/^(?:(?:\.\.\/)|(?:\.\/))+/)?.[0];
+	if (leadingRelative) {
+		return leadingRelative + relativePath;
+	}
+	return prefix.startsWith('/') ? `/${relativePath}` : relativePath;
 }
 
 function createFrontmatterValueCompletions(
@@ -831,6 +848,21 @@ function createCompletionReplacementRange(
 		start: Math.max(0, offset - prefix.length),
 		end: offset
 	};
+}
+
+function createResourceCompletionReplacementRange(
+	text: string,
+	offset: number,
+	prefix: string
+): CompletionReplacementRange {
+	const range = createCompletionReplacementRange(text, offset, prefix);
+	const delimiter = text[range.start - 1];
+	if (delimiter === '"' || delimiter === "'") {
+		const end = text.indexOf(delimiter, offset);
+		return end >= 0 ? { ...range, end } : range;
+	}
+	const suffix = text.slice(offset).match(/^[^\s"'<>`]*/)?.[0] ?? '';
+	return { ...range, end: offset + suffix.length };
 }
 
 function resolveTagCompletionReplaceEnd(text: string, offset: number): number {

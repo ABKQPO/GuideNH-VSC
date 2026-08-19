@@ -500,6 +500,22 @@ suite('GuideNH completion provider', () => {
 		);
 	});
 
+	test('replaces the complete resource value when completing inside an existing path', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const resourceIndex = new GuideNhResourceIndex();
+		resourceIndex.updateResource('file:///repo/assets/mod/guidenh/assets/reworks/coke_oven.snbt');
+		const text = '<ImportStructure src="../assets/reworks/old.snbt" />';
+		const valueStart = text.indexOf('../assets');
+		const cursor = valueStart + '../assets'.length;
+		const items = createGuideNhCompletions(text, cursor, schema, undefined, undefined, undefined, resourceIndex);
+		const item = items.find((candidate: CompletionItem) => candidate.label === 'assets/reworks/coke_oven.snbt');
+		assert.ok(item);
+		const edit = item.textEdit as { newText: string; range: { start: { character: number }; end: { character: number } } };
+		assert.strictEqual(edit.newText, '../assets/reworks/coke_oven.snbt');
+		assert.strictEqual(edit.range.start.character, valueStart);
+		assert.strictEqual(edit.range.end.character, text.indexOf('"', valueStart));
+	});
+
 	test('completes ImportStructureLib controller values from runtime semantic cache', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const cache = new SemanticCache();
