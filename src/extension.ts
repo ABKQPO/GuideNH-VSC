@@ -4,6 +4,7 @@ import {
 	resolveGuideNhRuntimeBridgeConnectAttempt
 } from './client/commands';
 import { registerGuideNhCompletionAssist } from './client/completionAssist';
+import { registerGuideNhIndentation } from './client/indentation';
 import { readGuideNhDefaults } from './client/config';
 import { ItemStackContextCache } from './client/itemStack/itemStackContextCache';
 import { ItemStackDecorationController } from './client/itemStack/itemStackDecorationController';
@@ -22,6 +23,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const client = createGuideNhLanguageClient(context);
 	registerGuideNhCommands(context, client, output);
 	registerGuideNhCompletionAssist(context);
+	registerGuideNhIndentation(context);
 	registerRuntimeBridgeStatusHandler(context, client);
 	const previewClient = new ItemStackPreviewClient(new RuntimePreviewClient(client));
 	const pickerPanel = new ItemStackPickerPanel(previewClient);

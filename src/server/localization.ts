@@ -19,11 +19,13 @@ type LocaleKey =
 	| 'diagnostic.unknownResource'
 	| 'diagnostic.unknownFrontmatterKey'
 	| 'diagnostic.frontmatterExpects'
+	| 'diagnostic.layoutIndentation'
 	| 'codeAction.addClosingTag'
 	| 'codeAction.addClosingTagAfterTag'
 	| 'codeAction.closeNestedTags'
 	| 'codeAction.closeNestedTagsAfterTag'
-	| 'codeAction.insertMissingClosures';
+	| 'codeAction.insertMissingClosures'
+	| 'codeAction.normalizeIndentation';
 
 type LocaleMessages = Record<LocaleKey, string>;
 
@@ -48,11 +50,13 @@ const EnglishMessages: LocaleMessages = {
 	'diagnostic.unknownResource': 'Unknown GuideNH resource {0}',
 	'diagnostic.unknownFrontmatterKey': 'Unknown frontmatter key {0}',
 	'diagnostic.frontmatterExpects': 'Frontmatter key {0} expects {1} value',
+	'diagnostic.layoutIndentation': 'GuideNH content has residual indentation that Markdown may parse as an indented code block',
 	'codeAction.addClosingTag': 'Add closing tag </{0}>',
 	'codeAction.addClosingTagAfterTag': 'Add closing tag </{0}> after </{1}>',
 	'codeAction.closeNestedTags': 'Close unclosed tags through </{0}>',
 	'codeAction.closeNestedTagsAfterTag': 'Close unclosed tags through </{0}> after </{1}>',
-	'codeAction.insertMissingClosures': 'Insert missing closing tags before </{0}>'
+	'codeAction.insertMissingClosures': 'Insert missing closing tags before </{0}>',
+	'codeAction.normalizeIndentation': 'Normalize GuideNH content indentation'
 };
 
 const ChineseMessages: LocaleMessages = {
@@ -76,11 +80,13 @@ const ChineseMessages: LocaleMessages = {
 	'diagnostic.unknownResource': '未知 GuideNH 资源 {0}',
 	'diagnostic.unknownFrontmatterKey': '未知 frontmatter 键 {0}',
 	'diagnostic.frontmatterExpects': 'frontmatter 键 {0} 需要 {1} 类型的值',
+	'diagnostic.layoutIndentation': 'GuideNH 标签内容存在多余缩进，Markdown 可能会将其解析为缩进代码块',
 	'codeAction.addClosingTag': '添加结束标签 </{0}>',
 	'codeAction.addClosingTagAfterTag': '在 </{1}> 后添加结束标签 </{0}>',
 	'codeAction.closeNestedTags': '补齐未闭合标签，直到 </{0}>',
 	'codeAction.closeNestedTagsAfterTag': '在 </{1}> 后补齐未闭合标签，直到 </{0}>',
-	'codeAction.insertMissingClosures': '在 </{0}> 前补齐缺失的结束标签'
+	'codeAction.insertMissingClosures': '在 </{0}> 前补齐缺失的结束标签',
+	'codeAction.normalizeIndentation': '规范 GuideNH 标签内容缩进'
 };
 
 let activeMessages = EnglishMessages;

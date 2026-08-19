@@ -1411,11 +1411,6 @@
           "type": "boolean",
           "valueStyle": "expression"
         },
-        "background": {
-          "type": "string",
-          "valueStyle": "string",
-          "description": "Legacy scene background mode, such as transparent."
-        },
         "buttonEnabled": {
           "type": "boolean",
           "valueStyle": "expression"
@@ -3411,11 +3406,6 @@
         "allowLayerSlider": {
           "type": "boolean",
           "valueStyle": "expression"
-        },
-        "background": {
-          "type": "string",
-          "valueStyle": "string",
-          "description": "Legacy scene background mode, such as transparent."
         },
         "buttonEnabled": {
           "type": "boolean",

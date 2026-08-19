@@ -823,13 +823,7 @@ function applyReferenceEnhancements(tags: Record<string, GuideNhTagSchema>): voi
 		ore: { type: 'ore', valueStyle: 'string' }
 	});
 	for (const name of ['GameScene', 'Scene']) {
-		mergeAttributes(tags[name], {
-			background: {
-				type: 'string',
-				valueStyle: 'string',
-				description: 'Legacy scene background mode, such as transparent.'
-			}
-		});
+		delete tags[name]?.attributes.background;
 	}
 	if (tags.Block?.attributes.id) {
 		tags.Block.attributes.id.requiredWhenMissing = ['ore'];
@@ -1223,6 +1217,8 @@ function applyGeneratedTagFixups(
 	// fields unless they are explicitly removed after that merge.
 	delete mergedTags.Plot?.attributes.name;
 	delete mergedTags.Function?.attributes.name;
+	delete mergedTags.GameScene?.attributes.background;
+	delete mergedTags.Scene?.attributes.background;
 }
 
 function overwriteGeneratedTag(
