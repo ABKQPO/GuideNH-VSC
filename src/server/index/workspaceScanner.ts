@@ -1,7 +1,7 @@
 import { Dirent, promises as fs } from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import { WorkspaceFolder } from 'vscode-languageserver/node';
+import { DidChangeWatchedFilesParams, FileChangeType, WorkspaceFolder } from 'vscode-languageserver/node';
 import { URI } from 'vscode-uri';
 import { GuideNhResourceIndex } from './resourceIndex';
 import { GuideNhWorkspaceIndex } from './workspaceIndex';
@@ -32,6 +32,38 @@ export async function indexGuideNhWorkspaceFolder(
 	const runner = new LimitedTaskRunner(WorkspaceScanReadConcurrency);
 	await visitDirectory(folderPath, runner, (filePath) => indexGuideNhMarkdownFile(filePath, index), resourceIndex);
 	await runner.waitForIdle();
+}
+
+/** Apply client file-watcher events without requiring a full workspace rescan. */
+export async function applyGuideNhWorkspaceFileChanges(
+	changes: DidChangeWatchedFilesParams['changes'],
+	index: GuideNhWorkspaceIndex,
+	resourceIndex: GuideNhResourceIndex
+): Promise<void> {
+	for (const change of changes) {
+		const filePath = URI.parse(change.uri).fsPath;
+		if (isGuideNhMarkdownPath(filePath)) {
+			if (change.type === FileChangeType.Deleted) {
+				index.removePage(change.uri);
+			} else {
+				const document = await readGuideNhMarkdownFile(filePath);
+				if (document) {
+					index.updatePage(document.uri, document.text);
+				} else {
+					index.removePage(change.uri);
+				}
+			}
+			continue;
+		}
+		if (!isGuideNhResourcePath(filePath)) {
+			continue;
+		}
+		if (change.type === FileChangeType.Deleted) {
+			resourceIndex.removeResource(change.uri);
+		} else {
+			resourceIndex.updateResource(change.uri);
+		}
+	}
 }
 
 export async function forEachGuideNhMarkdownDocument(

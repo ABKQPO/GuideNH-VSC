@@ -3,6 +3,7 @@ import {
 	CodeActionKind,
 	CompletionItemKind,
 	createConnection,
+	DidChangeWatchedFilesParams,
 	DocumentLink,
 	InitializeParams,
 	MarkupKind,
@@ -22,7 +23,11 @@ import {
 } from '../common/protocol';
 import { GuideNhResourceIndex } from './index/resourceIndex';
 import { GuideNhWorkspaceIndex } from './index/workspaceIndex';
-import { forEachGuideNhMarkdownDocument, indexGuideNhWorkspaceFolders } from './index/workspaceScanner';
+import {
+	applyGuideNhWorkspaceFileChanges,
+	forEachGuideNhMarkdownDocument,
+	indexGuideNhWorkspaceFolders
+} from './index/workspaceScanner';
 import { localizeServer, setServerLocale } from './localization';
 import {
 	applyCompletionReplacementRange,
@@ -91,6 +96,15 @@ connection.onInitialize((params: InitializeParams) => {
 connection.onInitialized(() => {
 	const folders = resolveInitialWorkspaceFolders(workspaceFolders, configuredResourcePackPath);
 	void initializeWorkspace(folders);
+});
+
+connection.onDidChangeWatchedFiles(async (params: DidChangeWatchedFilesParams) => {
+	try {
+		await applyGuideNhWorkspaceFileChanges(params.changes, workspaceIndex, resourceIndex);
+		await refreshOpenDocumentDiagnostics();
+	} catch (error) {
+		connection.console.warn(`GuideNH file change update failed: ${error instanceof Error ? error.message : String(error)}`);
+	}
 });
 
 connection.onRequest(RuntimePreviewSearchRequest, async (payload: PreviewSearchPayload) => {

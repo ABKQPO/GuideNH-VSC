@@ -29,13 +29,16 @@ export function createGuideNhLanguageClient(context: vscode.ExtensionContext): L
 		run: { module: serverModule, transport: TransportKind.ipc },
 		debug: { module: serverModule, transport: TransportKind.ipc }
 	};
+	const assetWatcher = vscode.workspace.createFileSystemWatcher('**/assets/**/*');
+	context.subscriptions.push(assetWatcher);
 	const clientOptions: LanguageClientOptions = {
 		documentSelector: [
 			{ scheme: 'file', language: 'markdown' },
 			{ scheme: 'file', language: 'guidenh-md' }
 		],
 		synchronize: {
-			configurationSection: 'guide-vsc'
+			configurationSection: 'guide-vsc',
+			fileEvents: assetWatcher
 		},
 		initializationOptions
 	};

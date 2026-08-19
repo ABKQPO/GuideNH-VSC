@@ -33,7 +33,14 @@ export class GuideNhResourceIndex {
 		}
 		this.resources.delete(uri);
 		for (const alias of resource.aliases) {
-			this.resourceUrisByAlias.delete(alias);
+			if (this.resourceUrisByAlias.get(alias) === uri) {
+				const replacement = Array.from(this.resources.values()).find((candidate) => candidate.aliases.includes(alias));
+				if (replacement) {
+					this.resourceUrisByAlias.set(alias, replacement.uri);
+				} else {
+					this.resourceUrisByAlias.delete(alias);
+				}
+			}
 		}
 		this.dirty = true;
 	}
