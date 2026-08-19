@@ -4,12 +4,11 @@ import { GuideNhResourceIndex } from '../index/resourceIndex';
 import { GuideNhWorkspaceIndex } from '../index/workspaceIndex';
 import { localizeServer } from '../localization';
 import { createGuideNhDocumentModel } from '../parser/documentModel';
-import { GuideNhParsedTag, maskIgnoredMarkdownRanges } from '../parser/documentParser';
+import { GuideNhParsedTag } from '../parser/documentParser';
 import { findAttributeSchema, findTagSchema, hasAttributeValue, isChildTagAllowed, matchesTagName } from '../schema/schemaLookup';
 
 export const GuideNhUnclosedTagDiagnosticCode = 'guidenh.unclosedTag';
 export const GuideNhClosingTagMismatchDiagnosticCode = 'guidenh.closingTagMismatch';
-export const GuideNhLayoutIndentationDiagnosticCode = 'guidenh.layoutIndentation';
 
 function createDiagnostic(text: string, start: number, end: number, message: string): Diagnostic {
 	return {
@@ -43,7 +42,6 @@ export function createGuideNhDiagnostics(
 	if (resourceIndex) {
 		diagnostics.push(...createResourceReferenceDiagnostics(model, text, resourceIndex));
 	}
-	diagnostics.push(...createLayoutIndentationDiagnostics(text, parsed.tags));
 	const parentStack: GuideNhParsedTag[] = [];
 	for (const tag of parsed.tags) {
 		if (tag.closing) {
@@ -99,58 +97,6 @@ export function createGuideNhDiagnostics(
 		});
 	}
 	return diagnostics;
-}
-
-function createLayoutIndentationDiagnostics(text: string, tags: GuideNhParsedTag[]): Diagnostic[] {
-	const masked = maskIgnoredMarkdownRanges(text);
-	const orderedTags = tags.slice().sort((left, right) => left.start - right.start);
-	const parentStack: GuideNhParsedTag[] = [];
-	const diagnostics: Diagnostic[] = [];
-	let tagIndex = 0;
-	let lineStart = 0;
-	while (lineStart <= text.length) {
-		const nextBreak = text.indexOf('\n', lineStart);
-		const lineEnd = nextBreak < 0 ? text.length : nextBreak;
-		while (tagIndex < orderedTags.length && orderedTags[tagIndex].start < lineStart) {
-			const tag = orderedTags[tagIndex++];
-			if (tag.closing) {
-				popParentTag(parentStack, tag.name);
-			} else if (!tag.selfClosing) {
-				parentStack.push(tag);
-			}
-		}
-		const maskedLine = masked.slice(lineStart, lineEnd).replace(/\r$/, '');
-		const contentMatch = maskedLine.match(/^([ \t]*)(\S[\s\S]*)$/);
-		const parent = parentStack[parentStack.length - 1];
-		const isIndentationSensitiveContent = parentStack.some((tag) => /^(?:Mermaid|pre|code)$/i.test(tag.name));
-		if (parent && !isIndentationSensitiveContent && contentMatch && !contentMatch[2].startsWith('<')) {
-			const indentation = contentMatch[1];
-			const parentIndent = getLineIndentWidth(text, parent.start);
-			const indentationWidth = indentation.replace(/\t/g, '    ').length;
-			const hasMixedWhitespace = / /.test(indentation) && /\t/.test(indentation);
-			if (hasMixedWhitespace || indentationWidth >= parentIndent + 4) {
-				diagnostics.push({
-					...createDiagnostic(
-						text,
-						lineStart,
-						lineStart + indentation.length,
-						localizeServer('diagnostic.layoutIndentation')),
-					code: GuideNhLayoutIndentationDiagnosticCode
-				});
-			}
-		}
-		if (nextBreak < 0) {
-			break;
-		}
-		lineStart = nextBreak + (nextBreak > lineStart && text[nextBreak - 1] === '\r' ? 2 : 1);
-	}
-	return diagnostics;
-}
-
-function getLineIndentWidth(text: string, offset: number): number {
-	const lineStart = Math.max(0, text.lastIndexOf('\n', offset - 1) + 1);
-	const indentation = text.slice(lineStart, offset).match(/^[ \t]*/)?.[0] ?? '';
-	return indentation.replace(/\t/g, '    ').length;
 }
 
 function createTagSpecificDiagnostics(text: string, tag: GuideNhParsedTag): Diagnostic[] {

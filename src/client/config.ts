@@ -17,8 +17,12 @@ export function isGuideNhDocumentSelector(path: string): boolean {
 }
 
 export function resolveGuideNhResourcePackWatchPattern(resourcePackPath: string): string {
-	const root = path.resolve(resourcePackPath);
-	return path.basename(root).toLowerCase() === 'assets' ? '**/*' : 'assets/**/*';
+	// Configuration values may be Windows paths even when the extension tests run
+	// on Linux. Inspect the final component independent of the host separator.
+	const normalized = resourcePackPath.trim().replace(/[\\/]+$/, '');
+	const lastSeparator = Math.max(normalized.lastIndexOf('/'), normalized.lastIndexOf('\\'));
+	const basename = lastSeparator >= 0 ? normalized.slice(lastSeparator + 1) : normalized;
+	return basename.toLowerCase() === 'assets' ? '**/*' : 'assets/**/*';
 }
 
 export function readGuideNhDefaults(): GuideNhExtensionDefaults {

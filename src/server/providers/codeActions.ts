@@ -3,11 +3,7 @@ import { GuideNhSchemaBundle } from '../../common/schema';
 import { localizeServer } from '../localization';
 import { GuideNhParsedTag, parseGuideNhDocument } from '../parser/documentParser';
 import { findTagSchema, matchesTagName } from '../schema/schemaLookup';
-import {
-	GuideNhClosingTagMismatchDiagnosticCode,
-	GuideNhLayoutIndentationDiagnosticCode,
-	GuideNhUnclosedTagDiagnosticCode
-} from './diagnostics';
+import { GuideNhClosingTagMismatchDiagnosticCode, GuideNhUnclosedTagDiagnosticCode } from './diagnostics';
 
 export function createGuideNhCodeActions(
 	uri: string,
@@ -22,76 +18,7 @@ export function createGuideNhCodeActions(
 	return diagnostics.flatMap((diagnostic) => [
 		...createUnclosedTagCodeAction(uri, text, diagnostic, unclosedTags, preferredClosingBoundaries),
 		...createClosingTagMismatchCodeAction(uri, text, diagnostic, missingClosuresByClosingStart),
-		...createLayoutIndentationCodeAction(uri, text, diagnostic)
 	]);
-}
-
-function createLayoutIndentationCodeAction(uri: string, text: string, diagnostic: Diagnostic): CodeAction[] {
-	if (diagnostic.code !== GuideNhLayoutIndentationDiagnosticCode) {
-		return [];
-	}
-	const lineStart = positionToOffset(text, diagnostic.range.start);
-	const rawLineEnd = text.indexOf('\n', lineStart);
-	const lineEnd = rawLineEnd < 0 ? text.length : rawLineEnd;
-	const line = text.slice(lineStart, lineEnd).replace(/\r$/, '');
-	const indentation = line.match(/^[ \t]*/)?.[0] ?? '';
-	if (indentation.length === 0) {
-		return [];
-	}
-	const parent = findFormattingParent(text, lineStart);
-	if (!parent) {
-		return [];
-	}
-	const parentIndent = getLineIndent(text, parent.start);
-	const expectedIndent = parentIndent + detectIndentUnit(text);
-	if (indentation === expectedIndent) {
-		return [];
-	}
-	return [{
-		title: localizeServer('codeAction.normalizeIndentation'),
-		kind: CodeActionKind.QuickFix,
-		diagnostics: [diagnostic],
-		edit: {
-			changes: {
-				[uri]: [TextEdit.replace({
-					start: offsetToPosition(text, lineStart),
-					end: offsetToPosition(text, lineStart + indentation.length)
-				}, expectedIndent)]
-			}
-		}
-	}];
-}
-
-function findFormattingParent(text: string, offset: number): GuideNhParsedTag | undefined {
-	const stack: GuideNhParsedTag[] = [];
-	for (const tag of parseGuideNhDocument(text).tags) {
-		if (tag.start >= offset) {
-			break;
-		}
-		if (tag.closing) {
-			popParentTag(stack, tag.name);
-		} else if (!tag.selfClosing) {
-			stack.push(tag);
-		}
-	}
-	return stack[stack.length - 1];
-}
-
-function detectIndentUnit(text: string): string {
-	let smallest = Number.POSITIVE_INFINITY;
-	let hasTabs = false;
-	for (const line of text.split(/\r?\n/)) {
-		const indentation = line.match(/^[ \t]+(?=<[A-Za-z/])/)?.[0];
-		if (!indentation) {
-			continue;
-		}
-		if (indentation.includes('\t')) {
-			hasTabs = true;
-			continue;
-		}
-		smallest = Math.min(smallest, indentation.length);
-	}
-	return hasTabs ? '\t' : ' '.repeat(Number.isFinite(smallest) && smallest > 0 ? Math.min(smallest, 4) : 2);
 }
 
 function createUnclosedTagCodeAction(

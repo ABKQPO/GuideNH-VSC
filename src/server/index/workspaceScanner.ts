@@ -44,13 +44,13 @@ export async function applyGuideNhWorkspaceFileChanges(
 		const filePath = URI.parse(change.uri).fsPath;
 		if (isGuideNhMarkdownPath(filePath)) {
 			if (change.type === FileChangeType.Deleted) {
-				index.removePage(change.uri);
+				index.removePage(normalizeFileUri(change.uri));
 			} else {
 				const document = await readGuideNhMarkdownFile(filePath);
 				if (document) {
 					index.updatePage(document.uri, document.text);
 				} else {
-					index.removePage(change.uri);
+					index.removePage(normalizeFileUri(change.uri));
 				}
 			}
 			continue;
@@ -59,9 +59,9 @@ export async function applyGuideNhWorkspaceFileChanges(
 			continue;
 		}
 		if (change.type === FileChangeType.Deleted) {
-			resourceIndex.removeResource(change.uri);
+			resourceIndex.removeResource(normalizeFileUri(change.uri));
 		} else {
-			resourceIndex.updateResource(change.uri);
+			resourceIndex.updateResource(normalizeFileUri(change.uri));
 		}
 	}
 }
@@ -106,7 +106,7 @@ async function visitDirectory(
 		} else if (isGuideNhMarkdownPath(fullPath)) {
 			runner.schedule(() => processMarkdownFile(fullPath));
 		} else if (resourceIndex && isGuideNhResourcePath(fullPath)) {
-			resourceIndex.updateResource(pathToFileURL(fullPath).toString());
+			resourceIndex.updateResource(normalizeFileUri(fullPath));
 		}
 	}
 }
@@ -121,12 +121,19 @@ async function indexGuideNhMarkdownFile(filePath: string, index: GuideNhWorkspac
 async function readGuideNhMarkdownFile(filePath: string): Promise<GuideNhWorkspaceDocument | undefined> {
 	try {
 		return {
-			uri: pathToFileURL(filePath).toString(),
+			uri: normalizeFileUri(filePath),
 			text: await fs.readFile(filePath, 'utf8')
 		};
 	} catch {
 		return undefined;
 	}
+}
+
+function normalizeFileUri(filePathOrUri: string): string {
+	const uri = filePathOrUri.startsWith('file:')
+		? filePathOrUri
+		: pathToFileURL(filePathOrUri).toString();
+	return uri.replace(/^file:\/\/\/([a-z]):/, (_match, drive: string) => `file:///${drive.toUpperCase()}:`);
 }
 
 function shouldSkipDirectory(name: string): boolean {
