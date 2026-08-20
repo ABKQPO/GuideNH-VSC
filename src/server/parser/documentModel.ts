@@ -216,14 +216,55 @@ function findAttributeContext(boundary: GuideNhTagBoundary, offset: number): Gui
 
 function findDocumentReferences(text: string, tags: GuideNhParsedTag[], documentUri?: string): GuideNhTextReference[] {
 	return [
-		...findMarkdownPageReferences(text, documentUri),
+		...findMarkdownReferences(text, documentUri),
 		...findFrontmatterPageReferences(text, documentUri),
 		...findAttributeReferences(text, tags, documentUri)
 	];
 }
 
-function findMarkdownPageReferences(text: string, documentUri?: string): GuideNhTextReference[] {
-	return findReferencesWithPattern(text, /\[[^\]]+\]\(([^)]+\.md(?:#[^)]+)?)\)/g, 'page', 'markdown', documentUri);
+function findMarkdownReferences(text: string, documentUri?: string): GuideNhTextReference[] {
+	const references: GuideNhTextReference[] = [];
+	const pattern = /!?\[[^\]\r\n]*\]\(\s*([^()\s]+)\s*\)/g;
+	let match: RegExpExecArray | null;
+	while ((match = pattern.exec(text)) !== null) {
+		const rawTarget = match[1];
+		const target = unwrapLegacyMarkdownDestination(rawTarget);
+		const kind = target.replace(/#.*/, '').endsWith('.md')
+			? 'page'
+			: looksLikeMarkdownResource(target) ? 'resource' : undefined;
+		if (!kind) {
+			continue;
+		}
+		const normalizedTarget = kind === 'page'
+			? normalizePageReference(rawTarget, documentUri)
+			: normalizeResourceReference(rawTarget, documentUri);
+		if (!normalizedTarget) {
+			continue;
+		}
+		const start = match.index + match[0].indexOf(rawTarget);
+		references.push({
+			kind,
+			target,
+			normalizedTarget,
+			start,
+			end: start + rawTarget.length,
+			interactionStart: match.index,
+			interactionEnd: match.index + match[0].length,
+			source: 'markdown'
+		});
+	}
+	return references;
+}
+
+function unwrapLegacyMarkdownDestination(value: string): string {
+	const trimmed = value.trim();
+	return trimmed.startsWith('*') && trimmed.endsWith('*') && trimmed.length > 2
+		? trimmed.slice(1, -1).trim()
+		: trimmed;
+}
+
+function looksLikeMarkdownResource(value: string): boolean {
+	return /\.(?:snbt|json|png|jpe?g|gif|webp|svg)(?:#.*)?$/i.test(value);
 }
 
 function findFrontmatterPageReferences(text: string, documentUri?: string): GuideNhTextReference[] {

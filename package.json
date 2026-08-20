@@ -50,6 +50,12 @@
         ]
       }
     ],
+    "markdown.previewStyles": [
+      "./media/guidenh-markdown-preview.css"
+    ],
+    "markdown.previewScripts": [
+      "./media/guidenh-markdown-preview.js"
+    ],
     "configuration": {
       "title": "GuideNH",
       "properties": {

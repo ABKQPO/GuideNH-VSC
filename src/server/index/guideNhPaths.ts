@@ -74,7 +74,7 @@ export function resolveGuideNhResourceReference(reference: string | undefined, d
 	if (!reference) {
 		return undefined;
 	}
-	const trimmed = reference.trim();
+	const trimmed = unwrapLegacyMarkdownDestination(reference);
 	if (trimmed.length === 0 || trimmed.startsWith('#')) {
 		return undefined;
 	}
@@ -175,7 +175,19 @@ export function stripGuideNhNamespace(value: string): string {
 }
 
 function stripAnchor(reference: string | undefined): string | undefined {
-	return reference?.trim().split('#')[0];
+	return unwrapLegacyMarkdownDestination(reference).split('#')[0];
+}
+
+/** Supports historic Markdown destinations written as `(*relative/path*)`. */
+function unwrapLegacyMarkdownDestination(reference: string | undefined): string {
+	let value = reference?.trim() ?? '';
+	if (value.startsWith('(*') && value.endsWith('*)') && value.length > 4) {
+		value = value.slice(2, -2).trim();
+	}
+	if (value.startsWith('*') && value.endsWith('*') && value.length > 2) {
+		value = value.slice(1, -1).trim();
+	}
+	return value;
 }
 
 function splitExplicitNamespace(value: string): { namespace: string; value: string } | undefined {
