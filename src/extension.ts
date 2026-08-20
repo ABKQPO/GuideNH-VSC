@@ -15,8 +15,10 @@ import { createGuideNhLanguageClient } from './client/languageClient';
 import { ItemStackPreviewClient } from './client/itemStack/itemStackPreviewClient';
 import { RuntimePreviewClient } from './client/runtimePreviewClient';
 import { registerRuntimeBridgeStatusHandler } from './client/runtimeStatus';
-import { registerGuideNhMarkdownPreview } from './client/markdownPreview';
 import { RuntimeBridgeConnectNotification } from './common/protocol';
+
+// VS Code discovers this export through `markdown.markdownItPlugins` in package.json.
+export { extendMarkdownIt } from './client/markdownPreview';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	const output = vscode.window.createOutputChannel('GuideNH');
@@ -26,7 +28,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	registerGuideNhCompletionAssist(context);
 	registerGuideNhIndentation(context);
 	registerRuntimeBridgeStatusHandler(context, client);
-	await registerGuideNhMarkdownPreview(context);
 	const previewClient = new ItemStackPreviewClient(new RuntimePreviewClient(client));
 	const pickerPanel = new ItemStackPickerPanel(previewClient);
 	const itemStackContextCache = new ItemStackContextCache();

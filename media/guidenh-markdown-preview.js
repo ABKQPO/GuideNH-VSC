@@ -78,7 +78,7 @@
 
   const normalizeLegacyImageSource = source => {
     const decoded = String(source || '').replace(/%2a/gi, '*');
-    return /\*.*\.(?:png|jpe?g|gif|webp|svg)\*$/i.test(decoded) ? decoded.replace(/\*/g, '') : source;
+    return (/\*.*\.(?:png|jpe?g|gif|webp|svg)\*$/i.test(decoded) ? decoded.replace(/\*/g, '') : source).replace(/\\([_()[\]])/g, '$1');
   };
   all('img').forEach(image => {
     const source = image.getAttribute('src');
@@ -109,17 +109,34 @@
     if (chip.tagName === 'A') chip.href = '#'; element.replaceWith(chip);
   });
 
-  all('floatingimage').forEach(element => {
-    const src = attr(element, 'src'); if (!src) return;
-    const image = document.createElement('img'); image.className = 'guidenh-floating-image'; image.src = src; image.alt = attr(element, 'alt') || attr(element, 'title') || src;
-    const width = number(attr(element, 'width') || attr(element, 'w'));
-    const height = number(attr(element, 'height') || attr(element, 'h'));
+  const floatingConfig = element => {
+    const payload = element.getAttribute('data-guidenh-floating');
+    if (payload) {
+      try { return JSON.parse(decodeURIComponent(payload)); } catch (_) { return {}; }
+    }
+    return {
+      alt: attr(element, 'alt') || attr(element, 'title'), align: attr(element, 'align'), wrap: attr(element, 'wrap'),
+      displayWidth: attr(element, 'displaywidth'), displayHeight: attr(element, 'displayheight'), width: attr(element, 'width') || attr(element, 'w'), height: attr(element, 'height') || attr(element, 'h'),
+      scaleX: attr(element, 'scalex'), scaleY: attr(element, 'scaley')
+    };
+  };
+  const applyFloatingImageLayout = (image, config) => {
+    image.classList.add('guidenh-floating-image');
+    if (config.alt) image.alt = config.alt;
+    const width = number(config.displayWidth || config.width);
+    const height = number(config.displayHeight || config.height);
     if (Number.isFinite(width)) image.style.width = width + 'px';
     if (Number.isFinite(height)) image.style.height = height + 'px';
-    const scaleX = number(attr(element, 'scalex'), 1), scaleY = number(attr(element, 'scaley'), 1);
+    const scaleX = number(config.scaleX, 1), scaleY = number(config.scaleY, 1);
     if (scaleX !== 1 || scaleY !== 1) image.style.transform = 'scale(' + scaleX + ',' + scaleY + ')';
-    const align = attr(element, 'align').toLowerCase();
-    if (attr(element, 'wrap').toLowerCase() === 'square' && (align === 'left' || align === 'right')) image.classList.add('guidenh-float-' + align);
+    const align = String(config.align || '').toLowerCase();
+    if (String(config.wrap || '').toLowerCase() === 'square' && (align === 'left' || align === 'right')) image.classList.add('guidenh-float-' + align);
+  };
+  all('img[data-guidenh-floating]').forEach(image => applyFloatingImageLayout(image, floatingConfig(image)));
+  all('floatingimage').forEach(element => {
+    const src = attr(element, 'src'); if (!src) return;
+    const image = document.createElement('img'); image.src = normalizeLegacyImageSource(src);
+    applyFloatingImageLayout(image, floatingConfig(element));
     element.replaceWith(image);
   });
 

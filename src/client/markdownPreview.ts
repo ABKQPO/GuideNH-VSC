@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 type MarkdownItToken = {
 	type: string;
@@ -14,12 +16,27 @@ type MarkdownItToken = {
 };
 
 type MarkdownIt = {
-	core: { ruler: { after(ruleName: string, name: string, rule: (state: { tokens: MarkdownItToken[] }) => boolean): void } };
-	renderer: { rules: Record<string, (tokens: MarkdownItToken[], index: number) => string> };
+	core: { ruler: { after(ruleName: string, name: string, rule: (state: MarkdownItState) => boolean): void } };
+	renderer: { rules: Record<string, MarkdownItRenderRule | undefined> };
 };
 
-type MarkdownPreviewApi = {
-	extendMarkdownIt(callback: (markdownIt: MarkdownIt) => MarkdownIt): void;
+type MarkdownItState = {
+	src: string;
+	tokens: MarkdownItToken[];
+	env?: MarkdownItEnvironment;
+};
+
+type MarkdownItRenderRule = (tokens: MarkdownItToken[], index: number, ...rest: unknown[]) => string;
+
+type MarkdownItEnvironment = {
+	currentDocument?: vscode.Uri;
+	resourceProvider?: {
+		asWebviewUri(uri: vscode.Uri): { toString(): string };
+	};
+};
+
+type MarkdownItRenderer = {
+	renderToken(tokens: MarkdownItToken[], index: number, options: unknown): string;
 };
 
 const ALERT_PATTERN = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:[ \t]+|\r?\n|$)/i;
@@ -32,24 +49,148 @@ const ALERT_COLORS: Record<string, string> = {
 	caution: '#dc2626'
 };
 
-/** Adds GitHub Alert syntax to the built-in Markdown preview for GuideNH documents. */
-export async function registerGuideNhMarkdownPreview(context: vscode.ExtensionContext): Promise<void> {
-	const extension = vscode.extensions.getExtension<MarkdownPreviewApi>('vscode.markdown-language-features');
-	if (!extension) {
-		return;
-	}
-	const api = extension.isActive ? extension.exports : await extension.activate();
-	api.extendMarkdownIt(markdownIt => {
-		installGuideNhPreviewRenderer(markdownIt);
-		return markdownIt;
-	});
-	context.subscriptions.push({ dispose: () => undefined });
+/**
+ * VS Code 1.120 discovers Markdown-it plugins through the extension manifest and invokes this
+ * export after activation. The previous direct `vscode.markdown-language-features` API no longer
+ * exposes an `extendMarkdownIt` object, so calling it prevented the whole extension from loading.
+ */
+export function extendMarkdownIt(markdownIt: MarkdownIt): MarkdownIt {
+	installGuideNhPreviewRenderer(markdownIt);
+	return markdownIt;
 }
 
 function installGuideNhPreviewRenderer(markdownIt: MarkdownIt): void {
+	installFloatingImageRenderer(markdownIt);
 	installLegacyImageDestinationRenderer(markdownIt);
 	installFenceRenderer(markdownIt);
 	installAlertRenderer(markdownIt);
+}
+
+const FLOATING_IMAGE_MARKER = 'guidenh-floating:';
+
+/**
+ * Converts GuideNH's component tag to a native Markdown image before block parsing.
+ * Native image tokens are important: VS Code's Markdown extension rewrites them to
+ * webview-safe resource URLs, while images created later by browser JavaScript are
+ * unable to load relative workspace paths.
+ */
+function installFloatingImageRenderer(markdownIt: MarkdownIt): void {
+	markdownIt.core.ruler.after('normalize', 'guidenh-floating-images', state => {
+		state.src = state.src.replace(/<FloatingImage\b([^>]*)>([\s\S]*?)<\/FloatingImage\s*>|<FloatingImage\b([^>]*)\/\s*>/gi, (_whole, pairedAttributes, _content, standaloneAttributes) => {
+			const attributes = pairedAttributes ?? standaloneAttributes ?? '';
+			const source = readHtmlAttribute(attributes, 'src');
+			if (!source) {
+				return _whole;
+			}
+			const config = {
+				alt: readHtmlAttribute(attributes, 'alt') || readHtmlAttribute(attributes, 'title') || source,
+				align: readHtmlAttribute(attributes, 'align'),
+				wrap: readHtmlAttribute(attributes, 'wrap'),
+				displayWidth: readHtmlAttribute(attributes, 'displayWidth'),
+				displayHeight: readHtmlAttribute(attributes, 'displayHeight'),
+				width: readHtmlAttribute(attributes, 'width') || readHtmlAttribute(attributes, 'w'),
+				height: readHtmlAttribute(attributes, 'height') || readHtmlAttribute(attributes, 'h'),
+				scaleX: readHtmlAttribute(attributes, 'scaleX'),
+				scaleY: readHtmlAttribute(attributes, 'scaleY')
+			};
+			const label = `${FLOATING_IMAGE_MARKER}${encodeURIComponent(JSON.stringify(config))}`;
+			return `![${label}](<${normalizeImagePath(source)}>)`;
+		});
+		return false;
+	});
+
+	const previousImageRenderer = markdownIt.renderer.rules.image;
+	markdownIt.renderer.rules.image = (tokens, index, ...rest) => {
+		// VS Code's built-in renderer is installed after extension rules. It records the
+		// logical Markdown destination here before replacing src with a webview URL.
+		const source = tokens[index].attrGet?.('data-src') ?? tokens[index].attrGet?.('src');
+		const environment = rest[1] as MarkdownItEnvironment | undefined;
+		const resolvedSource = resolveGuideNhPreviewImage(source, environment?.currentDocument);
+		if (resolvedSource) {
+			const resolvedUri = resolvedSource.toString();
+			// The host rule wraps this rule and creates data-src before invoking it. Keep the
+			// two attributes in sync: data-src is the target used for click-to-open previews.
+			tokens[index].attrSet?.('data-src', resolvedUri);
+			tokens[index].attrSet?.('src', environment?.resourceProvider?.asWebviewUri(resolvedSource).toString() ?? resolvedUri);
+		}
+		const renderImage = () => previousImageRenderer?.(tokens, index, ...rest)
+			?? (rest[2] as MarkdownItRenderer | undefined)?.renderToken(tokens, index, rest[0])
+			?? '';
+		const marker = tokens[index].content;
+		if (!marker.startsWith(FLOATING_IMAGE_MARKER)) {
+			return renderImage();
+		}
+		const payload = marker.slice(FLOATING_IMAGE_MARKER.length);
+		return renderImage().replace(/<img\b/, `<img class="guidenh-floating-image" data-guidenh-floating="${escapeHtml(payload)}"`);
+	};
+}
+
+/**
+ * Mirrors IdUtils.resolveLink and MutableGuide.loadAsset for preview images. GuideNH page IDs
+ * exclude the locale directory, so ../assets from _zh_cn/foo/page.md targets guidenh/assets.
+ */
+function resolveGuideNhPreviewImage(source: string | null | undefined, documentUri: vscode.Uri | undefined): vscode.Uri | undefined {
+	if (!source || !documentUri || documentUri.scheme !== 'file') {
+		return undefined;
+	}
+	const recoveredLogicalPath = recoverGuideNhLogicalResourcePath(source);
+	const reference = recoveredLogicalPath ?? normalizeImagePath(unwrapLegacyMarkdownDestination(source));
+	if (!reference || (!recoveredLogicalPath && /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(reference))) {
+		return undefined;
+	}
+	const documentPath = documentUri.fsPath.replace(/\\/g, '/');
+	const location = /^(.*\/assets\/)([^/]+)(\/guidenh\/)(?:guidenh\/)?_([a-z]{2}_[a-z]{2})\/(.+\.md)$/i.exec(documentPath);
+	if (!location) {
+		return undefined;
+	}
+
+	const [, assetsRoot, documentNamespace, guideFolder, locale, pagePath] = location;
+	const explicit = /^([a-z0-9_.-]+):(\/?)(.+)$/i.exec(reference);
+	const namespace = explicit?.[1] ?? documentNamespace;
+	const pathReference = explicit?.[3] ?? reference;
+	const logicalPath = recoveredLogicalPath || reference.startsWith('/') || explicit
+		? normalizeGuidePath(pathReference)
+		: normalizeGuidePath(path.posix.join(path.posix.dirname(pagePath), pathReference));
+	if (!logicalPath) {
+		return undefined;
+	}
+
+	const guideRoot = `${assetsRoot}${namespace}${guideFolder}`;
+	for (const candidate of [`${guideRoot}_${locale}/${logicalPath}`, `${guideRoot}${logicalPath}`]) {
+		const filePath = candidate.replace(/\//g, path.sep);
+		if (fs.existsSync(filePath)) {
+			return vscode.Uri.file(filePath);
+		}
+	}
+	return undefined;
+}
+
+/** Converts a file URI produced by an editor renderer back to the GuideNH resource ID path. */
+function recoverGuideNhLogicalResourcePath(source: string): string | undefined {
+	if (!source.startsWith('file:', 0)) {
+		return undefined;
+	}
+	const physicalPath = vscode.Uri.parse(source).fsPath.replace(/\\/g, '/');
+	const localized = /\/guidenh\/(?:guidenh\/)?_[^/]+\/(.+)$/i.exec(physicalPath);
+	if (localized) {
+		return normalizeGuidePath(localized[1]);
+	}
+	const shared = /\/guidenh\/assets\/(.+)$/i.exec(physicalPath);
+	return shared ? `assets/${normalizeGuidePath(shared[1])}` : undefined;
+}
+
+function normalizeGuidePath(value: string): string {
+	const normalized = path.posix.normalize(`/${value.replace(/\\/g, '/')}`);
+	return normalized.replace(/^\/+/, '').replace(/^(?:\.\.\/)+/, '');
+}
+
+function readHtmlAttribute(attributes: string, name: string): string {
+	const match = new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i').exec(attributes);
+	return match?.[1] ?? match?.[2] ?? '';
+}
+
+function normalizeImagePath(value: string): string {
+	return value.trim().replace(/\\([_()[\]])/g, '$1');
 }
 
 /** Restores image destinations from historic `(*relative/path*)` GuideNH Markdown. */
