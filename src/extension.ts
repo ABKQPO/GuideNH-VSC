@@ -17,10 +17,16 @@ import { RuntimePreviewClient } from './client/runtimePreviewClient';
 import { registerRuntimeBridgeStatusHandler } from './client/runtimeStatus';
 import { RuntimeBridgeConnectNotification } from './common/protocol';
 
-// VS Code discovers this export through `markdown.markdownItPlugins` in package.json.
-export { extendMarkdownIt } from './client/markdownPreview';
+import { extendMarkdownIt } from './client/markdownPreview';
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+// VS Code discovers this export through `markdown.markdownItPlugins` in package.json.
+export { extendMarkdownIt };
+
+export interface GuideNhExtensionExports {
+	extendMarkdownIt: typeof extendMarkdownIt;
+}
+
+export async function activate(context: vscode.ExtensionContext): Promise<GuideNhExtensionExports> {
 	const output = vscode.window.createOutputChannel('GuideNH');
 	context.subscriptions.push(output);
 	const client = createGuideNhLanguageClient(context);
@@ -62,6 +68,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	);
 	await client.start();
 	await tryAutoConnectRuntimeBridge(client, output);
+	return { extendMarkdownIt };
 }
 
 export function deactivate(): Thenable<void> | undefined {
