@@ -406,7 +406,7 @@ suite('GuideNH diagnostics', () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const text = [
 			'<FloatingImage src="test1.png" align="right" x="0" y="0" width="64" height="64" scaleX="3.125" scaleY="1.25" title="stretch 200x80">',
-			'  <ImageAnnotation x="10" y="10" w="60" h="40" border borderColor="#FFFF4444" borderThickness="2">',
+			'  <ImageAnnotation x="10" y="10" w="60" h="40" border borderColor="#FF4444FF" borderThickness="2">',
 			'    Highlighted tooltip',
 			'  </ImageAnnotation>',
 			'  <SoundArea x="32" y="0" w="32" h="64" sound="guidenh:guide.sample_hover" trigger="hover" />',
