@@ -109,16 +109,6 @@
     if (chip.tagName === 'A') chip.href = '#'; element.replaceWith(chip);
   });
 
-  // GuideNH hash colors follow the CSS #RRGGBB / #RRGGBBAA convention, so the browser can render them directly.
-  all('color[color]').forEach(element => {
-    const color = attr(element, 'color');
-    if (!/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(color)) return;
-    const span = document.createElement('span');
-    span.className = 'guidenh-color'; span.style.color = color;
-    while (element.firstChild) span.appendChild(element.firstChild);
-    element.replaceWith(span);
-  });
-
   const floatingConfig = element => {
     const payload = element.getAttribute('data-guidenh-floating');
     if (payload) {
