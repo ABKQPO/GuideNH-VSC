@@ -1,5 +1,10 @@
 {
   "name": "guide-vsc",
+  "publisher": "guidenh",
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
   "icon": "logo.png",
