@@ -155,27 +155,74 @@ export function parseGuideNhDocument(text: string): GuideNhParsedDocument {
 	const masked = maskIgnoredMarkdownRanges(text);
 	const frontmatter = extractFrontmatter(masked);
 	const tags: GuideNhParsedTag[] = [];
-	const tagPattern = /<\/?([A-Za-z][A-Za-z0-9]*)(\s(?:[^>"']+|"[^"]*"|'[^']*')*?)?(\/?)>/g;
-	let match: RegExpExecArray | null;
-	while ((match = tagPattern.exec(masked)) !== null) {
-		if (IgnoredHtmlTagNames.has(match[1].toLowerCase())) {
+	let searchOffset = 0;
+	while (searchOffset < masked.length) {
+		const tagStart = masked.indexOf('<', searchOffset);
+		if (tagStart < 0) {
+			break;
+		}
+		const nameMatch = masked.slice(tagStart).match(/^<\/?([A-Za-z][A-Za-z0-9]*)/);
+		if (!nameMatch) {
+			searchOffset = tagStart + 1;
 			continue;
 		}
-		const closing = match[0].startsWith('</');
-		const parsedAttributes = closing ? { attributes: {}, ranges: {}, valueStyles: {} } : parseAttributes(match[2] ?? '', match.index + match[0].indexOf(match[2] ?? ''));
+		const tagEnd = findTagEnd(masked, tagStart + nameMatch[0].length);
+		if (tagEnd < 0) {
+			// A malformed tag must not consume the rest of the document.
+			searchOffset = tagStart + nameMatch[0].length;
+			continue;
+		}
+		const sourceEnd = tagEnd + 1;
+		const tagSource = masked.slice(tagStart, sourceEnd);
+		const name = nameMatch[1];
+		if (IgnoredHtmlTagNames.has(name.toLowerCase())) {
+			searchOffset = sourceEnd;
+			continue;
+		}
+		const closing = tagSource.startsWith('</');
+		const selfClosing = /\/\s*>$/.test(tagSource);
+		const attributeEnd = selfClosing ? tagSource.length - 2 : tagSource.length - 1;
+		const attributesSource = closing ? '' : tagSource.slice(nameMatch[0].length, attributeEnd);
+		const parsedAttributes = closing
+			? { attributes: {}, ranges: {}, valueStyles: {} }
+			: parseAttributes(attributesSource, tagStart + nameMatch[0].length);
 		tags.push({
-			name: match[1],
-			source: text.slice(match.index, match.index + match[0].length),
+			name,
+			source: text.slice(tagStart, sourceEnd),
 			attributes: parsedAttributes.attributes,
 			attributeRanges: parsedAttributes.ranges,
 			attributeValueStyles: parsedAttributes.valueStyles,
-			start: match.index,
-			end: match.index + match[0].length,
-			selfClosing: /\/\s*>$/.test(match[0]) || GuideNhVoidTagNames.has(match[1].toLowerCase()),
+			start: tagStart,
+			end: sourceEnd,
+			selfClosing: selfClosing || GuideNhVoidTagNames.has(name.toLowerCase()),
 			closing
 		});
+		searchOffset = sourceEnd;
 	}
 	return { frontmatter, tags };
+}
+
+function findTagEnd(text: string, start: number): number {
+	let quote: '"' | "'" | undefined;
+	for (let index = start; index < text.length; index++) {
+		const char = text[index];
+		if (quote) {
+			if (char === quote) {
+				quote = undefined;
+			} else if (char === '\n' || char === '\r') {
+				return -1;
+			}
+			continue;
+		}
+		if (char === '"' || char === "'") {
+			quote = char;
+		} else if (char === '>') {
+			return index;
+		} else if (char === '<') {
+			return -1;
+		}
+	}
+	return -1;
 }
 
 function resolveAttributeValueStyle(match: RegExpExecArray): GuideNhAttributeValueStyle {
