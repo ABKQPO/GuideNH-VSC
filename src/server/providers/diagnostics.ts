@@ -1,3 +1,6 @@
+import { existsSync, readdirSync } from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { Diagnostic, DiagnosticSeverity, Position } from 'vscode-languageserver/node';
 import { GuideNhAttributeSchema, GuideNhFrontmatterKey, GuideNhSchemaBundle } from '../../common/schema';
 import { GuideNhResourceIndex } from '../index/resourceIndex';
@@ -124,7 +127,9 @@ function createPageReferenceDiagnostics(
 	preferredLocale?: string
 ): Diagnostic[] {
 	return model.references
-		.filter((reference) => reference.kind === 'page' && reference.normalizedTarget && !index.findPageByRelativePathForLocale(reference.normalizedTarget, preferredLocale))
+		.filter((reference) => reference.kind === 'page' && reference.normalizedTarget
+			&& !index.findPageByRelativePathForLocale(reference.normalizedTarget, preferredLocale)
+			&& !isGuideNhReferenceAvailableOnDisk(String(reference.normalizedTarget), model.uri, 'page', preferredLocale))
 		.map((reference) => createDiagnostic(text, reference.start, reference.end, localizeServer('diagnostic.unknownPage', String(reference.normalizedTarget))));
 }
 
@@ -134,8 +139,90 @@ function createResourceReferenceDiagnostics(
 	resourceIndex: GuideNhResourceIndex
 ): Diagnostic[] {
 	return model.references
-		.filter((reference) => reference.kind === 'resource' && reference.normalizedTarget && !resourceIndex.findResourceByRelativePath(reference.normalizedTarget))
+		.filter((reference) => reference.kind === 'resource' && reference.normalizedTarget
+			&& !resourceIndex.findResourceByRelativePath(reference.normalizedTarget)
+			&& !isGuideNhReferenceAvailableOnDisk(String(reference.normalizedTarget), model.uri, 'resource'))
 		.map((reference) => createDiagnostic(text, reference.start, reference.end, localizeServer('diagnostic.unknownResource', String(reference.normalizedTarget))));
+}
+
+/**
+ * Check the resource pack on disk when the asynchronous workspace index has not
+ * finished yet (or the document is outside the configured workspace folders).
+ */
+function isGuideNhReferenceAvailableOnDisk(
+	normalizedTarget: string,
+	documentUri: string | undefined,
+	kind: 'page' | 'resource',
+	preferredLocale?: string
+): boolean {
+	if (!documentUri?.startsWith('file:')) {
+		return false;
+	}
+	const documentPath = toFilePath(documentUri);
+	if (!documentPath) {
+		return false;
+	}
+	const location = locateGuideNhDocument(documentPath);
+	if (!location) {
+		return false;
+	}
+	const target = parseNamespacedTarget(normalizedTarget, location.namespace);
+	if (!target || target.namespace.toLowerCase() !== location.namespace.toLowerCase()) {
+		return false;
+	}
+	if (kind === 'resource') {
+		const resourcePath = target.relativePath.replace(/^assets\//i, '');
+		return isSafeRelativePath(resourcePath)
+			&& existsSync(path.join(location.packRoot, 'assets', location.namespace, 'guidenh', 'assets', resourcePath));
+	}
+	if (!isSafeRelativePath(target.relativePath)) {
+		return false;
+	}
+	const locales = preferredLocale ? [preferredLocale] : [];
+	locales.push(location.locale);
+	try {
+		for (const entry of readdirSync(path.join(location.packRoot, 'assets', location.namespace, 'guidenh'), { withFileTypes: true })) {
+			if (entry.isDirectory() && /^_[a-z]{2}_[a-z]{2}$/i.test(entry.name)) {
+				locales.push(entry.name.slice(1));
+			}
+		}
+	} catch {
+		// The existence check below still handles the current locale if listing fails.
+	}
+	return Array.from(new Set(locales.map((locale) => locale.toLowerCase().replace(/-/g, '_')))).some((locale) =>
+		existsSync(path.join(location.packRoot, 'assets', location.namespace, 'guidenh', `_${locale}`, target.relativePath)));
+}
+
+function toFilePath(uri: string): string | undefined {
+	try {
+		return fileURLToPath(uri);
+	} catch {
+		return undefined;
+	}
+}
+
+function locateGuideNhDocument(documentPath: string): { packRoot: string; namespace: string; locale: string } | undefined {
+	const normalized = documentPath.replace(/\\/g, '/');
+	const match = normalized.match(/^(.*)\/assets\/([^/]+)\/guidenh\/(?:guidenh\/)?_([a-z]{2}_[a-z]{2})\/.+\.md$/i);
+	if (!match) {
+		return undefined;
+	}
+	return { packRoot: match[1], namespace: decodeURIComponent(match[2]), locale: match[3] };
+}
+
+function parseNamespacedTarget(value: string, fallbackNamespace: string): { namespace: string; relativePath: string } | undefined {
+	const separator = value.indexOf(':');
+	const namespace = separator >= 0 ? value.slice(0, separator) : fallbackNamespace;
+	const relativePath = (separator >= 0 ? value.slice(separator + 1) : value).replace(/^\/+/, '').replace(/\\/g, '/');
+	if (!namespace || !relativePath) {
+		return undefined;
+	}
+	return { namespace: decodeURIComponent(namespace), relativePath: decodeURIComponent(relativePath) };
+}
+
+function isSafeRelativePath(value: string): boolean {
+	const normalized = path.posix.normalize(`/${value}`).slice(1);
+	return normalized === value && value.length > 0 && !value.startsWith('/') && !value.split('/').includes('..');
 }
 
 function isAttributeMissing(
