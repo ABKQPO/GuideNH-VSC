@@ -14,7 +14,7 @@ import {
 	resolveRuntimeAttributeSource
 } from '../runtime/runtimeAttributeSources';
 
-export const GuideNhCompletionTriggerCharacters = ['<', '/', '(', ' ', '"', '\'', '`', '=', '+', ':', '^'];
+export const GuideNhCompletionTriggerCharacters = ['<', '/', '(', ' ', '"', '\'', '`', '=', '+', ':', '^', '.'];
 
 interface AttributeValueContext {
 	tagName: string;
@@ -144,7 +144,14 @@ export function createGuideNhCompletionResult(
 		if (staticCompletions.length > 0) {
 			return { items: staticCompletions, dynamicRequest, runtimeReplacement };
 		}
-		const referenceCompletions = createAttributeReferenceValueCompletions(attributeValueContext, schema, index, resourceIndex, cache);
+		const referenceCompletions = createAttributeReferenceValueCompletions(
+			attributeValueContext,
+			schema,
+			index,
+			resourceIndex,
+			cache,
+			documentUri
+		);
 		if (referenceCompletions.length > 0) {
 			const attribute = findAttributeSchema(schema, attributeValueContext.tagName, attributeValueContext.attributeName);
 			const referenceReplacement = attribute?.type === 'resource'
@@ -163,7 +170,8 @@ export function createGuideNhCompletionResult(
 			schema,
 			cache,
 			index,
-			runtimeReplacement
+			runtimeReplacement,
+			documentUri
 		);
 		if (runtimeCompletions.length > 0) {
 			return { items: runtimeCompletions, dynamicRequest, runtimeReplacement };
@@ -460,7 +468,8 @@ function createAttributeReferenceValueCompletions(
 	schema: GuideNhSchemaBundle,
 	index: GuideNhWorkspaceIndex | undefined,
 	resourceIndex: GuideNhResourceIndex | undefined,
-	cache: SemanticCache | undefined
+	cache: SemanticCache | undefined,
+	documentUri?: string
 ): CompletionItem[] {
 	const attribute = findAttributeSchema(schema, context.tagName, context.attributeName);
 	if (!attribute) {
@@ -469,7 +478,7 @@ function createAttributeReferenceValueCompletions(
 	const capability = resolveRuntimeCapability(context.tagName, context.attributeName, attribute);
 	if (capability === 'pages') {
 		return mergeCompletionItems([
-			...createPageValueCompletions(context.prefix, index),
+			...createPageValueCompletions(context.prefix, index, documentUri),
 			...createRuntimeValueCompletions('pages', context.prefix, cache)
 		]);
 	}
@@ -501,7 +510,8 @@ function createRuntimeAttributeValueCompletions(
 	schema: GuideNhSchemaBundle,
 	cache: SemanticCache,
 	index: GuideNhWorkspaceIndex | undefined,
-	replacementRange: CompletionReplacementRange | undefined
+	replacementRange: CompletionReplacementRange | undefined,
+	documentUri?: string
 ): CompletionItem[] {
 	const attribute = findAttributeSchema(schema, context.tagName, context.attributeName);
 	const capability = resolveRuntimeCapability(context.tagName, context.attributeName, attribute);
@@ -513,7 +523,7 @@ function createRuntimeAttributeValueCompletions(
 		return applyCompletionReplacementRange(runtimeItems, replacementRange);
 	}
 	return mergeCompletionItems([
-		...createPageValueCompletions(context.prefix, index),
+		...createPageValueCompletions(context.prefix, index, documentUri),
 		...applyCompletionReplacementRange(runtimeItems, replacementRange)
 	]);
 }

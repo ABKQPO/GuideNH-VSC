@@ -26,7 +26,6 @@ export interface GuideNhPageReference {
 
 export class GuideNhWorkspaceIndex {
 	private readonly pages = new Map<string, GuideNhIndexedPage>();
-	private readonly pageUriById = new Map<string, string>();
 	private readonly pageUrisByRelativePath = new Map<string, Set<string>>();
 	private readonly pageUrisByPrefixAlias = new Map<string, Set<string>>();
 	private readonly pageUrisByItemId = new Map<string, Set<string>>();
@@ -74,7 +73,6 @@ export class GuideNhWorkspaceIndex {
 			oreLinks
 		});
 		this.addNamespace(location.namespace);
-		this.pageUriById.set(location.pageId, uri);
 		const pageUris = this.pageUrisByRelativePath.get(location.relativePath) ?? new Set<string>();
 		pageUris.add(uri);
 		this.pageUrisByRelativePath.set(location.relativePath, pageUris);
@@ -108,7 +106,6 @@ export class GuideNhWorkspaceIndex {
 		}
 		this.pages.delete(uri);
 		this.removeNamespace(page.namespace);
-		this.pageUriById.delete(page.pageId);
 		const pageUris = this.pageUrisByRelativePath.get(page.relativePath);
 		if (pageUris) {
 			pageUris.delete(uri);
@@ -150,9 +147,9 @@ export class GuideNhWorkspaceIndex {
 
 	findPageByRelativePathForLocale(relativePath: string, preferredLocale?: string): GuideNhIndexedPage | undefined {
 		const normalized = normalizeGuideNhReferencePath(relativePath);
-		const directUri = this.pageUriById.get(normalized);
-		if (directUri) {
-			return this.pages.get(directUri);
+		const directUris = this.pageUrisByPrefixAlias.get(normalized);
+		if (directUris && directUris.size > 0) {
+			return this.selectPreferredPage(Array.from(directUris), preferredLocale);
 		}
 		const relativeUris = this.pageUrisByRelativePath.get(normalized);
 		if (!relativeUris || relativeUris.size === 0) {
@@ -643,6 +640,10 @@ function createRelativePageReference(directoryPath: string, relativePath: string
 		return `/${relativePath}`;
 	}
 	const reference = path.posix.relative(directoryPath || '.', relativePath);
+	// Preserve a single-dot prefix so completion can continue with `./page.md`.
+	if (prefix === '.' && !reference.startsWith('../')) {
+		return `./${reference}`;
+	}
 	if (!prefix.startsWith('./') || reference.startsWith('../')) {
 		return reference;
 	}

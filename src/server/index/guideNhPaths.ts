@@ -46,6 +46,12 @@ export function resolveGuideNhPageId(uri: string): string {
 	return resolveGuideNhDocumentLocation(uri).pageId;
 }
 
+/** Prefer the locale encoded by the current GuideNH document over UI locale. */
+export function resolveGuideNhPreferredLocale(documentUri?: string, fallbackLocale?: string): string | undefined {
+	const documentLocale = documentUri ? resolveGuideNhDocumentLocation(documentUri).locale : undefined;
+	return documentLocale ?? normalizeGuideNhLocale(fallbackLocale);
+}
+
 export function resolveGuideNhPageReference(reference: string | undefined, documentUri?: string): string | undefined {
 	const normalizedReference = stripAnchor(reference);
 	if (!normalizedReference || !normalizedReference.endsWith('.md')) {

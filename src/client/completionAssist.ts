@@ -78,7 +78,11 @@ export function shouldTriggerGuideNhSuggest(context: GuideNhCompletionAssistCont
 	if (context.changeText === '<>') {
 		return true;
 	}
-	return isGuideNhSuggestContext(context.textBeforeCursor);
+	// During an onDidChange callback VS Code may briefly report the cursor before
+	// the inserted character. Check the post-change prefix as well so the first
+	// attribute letter (for example `z` in `zoom`) still triggers suggestions.
+	return isGuideNhSuggestContext(context.textBeforeCursor)
+		|| isGuideNhSuggestContext(context.textBeforeCursor + context.changeText);
 }
 
 function isGuideNhCompletionAssistDocument(context: GuideNhCompletionAssistContext): boolean {
@@ -114,7 +118,13 @@ function isGuideNhSuggestContext(textBeforeCursor: string): boolean {
 	}
 	return /^<$/.test(openTag)
 		|| /<[A-Za-z][A-Za-z0-9]*$/.test(openTag)
-		|| /<[A-Za-z][A-Za-z0-9]*\s+[A-Za-z_][\w.-]*$/.test(openTag)
+		// Attribute names can be entered after any number of already-complete
+		// attributes, including expression values such as showBackground={false}.
+		|| /<[A-Za-z][A-Za-z0-9]*[\s\S]*\s+[A-Za-z_][\w.-]*$/.test(openTag)
+		// VS Code can report the change before moving the cursor past the first
+		// character typed after a space. Accept the trailing-space state so the
+		// initial attribute suggestion is still requested.
+		|| /<[A-Za-z][A-Za-z0-9]*[\s\S]*\s+$/.test(openTag)
 		|| /<[A-Za-z][A-Za-z0-9]*[\s\S]*\s[A-Za-z_][\w.-]*\s*=\s*(?:"[^"]*|'[^']*|\{[^}]*|[^\s"'=<>`]*)$/.test(openTag);
 }
 

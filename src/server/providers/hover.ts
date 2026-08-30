@@ -13,6 +13,7 @@ import {
 	resolveRuntimeAttributeSource
 } from '../runtime/runtimeAttributeSources';
 import { findAttributeSchema, findTagSchema, matchesTagName } from '../schema/schemaLookup';
+import { resolveGuideNhPreferredLocale } from '../index/guideNhPaths';
 
 interface FrontmatterKeyContext {
 	path: string[];
@@ -43,7 +44,8 @@ export function createGuideNhHover(
 		return { hover: frontmatterHover };
 	}
 	const model = createGuideNhDocumentModel(text, documentUri);
-	const referenceHover = createReferenceHover(model, offset, index, resourceIndex, preferredLocale);
+	const pageLocale = resolveGuideNhPreferredLocale(documentUri, preferredLocale);
+	const referenceHover = createReferenceHover(model, offset, index, resourceIndex, pageLocale);
 	if (referenceHover) {
 		return { hover: referenceHover };
 	}

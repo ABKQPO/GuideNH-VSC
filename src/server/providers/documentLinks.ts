@@ -1,6 +1,7 @@
 import { DocumentLink, Position, Range } from 'vscode-languageserver/node';
 import { GuideNhWorkspaceIndex } from '../index/workspaceIndex';
 import { createGuideNhDocumentModel } from '../parser/documentModel';
+import { resolveGuideNhPreferredLocale } from '../index/guideNhPaths';
 
 export function createGuideNhDocumentLinks(
 	text: string,
@@ -9,10 +10,11 @@ export function createGuideNhDocumentLinks(
 	preferredLocale?: string
 ): DocumentLink[] {
 	const model = createGuideNhDocumentModel(text, documentUri);
+	const pageLocale = resolveGuideNhPreferredLocale(documentUri, preferredLocale);
 	return model.references
 		.filter((reference) => reference.kind === 'page' && reference.normalizedTarget)
 		.map((reference) => {
-			const page = index.findPageByRelativePathForLocale(String(reference.normalizedTarget), preferredLocale);
+			const page = index.findPageByRelativePathForLocale(String(reference.normalizedTarget), pageLocale);
 			if (!page) {
 				return undefined;
 			}

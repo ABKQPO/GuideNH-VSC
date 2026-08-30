@@ -4,6 +4,7 @@ import { GuideNhWorkspaceIndex } from '../index/workspaceIndex';
 import { createGuideNhDocumentModel, findReferenceAtOffset, findTagContextAtOffset } from '../parser/documentModel';
 import { findIndexedFrontmatterValueAtOffset } from '../parser/frontmatterIndexing';
 import { resolveRuntimeAttributeSource } from '../runtime/runtimeAttributeSources';
+import { resolveGuideNhPreferredLocale } from '../index/guideNhPaths';
 
 export function createGuideNhDefinition(
 	text: string,
@@ -23,7 +24,8 @@ export function createGuideNhDefinition(
 		return resolveRuntimeAttributeDefinition(model, offset, index);
 	}
 	if (reference.kind === 'page') {
-		const page = reference.normalizedTarget ? index.findPageByRelativePathForLocale(reference.normalizedTarget, preferredLocale) : undefined;
+		const pageLocale = resolveGuideNhPreferredLocale(documentUri, preferredLocale);
+		const page = reference.normalizedTarget ? index.findPageByRelativePathForLocale(reference.normalizedTarget, pageLocale) : undefined;
 		if (!page) {
 			return undefined;
 		}
