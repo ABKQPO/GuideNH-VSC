@@ -81,8 +81,11 @@ export function shouldTriggerGuideNhSuggest(context: GuideNhCompletionAssistCont
 	// During an onDidChange callback VS Code may briefly report the cursor before
 	// the inserted character. Check the post-change prefix as well so the first
 	// attribute letter (for example `z` in `zoom`) still triggers suggestions.
+	// An opening angle bracket only starts a tag when it was already part of the
+	// prefix VS Code supplied. Checking the post-change prefix for `<` would
+	// trigger suggestions after ordinary prose such as `plain text<`.
 	return isGuideNhSuggestContext(context.textBeforeCursor)
-		|| isGuideNhSuggestContext(context.textBeforeCursor + context.changeText);
+		|| (context.changeText !== '<' && isGuideNhSuggestContext(context.textBeforeCursor + context.changeText));
 }
 
 function isGuideNhCompletionAssistDocument(context: GuideNhCompletionAssistContext): boolean {
