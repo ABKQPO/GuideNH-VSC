@@ -16,6 +16,7 @@ type LocaleKey =
 	| 'diagnostic.missingAttribute'
 	| 'diagnostic.unclosedTag'
 	| 'diagnostic.unknownPage'
+	| 'diagnostic.unknownAnchor'
 	| 'diagnostic.unknownResource'
 	| 'diagnostic.unknownFrontmatterKey'
 	| 'diagnostic.frontmatterExpects'
@@ -45,6 +46,7 @@ const EnglishMessages: LocaleMessages = {
 	'diagnostic.missingAttribute': 'Missing required attribute {0} on {1}',
 	'diagnostic.unclosedTag': 'Unclosed GuideNH tag {0}',
 	'diagnostic.unknownPage': 'Unknown GuideNH page {0}',
+	'diagnostic.unknownAnchor': 'Unknown anchor #{0} on GuideNH page {1}',
 	'diagnostic.unknownResource': 'Unknown GuideNH resource {0}',
 	'diagnostic.unknownFrontmatterKey': 'Unknown frontmatter key {0}',
 	'diagnostic.frontmatterExpects': 'Frontmatter key {0} expects {1} value',
@@ -73,6 +75,7 @@ const ChineseMessages: LocaleMessages = {
 	'diagnostic.missingAttribute': '{1} 缺少必填属性 {0}',
 	'diagnostic.unclosedTag': '未闭合的 GuideNH 标签 {0}',
 	'diagnostic.unknownPage': '未知 GuideNH 页面 {0}',
+	'diagnostic.unknownAnchor': 'GuideNH 页面 {1} 不存在标题锚点 #{0}',
 	'diagnostic.unknownResource': '未知 GuideNH 资源 {0}',
 	'diagnostic.unknownFrontmatterKey': '未知 frontmatter 键 {0}',
 	'diagnostic.frontmatterExpects': 'frontmatter 键 {0} 需要 {1} 类型的值',

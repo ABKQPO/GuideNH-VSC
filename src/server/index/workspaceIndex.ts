@@ -17,6 +17,7 @@ export interface GuideNhIndexedPage {
 	resourceLinks: string[];
 	itemLinks: string[];
 	oreLinks: string[];
+	anchors: string[];
 }
 
 export interface GuideNhPageReference {
@@ -49,6 +50,7 @@ export class GuideNhWorkspaceIndex {
 		const location = resolveGuideNhDocumentLocation(uri);
 		const frontmatterValues = extractIndexedFrontmatterValues(text);
 		const model = createGuideNhDocumentModel(text, uri);
+		const anchors = extractMarkdownAnchors(text);
 		const itemIds = [
 			...(frontmatterValues.item_id ?? []),
 			...(frontmatterValues.item_ids ?? [])
@@ -70,7 +72,8 @@ export class GuideNhWorkspaceIndex {
 			links,
 			resourceLinks,
 			itemLinks,
-			oreLinks
+			oreLinks,
+			anchors
 		});
 		this.addNamespace(location.namespace);
 		const pageUris = this.pageUrisByRelativePath.get(location.relativePath) ?? new Set<string>();
@@ -141,6 +144,14 @@ export class GuideNhWorkspaceIndex {
 		}
 	}
 
+	removePagesNotIn(uris: ReadonlySet<string>): void {
+		for (const uri of Array.from(this.pages.keys())) {
+			if (!uris.has(uri)) {
+				this.removePage(uri);
+			}
+		}
+	}
+
 	findPageByRelativePath(relativePath: string): GuideNhIndexedPage | undefined {
 		return this.findPageByRelativePathForLocale(relativePath);
 	}
@@ -166,6 +177,14 @@ export class GuideNhWorkspaceIndex {
 	findOreReference(oreId: string): GuideNhIndexedPage | undefined {
 		const uri = this.pageUrisByOreId.get(oreId)?.values().next().value;
 		return uri ? this.pages.get(uri) : undefined;
+	}
+
+	findPageAnchor(relativePath: string, anchor: string, preferredLocale?: string): GuideNhIndexedPage | undefined {
+		const page = this.findPageByRelativePathForLocale(relativePath, preferredLocale);
+		if (!page || !page.anchors.includes(normalizeAnchor(anchor))) {
+			return undefined;
+		}
+		return page;
 	}
 
 	listPages(): GuideNhIndexedPage[] {
@@ -585,6 +604,26 @@ export class GuideNhWorkspaceIndex {
 			this.dirtyFrontmatterPaths.add(path);
 		}
 	}
+}
+
+function extractMarkdownAnchors(text: string): string[] {
+	const anchors = new Set<string>();
+	for (const line of text.split(/\r?\n/)) {
+		const match = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/);
+		if (match) {
+			anchors.add(normalizeAnchor(match[1]));
+		}
+	}
+	return Array.from(anchors);
+}
+
+function normalizeAnchor(value: string): string {
+	return value
+		.trim()
+		.toLowerCase()
+		.replace(/[\x60*_~]/g, '')
+		.replace(/[^\p{L}\p{N}\s-]/gu, '')
+		.replace(/\s+/g, '-');
 }
 
 function extractPageLinks(model: GuideNhDocumentModel): string[] {

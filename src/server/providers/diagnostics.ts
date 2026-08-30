@@ -5,6 +5,7 @@ import { Diagnostic, DiagnosticSeverity, Position } from 'vscode-languageserver/
 import { GuideNhAttributeSchema, GuideNhFrontmatterKey, GuideNhSchemaBundle } from '../../common/schema';
 import { GuideNhResourceIndex } from '../index/resourceIndex';
 import { GuideNhWorkspaceIndex } from '../index/workspaceIndex';
+import { resolveGuideNhPreferredLocale } from '../index/guideNhPaths';
 import { localizeServer } from '../localization';
 import { createGuideNhDocumentModel } from '../parser/documentModel';
 import { GuideNhParsedTag } from '../parser/documentParser';
@@ -126,11 +127,20 @@ function createPageReferenceDiagnostics(
 	index: GuideNhWorkspaceIndex,
 	preferredLocale?: string
 ): Diagnostic[] {
+	const pageLocale = resolveGuideNhPreferredLocale(model.uri, preferredLocale);
 	return model.references
-		.filter((reference) => reference.kind === 'page' && reference.normalizedTarget
-			&& !index.findPageByRelativePathForLocale(reference.normalizedTarget, preferredLocale)
-			&& !isGuideNhReferenceAvailableOnDisk(String(reference.normalizedTarget), model.uri, 'page', preferredLocale))
-		.map((reference) => createDiagnostic(text, reference.start, reference.end, localizeServer('diagnostic.unknownPage', String(reference.normalizedTarget))));
+		.filter((reference) => reference.kind === 'page' && reference.normalizedTarget)
+		.flatMap((reference) => {
+			const target = String(reference.normalizedTarget);
+			const page = index.findPageByRelativePathForLocale(target, pageLocale);
+			if (!page && !isGuideNhReferenceAvailableOnDisk(target, model.uri, 'page', pageLocale)) {
+				return [createDiagnostic(text, reference.start, reference.end, localizeServer('diagnostic.unknownPage', target))];
+			}
+			if (page && reference.anchor && !index.findPageAnchor(target, reference.anchor, pageLocale)) {
+				return [createDiagnostic(text, reference.start, reference.end, localizeServer('diagnostic.unknownAnchor', reference.anchor, target))];
+			}
+			return [];
+		});
 }
 
 function createResourceReferenceDiagnostics(

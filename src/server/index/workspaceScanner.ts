@@ -34,6 +34,28 @@ export async function indexGuideNhWorkspaceFolder(
 	await runner.waitForIdle();
 }
 
+/** Rebuild all page entries and remove URIs that disappeared without a delete watcher event. */
+export async function reconcileGuideNhWorkspaceFolders(
+	folders: WorkspaceFolder[],
+	index: GuideNhWorkspaceIndex,
+	resourceIndex?: GuideNhResourceIndex
+): Promise<void> {
+	const seenUris = new Set<string>();
+	for (const folder of folders) {
+		const folderPath = URI.parse(folder.uri).fsPath;
+		const runner = new LimitedTaskRunner(WorkspaceScanReadConcurrency);
+		await visitDirectory(folderPath, runner, async (filePath) => {
+			const document = await readGuideNhMarkdownFile(filePath);
+			if (document) {
+				seenUris.add(document.uri);
+				index.updatePage(document.uri, document.text);
+			}
+		}, resourceIndex);
+		await runner.waitForIdle();
+	}
+	index.removePagesNotIn(seenUris);
+}
+
 /** Apply client file-watcher events without requiring a full workspace rescan. */
 export async function applyGuideNhWorkspaceFileChanges(
 	changes: DidChangeWatchedFilesParams['changes'],

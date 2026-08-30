@@ -41,6 +41,7 @@ export interface GuideNhTextReference {
 	kind: 'page' | 'resource';
 	target: string;
 	normalizedTarget?: string;
+	anchor?: string;
 	start: number;
 	end: number;
 	interactionStart?: number;
@@ -246,6 +247,7 @@ function findMarkdownReferences(text: string, documentUri?: string): GuideNhText
 			kind,
 			target,
 			normalizedTarget,
+			anchor: kind === 'page' ? extractReferenceAnchor(target) : undefined,
 			start,
 			end: start + rawTarget.length,
 			interactionStart: match.index,
@@ -290,6 +292,7 @@ function findAttributeReferences(text: string, tags: GuideNhParsedTag[], documen
 					kind: 'page',
 					target: rawValue,
 					normalizedTarget: normalizePageReference(rawValue, documentUri),
+					anchor: extractReferenceAnchor(rawValue),
 					start: range.start,
 					end: range.end,
 					source: 'attribute',
@@ -313,6 +316,15 @@ function findAttributeReferences(text: string, tags: GuideNhParsedTag[], documen
 		}
 	}
 	return references;
+}
+
+function extractReferenceAnchor(value: string): string | undefined {
+	const hash = value.indexOf('#');
+	if (hash < 0) {
+		return undefined;
+	}
+	const anchor = value.slice(hash + 1).trim();
+	return anchor.length > 0 ? decodeURIComponent(anchor) : undefined;
 }
 
 function findReferencesWithPattern(
@@ -340,6 +352,7 @@ function findReferencesWithPattern(
 			kind,
 			target: rawTarget,
 			normalizedTarget,
+			anchor: kind === 'page' ? extractReferenceAnchor(rawTarget) : undefined,
 			start,
 			end: start + rawTarget.length,
 			interactionStart: source === 'markdown' ? match.index : start,

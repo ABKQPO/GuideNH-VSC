@@ -26,7 +26,8 @@ import { GuideNhWorkspaceIndex } from './index/workspaceIndex';
 import {
 	applyGuideNhWorkspaceFileChanges,
 	forEachGuideNhMarkdownDocument,
-	indexGuideNhWorkspaceFolders
+	indexGuideNhWorkspaceFolders,
+	reconcileGuideNhWorkspaceFolders
 } from './index/workspaceScanner';
 import { localizeServer, setServerLocale } from './localization';
 import {
@@ -71,7 +72,7 @@ let configuredResourcePackPath: string | undefined;
 let preferredLocale: string | undefined;
 
 connection.onInitialize((params: InitializeParams) => {
-	workspaceFolders = params.workspaceFolders ?? [];
+	workspaceFolders = resolveWorkspaceFolders(params);
 	const initializationOptions = readInitializationOptions(params.initializationOptions);
 	setServerLocale(initializationOptions.locale);
 	preferredLocale = initializationOptions.locale;
@@ -101,6 +102,9 @@ connection.onInitialized(() => {
 connection.onDidChangeWatchedFiles(async (params: DidChangeWatchedFilesParams) => {
 	try {
 		await applyGuideNhWorkspaceFileChanges(params.changes, workspaceIndex, resourceIndex);
+		const folders = resolveInitialWorkspaceFolders(workspaceFolders, configuredResourcePackPath);
+		await reconcileGuideNhWorkspaceFolders(folders, workspaceIndex, resourceIndex);
+		await publishWorkspaceDiagnostics(folders);
 		await refreshOpenDocumentDiagnostics();
 	} catch (error) {
 		connection.console.warn(`GuideNH file change update failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -347,6 +351,20 @@ function resolveInitialWorkspaceFolders(folders: WorkspaceFolder[], resourcePack
 			uri: pathToFileURL(resourcePackPath).toString()
 		}
 	];
+}
+
+function resolveWorkspaceFolders(params: InitializeParams): WorkspaceFolder[] {
+	if (params.workspaceFolders && params.workspaceFolders.length > 0) {
+		return params.workspaceFolders;
+	}
+	const rootUri = params.rootUri ?? (params as InitializeParams & { rootPath?: string }).rootPath;
+	if (!rootUri) {
+		return [];
+	}
+	return [{
+		name: path.basename(rootUri.replace(/\\/g, '/').replace(/\/$/, '')) || 'GuideNH Workspace',
+		uri: rootUri
+	}];
 }
 
 function sameFileUri(left: string, right: string): boolean {
