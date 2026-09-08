@@ -52,6 +52,7 @@ export function enhanceGeneratedTagsFromJavaSources(
 	applyMermaidEnhancements(enhanced);
 	applyFunctionGraphEnhancements(enhanced, sources);
 	applySceneTagEnhancements(enhanced, sources);
+	applyStructureLibOptionTagEnhancements(enhanced, sources);
 	applyRecipeEnhancements(enhanced);
 	applyReferenceEnhancements(enhanced);
 	return enhanced;
@@ -635,6 +636,85 @@ function applyStructureLibConditionEnhancements(tags: Record<string, GuideNhTagS
 	mergeAttributes(tags.ImportStructureLib, {
 		name: { type: 'string', valueStyle: 'string' }
 	});
+}
+
+function applyStructureLibOptionTagEnhancements(tags: Record<string, GuideNhTagSchema>, sources: JavaSourceFile[]): void {
+	const parser = findSourceByClassName(sources, 'StructureLibSceneOptionParser');
+	if (!parser) {
+		return;
+	}
+	const optionNames = new Set<string>();
+	for (const match of parser.text.matchAll(/case\s+"([A-Z][A-Za-z0-9]*)"\s*:/g)) {
+		optionNames.add(match[1]);
+	}
+	const definitions: Record<string, Omit<GuideNhTagSchema, 'name'>> = {
+		Tier: {
+			kind: 'any',
+			description: 'Generated from GuideNH StructureLib tier option support.',
+			attributes: {
+				expr: { type: 'number', valueStyle: 'string' },
+				tier: { type: 'number', valueStyle: 'string' },
+				value: { type: 'number', valueStyle: 'string' }
+			},
+			children: [],
+			snippets: []
+		},
+		Channel: {
+			kind: 'any',
+			description: 'Generated from GuideNH StructureLib channel option support.',
+			attributes: {
+				expr: { type: 'number', valueStyle: 'string' },
+				id: { type: 'string', valueStyle: 'string' },
+				name: { type: 'string', valueStyle: 'string' },
+				tier: { type: 'number', valueStyle: 'string' },
+				value: { type: 'number', valueStyle: 'string' }
+			},
+			children: [],
+			snippets: []
+		},
+		Facing: createStructureLibTextOptionDefinition('facing'),
+		Rotation: createStructureLibTextOptionDefinition('rotation'),
+		Flip: createStructureLibTextOptionDefinition('flip'),
+		Orientation: createStructureLibTextOptionDefinition('orientation'),
+		GregTechActiveController: createStructureLibFlagOptionDefinition('GregTech active controller'),
+		GtActiveController: createStructureLibFlagOptionDefinition('GregTech active controller'),
+		GregTechPlaceHatches: createStructureLibFlagOptionDefinition('GregTech hatch placement'),
+		GtPlaceHatches: createStructureLibFlagOptionDefinition('GregTech hatch placement')
+	};
+	const children: string[] = [];
+	for (const name of Array.from(optionNames).sort((left, right) => left.localeCompare(right))) {
+		const definition = definitions[name];
+		if (!definition) {
+			continue;
+		}
+		tags[name] = { name, ...definition, attributes: sortAttributes(definition.attributes) };
+		children.push(name);
+	}
+	setChildren(tags.ImportStructureLib, children);
+}
+
+function createStructureLibTextOptionDefinition(option: string): Omit<GuideNhTagSchema, 'name'> {
+	return {
+		kind: 'any',
+		description: `Generated from GuideNH StructureLib ${option} option support.`,
+		attributes: {
+			expr: { type: 'string', valueStyle: 'string' },
+			name: { type: 'string', valueStyle: 'string' },
+			value: { type: 'string', valueStyle: 'string' }
+		},
+		children: [],
+		snippets: []
+	};
+}
+
+function createStructureLibFlagOptionDefinition(option: string): Omit<GuideNhTagSchema, 'name'> {
+	return {
+		kind: 'any',
+		description: `Generated from GuideNH ${option} option support.`,
+		attributes: {},
+		children: [],
+		snippets: []
+	};
 }
 
 function applyFunctionGraphEnhancements(tags: Record<string, GuideNhTagSchema>, sources: JavaSourceFile[]): void {
