@@ -9,7 +9,8 @@ suite('GuideNH schema loader', () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		assert.ok(schema.tags.tags.GameScene);
 		assert.ok(schema.frontmatter.keys.navigation);
-		assert.ok(schema.markdownExtensions.inlineMarkers.highlight);
+		assert.ok(schema.markdownExtensions.inlineMarkers.underline);
+		assert.ok(schema.markdownExtensions.fencedCodeBlocks.filetree);
 		assert.strictEqual(schema.protocol.protocolVersion, 1);
 		assert.ok(schema.protocol.capabilities.includes('categories'));
 		assert.ok(schema.protocol.capabilities.includes('mods'));

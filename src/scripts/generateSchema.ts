@@ -1,6 +1,12 @@
-﻿import { promises as fs } from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
-import { GuideNhAttributeSchema, GuideNhTagSchema, GuideNhTagsFile } from '../common/schema';
+import {
+	GuideNhAttributeSchema,
+	GuideNhMarkdownExtensionsFile,
+	GuideNhSnippetsFile,
+	GuideNhTagSchema,
+	GuideNhTagsFile
+} from '../common/schema';
 
 export function extractTagNamesFromJavaSource(source: string): string[] {
 	return scanJavaCompilerSource(source).tagNames;
@@ -54,6 +60,7 @@ export function enhanceGeneratedTagsFromJavaSources(
 	applySceneTagEnhancements(enhanced, sources);
 	applyStructureLibOptionTagEnhancements(enhanced, sources);
 	applyRecipeEnhancements(enhanced);
+	applyContributorEnhancements(enhanced, sources);
 	applyReferenceEnhancements(enhanced);
 	return enhanced;
 }
@@ -1200,7 +1207,454 @@ async function collectJavaFiles(root: string): Promise<string[]> {
 	return result;
 }
 
-export async function generateSchema(guideNhRoot: string): Promise<void> {
+interface ContributorAttribute {
+	name: string;
+	schema: GuideNhAttributeSchema;
+}
+
+/**
+ * Merges the syntax declared by GuideNH syntax contributors.
+ *
+ * Compiler sources only describe the tags a compiler owns. Attributes that shared parsers or the scene
+ * runtime read, container children and tags a compiler accepts but authors never write live in a
+ * `SyntaxContributor` instead. That data is declarative - `sink.attributes("Tag",
+ * AttributeSyntax.of("name", SyntaxValueKind.KIND))` plus shared
+ * `private static final AttributeSyntax NAME = AttributeSyntax.of(...)` declarations - so it can be read
+ * the same way compiler sources are. Reading it keeps this schema in step with the mod, including
+ * anything a third-party mod contributes.
+ */
+function applyContributorEnhancements(tags: Record<string, GuideNhTagSchema>, sources: JavaSourceFile[]): void {
+	for (const source of sources) {
+		if (!source.text.includes('SyntaxContributor')) {
+			continue;
+		}
+		const shared = extractDeclaredAttributes(source.text);
+		for (const name of extractContributorTagNames(source.text)) {
+			ensureContributorTag(tags, name);
+		}
+		for (const call of extractContributorAttributeCalls(source.text, shared)) {
+			const tag = ensureContributorTag(tags, call.tag);
+			for (const attribute of call.attributes) {
+				tag.attributes[attribute.name] = attribute.schema;
+			}
+		}
+		for (const child of extractContributorChildren(source.text)) {
+			const tag = ensureContributorTag(tags, child.parent);
+			tag.children = Array.from(new Set([...tag.children, ...child.children])).sort();
+		}
+	}
+}
+
+function ensureContributorTag(tags: Record<string, GuideNhTagSchema>, name: string): GuideNhTagSchema {
+	const existingKey = Object.keys(tags).find((key) => key.toLowerCase() === name.toLowerCase());
+	if (existingKey) {
+		return tags[existingKey];
+	}
+	const created: GuideNhTagSchema = {
+		name,
+		kind: 'any',
+		description: 'Declared by the GuideNH syntax registry.',
+		attributes: {},
+		children: [],
+		snippets: []
+	};
+	tags[name] = created;
+	return created;
+}
+
+/** Reads `private static final AttributeSyntax NAME = AttributeSyntax.of("attr", SyntaxValueKind.KIND, ...)`. */
+function extractDeclaredAttributes(source: string): Map<string, ContributorAttribute> {
+	const declared = new Map<string, ContributorAttribute>();
+	const pattern =
+		/AttributeSyntax\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*AttributeSyntax\s*\.\s*of\(\s*"([^"]+)"\s*,\s*SyntaxValueKind\s*\.\s*([A-Z0-9_]+)(?:\s*,\s*([\s\S]*?))?\)\s*;/g;
+	for (const match of source.matchAll(pattern)) {
+		declared.set(match[1], {
+			name: match[2],
+			schema: contributorAttributeSchema(match[3], extractQuotedValues(match[4] ?? ''))
+		});
+	}
+	return declared;
+}
+
+/** Reads the tag names a contributor announces: `sink.tags(...)` and `sink.containerTags(...)`. */
+function extractContributorTagNames(source: string): string[] {
+	const names: string[] = [];
+	for (const match of source.matchAll(/sink\s*\.\s*(?:tags|containerTags)\(([\s\S]*?)\)\s*;/g)) {
+		names.push(...extractQuotedValues(match[1]));
+	}
+	return names;
+}
+
+/** Reads `sink.attributes("Tag", AttributeSyntax.of(...) | SHARED_NAME, ...)`. */
+function extractContributorAttributeCalls(
+	source: string,
+	shared: Map<string, ContributorAttribute>
+): Array<{ tag: string; attributes: ContributorAttribute[] }> {
+	const calls: Array<{ tag: string; attributes: ContributorAttribute[] }> = [];
+	for (const match of source.matchAll(/sink\s*\.\s*attributes\(\s*"([^"]+)"\s*,([\s\S]*?)\)\s*;/g)) {
+		const attributes: ContributorAttribute[] = [];
+		for (const argument of splitTopLevelArguments(match[2])) {
+			const inline =
+				/^AttributeSyntax\s*\.\s*of\(\s*"([^"]+)"\s*,\s*SyntaxValueKind\s*\.\s*([A-Z0-9_]+)(?:\s*,\s*([\s\S]*))?\)$/.exec(
+					argument
+				);
+			if (inline) {
+				attributes.push({
+					name: inline[1],
+					schema: contributorAttributeSchema(inline[2], extractQuotedValues(inline[3] ?? ''))
+				});
+				continue;
+			}
+			const declared = shared.get(argument);
+			if (declared) {
+				attributes.push(declared);
+			}
+		}
+		if (attributes.length > 0) {
+			calls.push({ tag: match[1], attributes });
+		}
+	}
+	return calls;
+}
+
+/** Reads `sink.children("Parent", "Child", ...)`. */
+function extractContributorChildren(source: string): Array<{ parent: string; children: string[] }> {
+	const calls: Array<{ parent: string; children: string[] }> = [];
+	for (const match of source.matchAll(/sink\s*\.\s*children\(\s*"([^"]+)"\s*,([\s\S]*?)\)\s*;/g)) {
+		const children = extractQuotedValues(match[2]);
+		if (children.length > 0) {
+			calls.push({ parent: match[1], children });
+		}
+	}
+	return calls;
+}
+
+function contributorAttributeSchema(kind: string, values: string[]): GuideNhAttributeSchema {
+	const enumerated = values.length > 0 ? { values } : {};
+	switch (kind) {
+		case 'INT':
+		case 'FLOAT':
+			return { type: 'number', valueStyle: 'string' };
+		case 'BOOLEAN':
+			return { type: 'boolean', valueStyle: 'string' };
+		case 'COLOR':
+			return { type: 'color' };
+		case 'ENUM':
+			return { type: 'enum', ...enumerated };
+		case 'ITEM_ID':
+		case 'BLOCK_ID':
+			return { type: 'item' };
+		case 'ORE_DICT':
+			return { type: 'ore' };
+		case 'PAGE_PATH':
+			return { type: 'page' };
+		case 'FILE_PATH':
+			return { type: 'resource' };
+		case 'SNBT':
+		case 'VECTOR3':
+			return { type: 'string', valueStyle: 'string' };
+		default:
+			return { type: 'string' };
+	}
+}
+
+function extractQuotedValues(text: string): string[] {
+	return Array.from(text.matchAll(/"([^"\n]*)"/g)).map((match) => match[1]);
+}
+
+/**
+ * Splits an argument list on commas that are not nested inside parentheses or strings.
+ *
+ * A backslash escapes the character after it inside a string, so a comma or a quote written as `\"`
+ * inside a Java literal does not end the argument.
+ */
+function splitTopLevelArguments(text: string): string[] {
+	const parts: string[] = [];
+	let depth = 0;
+	let inString = false;
+	let escaped = false;
+	let current = '';
+	for (const character of text) {
+		if (inString && escaped) {
+			escaped = false;
+			current += character;
+			continue;
+		}
+		if (inString && character === '\\') {
+			escaped = true;
+			current += character;
+			continue;
+		}
+		if (character === '"') {
+			inString = !inString;
+		}
+		if (!inString) {
+			if (character === '(') {
+				depth++;
+			} else if (character === ')') {
+				depth--;
+			} else if (character === ',' && depth === 0) {
+				parts.push(current.trim());
+				current = '';
+				continue;
+			}
+		}
+		current += character;
+	}
+	if (current.trim().length > 0) {
+		parts.push(current.trim());
+	}
+	return parts;
+}
+
+interface ContributorInlineMarker {
+	name: string;
+	open: string;
+	close: string;
+	description: string;
+}
+
+interface GeneratedFenceLanguage {
+	name: string;
+	description: string;
+}
+
+/**
+ * Merges the markdown syntax declared by the GuideNH sources into markdownExtensions.json.
+ *
+ * Inline markers come from the contributor's paired `MarkdownSnippet.inline(...)` calls: a snippet whose
+ * replacement text is its own trigger twice wraps the selection in that marker. Fence names come from
+ * `sink.fenceLanguages(...)`, resolving literal names, constants read from the class that declares them
+ * and the entries of the code block language registry. A third-party contributor is read exactly like
+ * the built-in one, so a syntax it adds reaches this schema without editing it.
+ *
+ * Descriptions already curated in the file win over generated ones, so generation only fills gaps.
+ */
+async function mergeMarkdownExtensions(sources: JavaSourceFile[]): Promise<void> {
+	const schemaPath = path.join(__dirname, '..', '..', 'src', 'schema', 'markdownExtensions.json');
+	const existing = JSON.parse(await fs.readFile(schemaPath, 'utf8')) as GuideNhMarkdownExtensionsFile;
+	const inlineMarkers = { ...existing.inlineMarkers };
+	for (const marker of collectInlineMarkers(sources)) {
+		inlineMarkers[marker.name] = inlineMarkers[marker.name] ?? {
+			open: marker.open,
+			close: marker.close,
+			description: marker.description
+		};
+	}
+	const fencedCodeBlocks = { ...existing.fencedCodeBlocks };
+	for (const fence of collectFenceLanguages(sources)) {
+		fencedCodeBlocks[fence.name] = fencedCodeBlocks[fence.name] ?? { description: fence.description };
+	}
+	const merged: GuideNhMarkdownExtensionsFile = { ...existing, inlineMarkers, fencedCodeBlocks };
+	await fs.writeFile(schemaPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
+}
+
+/** Reads paired `MarkdownSnippet.inline("trigger", "label", "replacement", caretOffset)` declarations. */
+function collectInlineMarkers(sources: JavaSourceFile[]): ContributorInlineMarker[] {
+	const markers: ContributorInlineMarker[] = [];
+	for (const source of sources) {
+		if (!source.text.includes('MarkdownSnippet')) {
+			continue;
+		}
+		for (const match of source.text.matchAll(/MarkdownSnippet\s*\.\s*inline\(\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"/g)) {
+			const trigger = match[1];
+			if (trigger.length === 0 || match[3] !== trigger + trigger) {
+				continue;
+			}
+			markers.push({ name: markerKey(match[2]), open: trigger, close: trigger, description: `${match[2]}.` });
+		}
+	}
+	return markers;
+}
+
+/** Turns a snippet label such as `Wavy underline` into the `wavyUnderline` key the schema uses. */
+function markerKey(label: string): string {
+	return label
+		.split(/[^A-Za-z0-9]+/)
+		.filter((word) => word.length > 0)
+		.map((word, index) => (index === 0 ? word.toLowerCase() : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()))
+		.join('');
+}
+
+/** Reads every name passed to `sink.fenceLanguages(...)`, including names held by constants. */
+function collectFenceLanguages(sources: JavaSourceFile[]): GeneratedFenceLanguage[] {
+	const fences: GeneratedFenceLanguage[] = [];
+	for (const source of sources) {
+		for (const match of source.text.matchAll(/sink\s*\.\s*fenceLanguages\(\s*([\s\S]*?)\)\s*;/g)) {
+			for (const argument of splitTopLevelArguments(match[1])) {
+				fences.push(...resolveFenceArgument(argument, sources));
+			}
+		}
+	}
+	return fences;
+}
+
+function resolveFenceArgument(argument: string, sources: JavaSourceFile[]): GeneratedFenceLanguage[] {
+	const literals = extractQuotedStrings(argument);
+	if (literals.length > 0) {
+		return literals.map((name) => ({ name, description: fenceDescription(name) }));
+	}
+	const constant = /^([A-Za-z0-9_]+)\s*\.\s*([A-Z0-9_]+)\b/.exec(argument);
+	if (constant) {
+		const values = readStringConstant(sources, constant[1], constant[2]);
+		if (values.length > 0) {
+			return values.map((name) => ({ name, description: fenceDescription(name) }));
+		}
+	}
+	const call = /^([A-Za-z0-9_]+)\s*\.\s*([A-Za-z0-9_]+)/.exec(argument);
+	return call ? readRegisteredLanguages(sources, call[1], call[2]) : [];
+}
+
+/** Reads `static final List<String> NAME = List.of("a", "b");` from the class that declares it. */
+function readStringConstant(sources: JavaSourceFile[], className: string, constantName: string): string[] {
+	const source = findSourceByClassName(sources, className);
+	if (!source) {
+		return [];
+	}
+	const declaration = new RegExp(`\\b${constantName}\\b\\s*=\\s*([^;]+);`).exec(source.text);
+	return declaration ? extractQuotedStrings(declaration[1]) : [];
+}
+
+/**
+ * Reads the fence names a registry class exposes. A method that announces aliases answers with the
+ * alias names it maps, written as `registerAlias(result, "languageId", "alias", ...)`; any other method
+ * answers with the registered languages, written as `new CodeBlockLanguage("id", "Label")`.
+ */
+function readRegisteredLanguages(
+	sources: JavaSourceFile[],
+	className: string,
+	methodName: string
+): GeneratedFenceLanguage[] {
+	const source = findSourceByClassName(sources, className);
+	if (!source) {
+		return [];
+	}
+	if (/alias/i.test(methodName)) {
+		const aliases: string[] = [];
+		for (const match of source.text.matchAll(/registerAlias\s*\(\s*[A-Za-z0-9_]+,\s*([^;]*)\)\s*;/g)) {
+			for (const alias of extractQuotedStrings(match[1]).slice(1)) {
+				if (!aliases.includes(alias)) {
+					aliases.push(alias);
+				}
+			}
+		}
+		return aliases.map((name) => ({ name, description: fenceDescription(name) }));
+	}
+	const languages: GeneratedFenceLanguage[] = [];
+	for (const match of source.text.matchAll(/new\s+[A-Za-z0-9_]*Language\s*\(\s*"([^"]+)"\s*(?:,\s*"([^"]+)")?/g)) {
+		languages.push({
+			name: match[1],
+			description: match[2] ? `${match[2]} fenced code block.` : fenceDescription(match[1])
+		});
+	}
+	return languages;
+}
+
+function fenceDescription(name: string): string {
+	return `${name} fenced code block.`;
+}
+
+export /**
+ * Merges the insert templates the GuideNH sources declare into snippets.json.
+ *
+ * A contributor declares the text a tag completes as with `InsertTemplate.caretAfter(tag, text, marker)`,
+ * `InsertTemplate.of(tag, text)` or `new InsertTemplate(tag, text, caretOffset)`. Exporting them lets the
+ * editor insert the same form, with the caret at the same place, using `$0` as the final tab stop.
+ * Descriptions and bodies already curated in the file win over generated ones.
+ */
+async function mergeInsertTemplateSnippets(sources: JavaSourceFile[]): Promise<void> {
+	const schemaPath = path.join(__dirname, '..', '..', 'src', 'schema', 'snippets.json');
+	const existing = JSON.parse(await fs.readFile(schemaPath, 'utf8')) as GuideNhSnippetsFile;
+	const snippets = { ...existing.snippets };
+	for (const template of collectInsertTemplates(sources)) {
+		const key = `guidenh.${lowerFirst(template.tagName)}`;
+		const current = snippets[key];
+		if (current && !isGeneratedTemplateSnippet(current)) {
+			// A hand written snippet keeps its own body and placeholders.
+			continue;
+		}
+		snippets[key] = {
+			prefix: template.tagName,
+			body: withFinalTabStop(template.text, template.caretOffset).split('\n'),
+			description: `Insert a <${template.tagName}> tag.`
+		};
+	}
+	const merged: GuideNhSnippetsFile = { ...existing, snippets };
+	await fs.writeFile(schemaPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
+}
+
+/** True for a snippet this generator wrote, so a changed template replaces it instead of being kept. */
+function isGeneratedTemplateSnippet(snippet: { description: string }): boolean {
+	return snippet.description.startsWith('Insert a <') && snippet.description.endsWith('> tag.');
+}
+
+interface InsertTemplateDeclaration {
+	tagName: string;
+	text: string;
+	caretOffset: number;
+}
+
+/** Reads every `sink.insertTemplates(...)` declaration of the given sources. */
+function collectInsertTemplates(sources: JavaSourceFile[]): InsertTemplateDeclaration[] {
+	const templates: InsertTemplateDeclaration[] = [];
+	for (const source of sources) {
+		if (!source.text.includes('InsertTemplate')) {
+			continue;
+		}
+		for (const match of source.text.matchAll(/sink\s*\.\s*insertTemplates\(\s*([\s\S]*?)\)\s*;/g)) {
+			for (const argument of splitTopLevelArguments(match[1])) {
+				const declaration = readInsertTemplate(argument);
+				if (declaration) {
+					templates.push(declaration);
+				}
+			}
+		}
+	}
+	return templates;
+}
+
+function readInsertTemplate(argument: string): InsertTemplateDeclaration | undefined {
+	const caretAfter = /InsertTemplate\s*\.\s*caretAfter\(\s*"([^"]+)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\)/.exec(
+		argument
+	);
+	if (caretAfter) {
+		const text = unescapeJava(caretAfter[2]);
+		const marker = unescapeJava(caretAfter[3]);
+		const index = marker.length > 0 ? text.indexOf(marker) : -1;
+		return { tagName: caretAfter[1], text, caretOffset: index >= 0 ? index + marker.length : text.length };
+	}
+	const plain = /InsertTemplate\s*\.\s*of\(\s*"([^"]+)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\)/.exec(argument);
+	if (plain) {
+		const text = unescapeJava(plain[2]);
+		return { tagName: plain[1], text, caretOffset: text.length };
+	}
+	const constructed = /new\s+InsertTemplate\(\s*"([^"]+)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,\s*(\d+)\s*\)/.exec(argument);
+	if (constructed) {
+		return { tagName: constructed[1], text: unescapeJava(constructed[2]), caretOffset: Number(constructed[3]) };
+	}
+	return undefined;
+}
+
+/** Resolves the escapes a Java string literal carries, so the exported snippet keeps its line breaks. */
+function unescapeJava(text: string): string {
+	return text
+		.replace(/\\n/g, '\n')
+		.replace(/\\t/g, '\t')
+		.replace(/\\"/g, '"')
+		.replace(/\\\\/g, '\\');
+}
+
+/** Inserts the final tab stop of a snippet at the caret position the template declares. */
+function withFinalTabStop(text: string, caretOffset: number): string {
+	const offset = Math.max(0, Math.min(caretOffset, text.length));
+	return text.slice(0, offset) + '$0' + text.slice(offset);
+}
+
+function lowerFirst(value: string): string {
+	return value.length > 0 ? value.charAt(0).toLowerCase() + value.slice(1) : value;
+}
+
+async function generateSchema(guideNhRoot: string): Promise<void> {
 	const javaFiles = await collectJavaFiles(guideNhRoot);
 	const tagNames = new Set<string>();
 	const generatedTags: Record<string, GuideNhTagSchema> = {};
@@ -1215,6 +1669,8 @@ export async function generateSchema(guideNhRoot: string): Promise<void> {
 		Object.assign(generatedTags, scan.tags);
 	}
 	await mergeGeneratedTags(enhanceGeneratedTagsFromJavaSources(generatedTags, sources));
+	await mergeMarkdownExtensions(sources);
+	await mergeInsertTemplateSnippets(sources);
 	console.log(`GuideNH schema scan found ${tagNames.size} explicit tag names`);
 }
 

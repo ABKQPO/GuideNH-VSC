@@ -1239,7 +1239,7 @@ function createFencedBlockCompletions(text: string, offset: number, schema: Guid
 
 function createInlineMarkerCompletions(text: string, offset: number, schema: GuideNhSchemaBundle): CompletionItem[] {
 	const line = getCurrentLine(text.slice(0, offset));
-	const markerPrefix = line.match(/(?:^|\s)([=+:^]{1,2})$/)?.[1];
+	const markerPrefix = line.match(/(?:^|\s)([=*+~^:`]{1,2})$/)?.[1];
 	if (!markerPrefix) {
 		return [];
 	}
