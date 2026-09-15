@@ -116,7 +116,8 @@ suite('GuideNH completion provider', () => {
 		assert.strictEqual(color?.insertText, 'color="${1:#ffffff}"');
 		assert.strictEqual(title?.insertText, 'title="${1:value}"');
 		assert.strictEqual(icon?.insertText, 'icon="${1:value}"');
-		assert.strictEqual(iconPng?.insertText, 'iconPng="${1:value}"');
+		// iconPng is declared as a file path by GuideNH, so its placeholder is a path rather than `value`.
+		assert.strictEqual(iconPng?.insertText, 'iconPng="${1:./asset.json}"');
 		assert.strictEqual(iconItem?.insertText, 'iconItem="${1:minecraft:stone}"');
 		assert.strictEqual(width?.insertText, 'width="${1:0}"');
 		assert.strictEqual(height?.insertText, 'height="${1:0}"');

@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs';
+import { existsSync, promises as fs } from 'fs';
 import * as path from 'path';
 import {
 	GuideNhAttributeSchema,
@@ -742,8 +742,8 @@ function applyFunctionGraphEnhancements(tags: Record<string, GuideNhTagSchema>, 
 			snippets: []
 		};
 	}
-	delete tags.Plot?.attributes.name;
-	delete tags.Function?.attributes.name;
+	// GuideNH reads `label` for all three; the general schema merge retains a historical `name` unless it is
+	// removed after that merge, which applyGeneratedTagFixups does.
 	setChildren(tags.FunctionGraph, ['Plot', 'Function', 'Point']);
 }
 
@@ -1240,7 +1240,9 @@ function applyContributorEnhancements(tags: Record<string, GuideNhTagSchema>, so
 		}
 		for (const child of extractContributorChildren(source.text)) {
 			const tag = ensureContributorTag(tags, child.parent);
-			tag.children = Array.from(new Set([...tag.children, ...child.children])).sort();
+			// Replaced rather than merged: the contributor is the whole declaration for this container, and
+			// merging would keep a child the mod has since stopped allowing.
+			tag.children = Array.from(new Set(child.children)).sort();
 		}
 	}
 }
@@ -1715,14 +1717,17 @@ function mergeTagMaps(
 
 function mergeTagSchema(generated: GuideNhTagSchema, existing: GuideNhTagSchema): GuideNhTagSchema {
 	const preserveExistingDescription = !existing.description.startsWith('Generated from GuideNH ');
-	const preserveExistingChildren = !existing.description.startsWith('Generated from GuideNH ') && generated.children.length === 0;
-	const mergedChildren = preserveExistingChildren ? existing.children : mergeChildren(generated.children, existing.children);
+	// GuideNH is the source of truth for which tags a container accepts. Merging would make a declaration
+	// impossible to withdraw: once a child was recorded it stayed forever, so a container whose body accepts
+	// any block content kept a stale allowlist that reported valid pages as errors. Hand-written entries are
+	// still preserved, since those are not derived from the mod.
+	const preserveExistingChildren = !existing.description.startsWith('Generated from GuideNH ');
 	return {
 		...generated,
 		...existing,
 		description: preserveExistingDescription ? existing.description : generated.description,
 		attributes: mergeAttributesMap(generated.attributes, existing.attributes),
-		children: mergedChildren,
+		children: preserveExistingChildren ? existing.children : generated.children,
 		snippets: mergeChildren(generated.snippets, existing.snippets)
 	};
 }
@@ -1753,6 +1758,7 @@ function applyGeneratedTagFixups(
 	// fields unless they are explicitly removed after that merge.
 	delete mergedTags.Plot?.attributes.name;
 	delete mergedTags.Function?.attributes.name;
+	delete mergedTags.Point?.attributes.name;
 	delete mergedTags.GameScene?.attributes.background;
 	delete mergedTags.Scene?.attributes.background;
 }
@@ -1775,10 +1781,35 @@ function overwriteGeneratedTag(
 }
 
 if (require.main === module) {
-	const root = process.env.GUIDENH_ROOT || 'E:\\Github\\GuideNH';
+	const root = resolveGuideNhRoot();
 	generateSchema(root).catch((error: unknown) => {
 		console.error(error);
 		process.exitCode = 1;
 	});
+}
+
+/**
+ * The GuideNH checkout the schema is generated from. An explicit GUIDENH_ROOT wins; otherwise the usual
+ * sibling checkouts are probed so a build does not depend on one machine's directory layout, and a wrong
+ * guess fails loudly here instead of silently regenerating from a stale tree.
+ */
+function resolveGuideNhRoot(): string {
+	if (process.env.GUIDENH_ROOT) {
+		return process.env.GUIDENH_ROOT;
+	}
+	const candidates = [
+		path.resolve(__dirname, '..', '..', '..', 'GuideNH-NH'),
+		path.resolve(__dirname, '..', '..', '..', 'GuideNH'),
+		'E:\\Github\\GuideNH-NH',
+		'E:\\Github\\GuideNH'
+	];
+	for (const candidate of candidates) {
+		if (existsSync(path.join(candidate, 'src', 'main', 'java'))) {
+			return candidate;
+		}
+	}
+	throw new Error(
+		`Could not locate a GuideNH checkout. Set GUIDENH_ROOT to the repository root. Tried: ${candidates.join(', ')}`
+	);
 }
 

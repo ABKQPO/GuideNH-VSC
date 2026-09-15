@@ -98,6 +98,76 @@ suite('GuideNH diagnostics', () => {
 		assert.strictEqual(diagnostics.some((item: Diagnostic) => item.message === 'Tag Recipe is not allowed inside GameScene'), false);
 	});
 
+	test('accepts block tags inside an annotation tooltip body', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		// An annotation body is tooltip content compiled as ordinary block markdown, so any block tag fits.
+		const source = [
+			'<BoxAnnotation min="0 0 0" max="1 1 1">',
+			'  <Color id="GREEN">text</Color>',
+			'  <Row>',
+			'    <ItemImage id="minecraft:bucket" />',
+			'    <FloatingImage src="a.png" />',
+			'  </Row>',
+			'  <ItemLink id="minecraft:stone" />',
+			'</BoxAnnotation>'
+		].join('\n');
+		const diagnostics = createGuideNhDiagnostics(source, schema);
+		assert.deepStrictEqual(
+			diagnostics.filter((item: Diagnostic) => item.message.includes('not allowed inside')).map((item: Diagnostic) => item.message),
+			[]
+		);
+	});
+
+	test('accepts block tags inside every annotation kind', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		for (const tag of ['BlockAnnotation', 'BoxAnnotation', 'DiamondAnnotation', 'TextAnnotation', 'LineAnnotation']) {
+			const source = `<${tag}>\n  <Row><ItemImage id="minecraft:stone" /></Row>\n</${tag}>`;
+			const diagnostics = createGuideNhDiagnostics(source, schema);
+			assert.deepStrictEqual(
+				diagnostics.filter((item: Diagnostic) => item.message.includes('not allowed inside')).map((item: Diagnostic) => item.message),
+				[],
+				`${tag} should accept block content`
+			);
+		}
+	});
+
+	test('still rejects tags a restricted container does not accept', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		// Containers whose children really are constrained must keep rejecting everything else. details and
+		// annotations are deliberately absent: their bodies are block markdown and accept any block tag.
+		for (const [source, parent] of [
+			['<ContentTabs>\n  <Row>x</Row>\n</ContentTabs>', 'ContentTabs'],
+			['<Mermaid>\n  <Row>x</Row>\n</Mermaid>', 'Mermaid'],
+			['<ItemGrid>\n  <Row>x</Row>\n</ItemGrid>', 'ItemGrid']
+		]) {
+			const diagnostics = createGuideNhDiagnostics(source, schema);
+			assert.strictEqual(
+				diagnostics.some((item: Diagnostic) => item.message === `Tag Row is not allowed inside ${parent}`),
+				true,
+				`${parent} should still reject Row`
+			);
+		}
+	});
+
+	test('accepts any block tag inside a details body', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		// The GuideNH details reference states the body takes ordinary text plus any block-level tag.
+		const source = [
+			'<details open width="220" height="140" wrap="square" align="right">',
+			'<summary>More <ItemImage id="minecraft:diamond" /></summary>',
+			'',
+			'<BlockImage id="minecraft:diamond_block" align="center" scale={2} />',
+			'',
+			'<Row><ItemImage id="minecraft:stone" /></Row>',
+			'</details>'
+		].join('\n');
+		const diagnostics = createGuideNhDiagnostics(source, schema);
+		assert.deepStrictEqual(
+			diagnostics.filter((item: Diagnostic) => item.message.includes('not allowed inside')).map((item: Diagnostic) => item.message),
+			[]
+		);
+	});
+
 	test('reports mismatched closing tags', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const diagnostics = createGuideNhDiagnostics('<GameScene>\n</Recipe>', schema);
