@@ -43,11 +43,51 @@ export function isChildTagAllowed(
 		return true;
 	}
 	const parentTag = findTagSchema(schema, parentTagName);
-	if (!parentTag || parentTag.children.length === 0) {
+	if (!parentTag) {
+		return true;
+	}
+	// A container that takes ordinary block content accepts any block tag, so its list only ranks completion.
+	if (parentTag.preferredChildren && parentTag.preferredChildren.length > 0) {
+		return true;
+	}
+	if (parentTag.children.length === 0) {
 		return true;
 	}
 	const normalizedChildName = childTagName.toLowerCase();
 	return parentTag.children.some((allowed) => allowed.toLowerCase() === normalizedChildName);
+}
+
+/**
+ * The tags a container accepts, or undefined when any tag is allowed there. A container that takes ordinary
+ * block content returns undefined so completion is not filtered; its preferredChildren are used for ordering
+ * instead, which keeps the container's own tags at the top of an otherwise unrestricted list.
+ */
+export function resolveAllowedChildren(
+	schema: GuideNhSchemaBundle,
+	parentTagName: string | undefined
+): string[] | undefined {
+	if (!parentTagName) {
+		return undefined;
+	}
+	const parentTag = findTagSchema(schema, parentTagName);
+	if (!parentTag) {
+		return undefined;
+	}
+	if (parentTag.preferredChildren && parentTag.preferredChildren.length > 0) {
+		return undefined;
+	}
+	return parentTag.children.length > 0 ? parentTag.children : undefined;
+}
+
+/** Tags to offer first inside a container, for containers whose list ranks rather than restricts. */
+export function resolvePreferredChildren(
+	schema: GuideNhSchemaBundle,
+	parentTagName: string | undefined
+): string[] {
+	if (!parentTagName) {
+		return [];
+	}
+	return findTagSchema(schema, parentTagName)?.preferredChildren ?? [];
 }
 
 export function matchesTagName(left: string | undefined, right: string | undefined): boolean {

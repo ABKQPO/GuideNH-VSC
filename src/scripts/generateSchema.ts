@@ -1242,7 +1242,13 @@ function applyContributorEnhancements(tags: Record<string, GuideNhTagSchema>, so
 			const tag = ensureContributorTag(tags, child.parent);
 			// Replaced rather than merged: the contributor is the whole declaration for this container, and
 			// merging would keep a child the mod has since stopped allowing.
-			tag.children = Array.from(new Set(child.children)).sort();
+			if (child.preferred) {
+				tag.preferredChildren = Array.from(new Set(child.children));
+				tag.children = [];
+			} else {
+				tag.children = Array.from(new Set(child.children)).sort();
+				delete tag.preferredChildren;
+			}
 		}
 	}
 }
@@ -1319,13 +1325,14 @@ function extractContributorAttributeCalls(
 	return calls;
 }
 
-/** Reads `sink.children("Parent", "Child", ...)`. */
-function extractContributorChildren(source: string): Array<{ parent: string; children: string[] }> {
-	const calls: Array<{ parent: string; children: string[] }> = [];
-	for (const match of source.matchAll(/sink\s*\.\s*children\(\s*"([^"]+)"\s*,([\s\S]*?)\)\s*;/g)) {
-		const children = extractQuotedValues(match[2]);
+/** Reads `sink.children("Parent", "Child", ...)` and `sink.preferredChildren(...)`. */
+function extractContributorChildren(source: string): Array<{ parent: string; children: string[]; preferred: boolean }> {
+	const calls: Array<{ parent: string; children: string[]; preferred: boolean }> = [];
+	const pattern = /sink\s*\.\s*(preferredChildren|children)\(\s*"([^"]+)"\s*,([\s\S]*?)\)\s*;/g;
+	for (const match of source.matchAll(pattern)) {
+		const children = extractQuotedValues(match[3]);
 		if (children.length > 0) {
-			calls.push({ parent: match[1], children });
+			calls.push({ parent: match[2], children, preferred: match[1] === 'preferredChildren' });
 		}
 	}
 	return calls;
@@ -1722,7 +1729,7 @@ function mergeTagSchema(generated: GuideNhTagSchema, existing: GuideNhTagSchema)
 	// any block content kept a stale allowlist that reported valid pages as errors. Hand-written entries are
 	// still preserved, since those are not derived from the mod.
 	const preserveExistingChildren = !existing.description.startsWith('Generated from GuideNH ');
-	return {
+	const merged: GuideNhTagSchema = {
 		...generated,
 		...existing,
 		description: preserveExistingDescription ? existing.description : generated.description,
@@ -1730,6 +1737,12 @@ function mergeTagSchema(generated: GuideNhTagSchema, existing: GuideNhTagSchema)
 		children: preserveExistingChildren ? existing.children : generated.children,
 		snippets: mergeChildren(generated.snippets, existing.snippets)
 	};
+	if (preserveExistingChildren ? existing.preferredChildren : generated.preferredChildren) {
+		merged.preferredChildren = preserveExistingChildren ? existing.preferredChildren : generated.preferredChildren;
+	} else {
+		delete merged.preferredChildren;
+	}
+	return merged;
 }
 
 function mergeAttributesMap(

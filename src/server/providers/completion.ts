@@ -219,20 +219,26 @@ export function createGuideNhCompletionResult(
 	if (openTag.name.length === 0) {
 		const resolvedParentTag = parentTag ?? inferOpenParentTag(maskedText, offset);
 		const allowed = resolveAllowedTagNames(schema, resolvedParentTag);
-		const completions = [
-			...createTagNameSnippetCompletions(schema, allowed),
-			...createSnippetCompletions(schema, allowed)
-		];
+		const completions = orderByPreferred(
+			[
+				...createTagNameSnippetCompletions(schema, allowed),
+				...createSnippetCompletions(schema, allowed)
+			],
+			resolvePreferredTagNames(schema, resolvedParentTag)
+		);
 		return { items: withReplacementRange(completions, text, offset - 1, resolveTagCompletionReplaceEnd(text, offset)) };
 	}
 	const tagSchema = findTagSchema(schema, openTag.name);
 	if (!tagSchema || !openTag.hasAttributeBoundary) {
 		const resolvedParentTag = parentTag ?? inferOpenParentTag(maskedText, offset);
 		const allowed = resolveAllowedTagNames(schema, resolvedParentTag);
-		const completions = [
-			...createTagNameSnippetCompletions(schema, allowed).filter((item) => item.label.toLowerCase().startsWith(openTag.name.toLowerCase())),
-			...createSnippetCompletions(schema, allowed).filter((item) => item.label.toLowerCase().startsWith(openTag.name.toLowerCase()))
-		];
+		const completions = orderByPreferred(
+			[
+				...createTagNameSnippetCompletions(schema, allowed).filter((item) => item.label.toLowerCase().startsWith(openTag.name.toLowerCase())),
+				...createSnippetCompletions(schema, allowed).filter((item) => item.label.toLowerCase().startsWith(openTag.name.toLowerCase()))
+			],
+			resolvePreferredTagNames(schema, resolvedParentTag)
+		);
 		return {
 			items: withReplacementRange(
 				completions,
@@ -893,10 +899,13 @@ function createPlainTagCompletions(
 	}
 	const resolvedParentTag = parentTag ?? inferOpenParentTag(maskedText, offset);
 	const allowed = resolveAllowedTagNames(schema, resolvedParentTag);
-	return [
-		...createTagSnippetCompletions(schema, allowed, prefix),
-		...createSnippetCompletions(schema, allowed).filter((item) => item.label.startsWith(prefix))
-	];
+	return orderByPreferred(
+		[
+			...createTagSnippetCompletions(schema, allowed, prefix),
+			...createSnippetCompletions(schema, allowed).filter((item) => item.label.startsWith(prefix))
+		],
+		resolvePreferredTagNames(schema, resolvedParentTag)
+	);
 }
 
 function createClosingTagCompletions(
@@ -960,11 +969,41 @@ function popOpenTag(stack: GuideNhParsedTag[], tagName: string): void {
 }
 
 function resolveAllowedTagNames(schema: GuideNhSchemaBundle, parentTagName: string | undefined): string[] | undefined {
-	const parentTag = findTagSchema(schema, parentTagName);
-	if (!parentTag || parentTag.children.length === 0) {
+	if (!parentTagName) {
 		return undefined;
 	}
-	return parentTag.children;
+	const parentTag = findTagSchema(schema, parentTagName);
+	if (!parentTag) {
+		return undefined;
+	}
+	// A container whose body takes ordinary block content ranks these instead of restricting to them.
+	if (parentTag.preferredChildren && parentTag.preferredChildren.length > 0) {
+		return undefined;
+	}
+	return parentTag.children.length > 0 ? parentTag.children : undefined;
+}
+
+function resolvePreferredTagNames(schema: GuideNhSchemaBundle, parentTagName: string | undefined): string[] {
+	if (!parentTagName) {
+		return [];
+	}
+	return findTagSchema(schema, parentTagName)?.preferredChildren ?? [];
+}
+
+/** Moves the container's own tags ahead of the rest, keeping everything else available. */
+function orderByPreferred(items: CompletionItem[], preferred: string[]): CompletionItem[] {
+	if (preferred.length === 0) {
+		return items;
+	}
+	const rank = new Map(preferred.map((name, index) => [name.toLowerCase(), index]));
+	return items
+		.map((item, index) => ({ item, index }))
+		.sort((left, right) => {
+			const leftRank = rank.get(left.item.label.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+			const rightRank = rank.get(right.item.label.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+			return leftRank === rightRank ? left.index - right.index : leftRank - rightRank;
+		})
+		.map((entry) => entry.item);
 }
 
 function findPlainTagPrefix(text: string, offset: number): string | undefined {

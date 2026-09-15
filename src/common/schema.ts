@@ -13,6 +13,12 @@ export interface GuideNhTagSchema {
 	description: string;
 	attributes: Record<string, GuideNhAttributeSchema>;
 	children: string[];
+	/**
+	 * Set when the container's body also takes ordinary block content, such as an annotation tooltip or a
+	 * details body. `children` then ranks completion rather than restricting it, so validation must accept
+	 * any block tag here and completion offers these first.
+	 */
+	preferredChildren?: string[];
 	snippets: string[];
 }
 

@@ -301,6 +301,18 @@ suite('GuideNH completion provider', () => {
 		assert.strictEqual(items.some((item: CompletionItem) => item.label === 'BlockImage'), false);
 	});
 
+	test('keeps block tags available inside an annotation while ranking its own tags first', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = '<BoxAnnotation min="0 0 0" max="1 1 1">\n  <';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined);
+		// An annotation body is block content, so nothing may be filtered out.
+		assert.ok(items.some((item: CompletionItem) => item.label === 'BlockImage'));
+		assert.ok(items.some((item: CompletionItem) => item.label === 'BoxAnnotation'));
+		const preferred = items.findIndex((item: CompletionItem) => item.label === 'BoxAnnotation');
+		const blockImage = items.findIndex((item: CompletionItem) => item.label === 'BlockImage');
+		assert.ok(preferred >= 0 && preferred < blockImage, 'annotation tags should be offered before block tags');
+	});
+
 	test('completes Tab attributes inside ContentTabs', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const items = createGuideNhCompletions('<ContentTabs>\n  <Tab ', 21, schema, undefined);

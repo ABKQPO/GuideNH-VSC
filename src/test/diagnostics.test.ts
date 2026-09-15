@@ -4,6 +4,7 @@ import { Diagnostic } from 'vscode-languageserver/node';
 import { GuideNhResourceIndex } from '../server/index/resourceIndex';
 import { GuideNhWorkspaceIndex } from '../server/index/workspaceIndex';
 import { createGuideNhDiagnostics } from '../server/providers/diagnostics';
+import { findTagSchema } from '../server/schema/schemaLookup';
 import { loadGuideNhSchema } from '../server/schema/schemaLoader';
 
 suite('GuideNH diagnostics', () => {
@@ -166,6 +167,14 @@ suite('GuideNH diagnostics', () => {
 			diagnostics.filter((item: Diagnostic) => item.message.includes('not allowed inside')).map((item: Diagnostic) => item.message),
 			[]
 		);
+	});
+
+	test('ranks the container tags first inside a body that takes block content', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		// The annotations are ranked first, but the schema must not restrict the body to them.
+		const boxAnnotation = findTagSchema(schema, 'BoxAnnotation');
+		assert.deepStrictEqual(boxAnnotation?.children, []);
+		assert.ok((boxAnnotation?.preferredChildren ?? []).includes('BoxAnnotation'));
 	});
 
 	test('reports mismatched closing tags', async () => {
