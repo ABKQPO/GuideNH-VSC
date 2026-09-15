@@ -3213,9 +3213,6 @@
           "type": "string",
           "valueStyle": "string"
         },
-        "name": {
-          "type": "string"
-        },
         "plot": {
           "type": "number",
           "valueStyle": "expression"
