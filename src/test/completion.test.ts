@@ -11,6 +11,7 @@ import {
 	resolveGuideNhCompletionOffset
 } from '../server/providers/completion';
 import { SemanticCache } from '../server/runtime/semanticCache';
+import { findTagSchema } from '../server/schema/schemaLookup';
 import { loadGuideNhSchema } from '../server/schema/schemaLoader';
 
 suite('GuideNH completion provider', () => {
@@ -311,6 +312,30 @@ suite('GuideNH completion provider', () => {
 		const preferred = items.findIndex((item: CompletionItem) => item.label === 'BoxAnnotation');
 		const blockImage = items.findIndex((item: CompletionItem) => item.label === 'BlockImage');
 		assert.ok(preferred >= 0 && preferred < blockImage, 'annotation tags should be offered before block tags');
+	});
+
+	test('keeps block tags available inside a template while ranking its own tags first', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		// A template body emits ordinary block content, so Row and Arg must both stay available.
+		const text = '<Template name="InfoBox">\n  <';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'Arg'));
+		assert.ok(items.some((item: CompletionItem) => item.label === 'Row'));
+		const arg = items.findIndex((item: CompletionItem) => item.label === 'Arg');
+		const row = items.findIndex((item: CompletionItem) => item.label === 'Row');
+		assert.ok(arg >= 0 && arg < row, 'template tags should be offered before block tags');
+	});
+
+	test('offers the include-control tags and ranks a Switch branch marker first', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		for (const label of ['NoInclude', 'IncludeOnly', 'OnlyInclude']) {
+			assert.ok(findTagSchema(schema, label), `${label} must be in the schema`);
+		}
+		const text = '<Switch test="tier">\n  <';
+		const items = createGuideNhCompletions(text, text.length, schema, undefined);
+		const caseIndex = items.findIndex((item: CompletionItem) => item.label === 'Case');
+		const blockIndex = items.findIndex((item: CompletionItem) => item.label === 'BlockImage');
+		assert.ok(caseIndex >= 0 && caseIndex < blockIndex, 'Case should be offered before block tags');
 	});
 
 	test('completes Tab attributes inside ContentTabs', async () => {

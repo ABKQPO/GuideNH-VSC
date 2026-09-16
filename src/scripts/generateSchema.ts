@@ -1288,7 +1288,13 @@ function extractDeclaredAttributes(source: string): Map<string, ContributorAttri
 function extractContributorTagNames(source: string): string[] {
 	const names: string[] = [];
 	for (const match of source.matchAll(/sink\s*\.\s*(?:tags|containerTags)\(([\s\S]*?)\)\s*;/g)) {
-		names.push(...extractQuotedValues(match[1]));
+		for (const argument of splitTopLevelArguments(match[1])) {
+			// A tag name may be written as a constant, as the include-control tags are.
+			const resolved = resolveContributorTagName(argument, source);
+			if (resolved) {
+				names.push(resolved);
+			}
+		}
 	}
 	return names;
 }
@@ -1325,17 +1331,49 @@ function extractContributorAttributeCalls(
 	return calls;
 }
 
-/** Reads `sink.children("Parent", "Child", ...)` and `sink.preferredChildren(...)`. */
+/**
+ * Reads `sink.children("Parent", "Child", ...)` and `sink.preferredChildren(...)`.
+ *
+ * The child list is optional: a container whose body takes any block content declares itself with no
+ * children at all, and that declaration has to survive as an empty preferred list rather than being
+ * dropped, because validation treats a container with no declaration as unrestricted.
+ */
 function extractContributorChildren(source: string): Array<{ parent: string; children: string[]; preferred: boolean }> {
 	const calls: Array<{ parent: string; children: string[]; preferred: boolean }> = [];
-	const pattern = /sink\s*\.\s*(preferredChildren|children)\(\s*"([^"]+)"\s*,([\s\S]*?)\)\s*;/g;
+	const pattern = /sink\s*\.\s*(preferredChildren|children)\(\s*([\s\S]*?)\)\s*;/g;
 	for (const match of source.matchAll(pattern)) {
-		const children = extractQuotedValues(match[3]);
-		if (children.length > 0) {
-			calls.push({ parent: match[2], children, preferred: match[1] === 'preferredChildren' });
+		const arguments_ = splitTopLevelArguments(match[2]);
+		if (arguments_.length === 0) {
+			continue;
 		}
+		const parent = resolveContributorTagName(arguments_[0], source);
+		if (!parent) {
+			continue;
+		}
+		const children = arguments_
+			.slice(1)
+			.flatMap((argument) => extractQuotedValues(argument))
+			.filter((child) => child.length > 0);
+		calls.push({ parent, children, preferred: match[1] === 'preferredChildren' });
 	}
 	return calls;
+}
+
+/** Resolves a contributor tag name, following a `private static final String` constant when one is used. */
+function resolveContributorTagName(argument: string, source: string): string | undefined {
+	const literal = extractQuotedValues(argument);
+	if (literal.length > 0) {
+		return literal[0];
+	}
+	const constant = argument.trim();
+	if (!/^[A-Za-z_][A-Za-z0-9_.]*$/.test(constant)) {
+		return undefined;
+	}
+	const simple = constant.includes('.') ? constant.slice(constant.lastIndexOf('.') + 1) : constant;
+	const declaration = source.match(
+		new RegExp(`String\\s+${simple}\\s*=\\s*"([^"]+)"`)
+	);
+	return declaration ? declaration[1] : undefined;
 }
 
 function contributorAttributeSchema(kind: string, values: string[]): GuideNhAttributeSchema {
@@ -1722,13 +1760,21 @@ function mergeTagMaps(
 	return merged;
 }
 
+/** True for the description wordings the generator itself writes. */
+function isGeneratedDescription(description: string): boolean {
+	return description.startsWith('Generated from GuideNH ') || description.startsWith('Declared by the GuideNH ');
+}
+
 function mergeTagSchema(generated: GuideNhTagSchema, existing: GuideNhTagSchema): GuideNhTagSchema {
-	const preserveExistingDescription = !existing.description.startsWith('Generated from GuideNH ');
+	// An entry the generator wrote is fully replaceable. The marker is not one prefix: tags created from the
+	// syntax registry carry their own wording, and treating those as hand-written kept a stale allowlist that
+	// hid a new preferred-children declaration.
+	const preserveExistingDescription = !isGeneratedDescription(existing.description);
 	// GuideNH is the source of truth for which tags a container accepts. Merging would make a declaration
 	// impossible to withdraw: once a child was recorded it stayed forever, so a container whose body accepts
 	// any block content kept a stale allowlist that reported valid pages as errors. Hand-written entries are
 	// still preserved, since those are not derived from the mod.
-	const preserveExistingChildren = !existing.description.startsWith('Generated from GuideNH ');
+	const preserveExistingChildren = !isGeneratedDescription(existing.description);
 	const merged: GuideNhTagSchema = {
 		...generated,
 		...existing,
