@@ -75,7 +75,10 @@ export function createGuideNhDiagnostics(
 		for (const attributeName of Object.keys(tag.attributes)) {
 			const attributeSchema = findAttributeSchema(schema, tag.name, attributeName);
 			if (!attributeSchema) {
-				diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.unknownAttribute', attributeName, tag.name)));
+				// A tag that forwards attributes turns every undeclared one into data, so it is not a mistake.
+				if (!tagSchema.forwardsAttributes) {
+					diagnostics.push(createDiagnostic(text, tag.start, tag.end, localizeServer('diagnostic.unknownAttribute', attributeName, tag.name)));
+				}
 				continue;
 			}
 			const typeError = validateAttributeValueType(attributeSchema, tag.attributes[attributeName], tag.attributeValueStyles[attributeName]);

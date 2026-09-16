@@ -1250,6 +1250,9 @@ function applyContributorEnhancements(tags: Record<string, GuideNhTagSchema>, so
 				delete tag.preferredChildren;
 			}
 		}
+		for (const tagName of extractContributorForwardedAttributeTags(source.text)) {
+			ensureContributorTag(tags, tagName).forwardsAttributes = true;
+		}
 	}
 }
 
@@ -1299,13 +1302,26 @@ function extractContributorTagNames(source: string): string[] {
 	return names;
 }
 
-/** Reads `sink.attributes("Tag", AttributeSyntax.of(...) | SHARED_NAME, ...)`. */
+/**
+ * Reads `sink.attributes("Tag", AttributeSyntax.of(...) | SHARED_NAME, ...)`.
+ *
+ * A contributor may declare the same attributes for several tags with
+ * `for (String tag : new String[] { "Lower", "Upper" }) { sink.attributes(tag, VALUE); }`, which is how the
+ * string-function family is written. The loop variable is expanded here so those tags keep their attributes;
+ * a declaration the reader cannot resolve is skipped rather than guessed at.
+ */
 function extractContributorAttributeCalls(
 	source: string,
 	shared: Map<string, ContributorAttribute>
 ): Array<{ tag: string; attributes: ContributorAttribute[] }> {
 	const calls: Array<{ tag: string; attributes: ContributorAttribute[] }> = [];
-	for (const match of source.matchAll(/sink\s*\.\s*attributes\(\s*"([^"]+)"\s*,([\s\S]*?)\)\s*;/g)) {
+	const loops = extractStringArrayLoops(source);
+	for (const match of source.matchAll(/sink\s*\.\s*attributes\(\s*([^,]+?)\s*,([\s\S]*?)\)\s*;/g)) {
+		const tagArgument = match[1].trim();
+		const tags = resolveAttributeTagNames(tagArgument, source, loops);
+		if (tags.length === 0) {
+			continue;
+		}
 		const attributes: ContributorAttribute[] = [];
 		for (const argument of splitTopLevelArguments(match[2])) {
 			const inline =
@@ -1319,16 +1335,67 @@ function extractContributorAttributeCalls(
 				});
 				continue;
 			}
-			const declared = shared.get(argument);
+			const declared = shared.get(argument.trim());
 			if (declared) {
 				attributes.push(declared);
 			}
 		}
 		if (attributes.length > 0) {
-			calls.push({ tag: match[1], attributes });
+			for (const tag of tags) {
+				calls.push({ tag, attributes });
+			}
 		}
 	}
 	return calls;
+}
+
+/** Reads `sink.forwardsAttributes("Tag", ...)`, which marks a tag as accepting any attribute. */
+function extractContributorForwardedAttributeTags(source: string): string[] {
+	const names: string[] = [];
+	for (const match of source.matchAll(/sink\s*\.\s*forwardsAttributes\(([\s\S]*?)\)\s*;/g)) {
+		for (const argument of splitTopLevelArguments(match[1])) {
+			const resolved = resolveContributorTagName(argument, source);
+			if (resolved) {
+				names.push(resolved);
+			}
+		}
+	}
+	return names;
+}
+
+/** Maps each `for (String x : new String[] { ... })` loop variable to the strings it iterates. */
+function extractStringArrayLoops(source: string): Map<string, string[]> {
+	const loops = new Map<string, string[]>();
+	const pattern = /for\s*\(\s*String\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*new\s+String\[\]\s*\{([\s\S]*?)\}\s*\)/g;
+	for (const match of source.matchAll(pattern)) {
+		const values = extractQuotedValues(match[2]);
+		if (values.length > 0) {
+			loops.set(match[1], values);
+		}
+	}
+	return loops;
+}
+
+/** The tag names an attribute declaration applies to: a literal, a loop variable, or a String constant. */
+function resolveAttributeTagNames(
+	argument: string,
+	source: string,
+	loops: Map<string, string[]>
+): string[] {
+	const literal = extractQuotedValues(argument);
+	if (literal.length > 0) {
+		return [literal[0]];
+	}
+	const identifier = argument.trim();
+	if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
+		return [];
+	}
+	const loop = loops.get(identifier);
+	if (loop) {
+		return loop;
+	}
+	const constant = resolveContributorTagName(identifier, source);
+	return constant ? [constant] : [];
 }
 
 /**
@@ -1787,6 +1854,11 @@ function mergeTagSchema(generated: GuideNhTagSchema, existing: GuideNhTagSchema)
 		merged.preferredChildren = preserveExistingChildren ? existing.preferredChildren : generated.preferredChildren;
 	} else {
 		delete merged.preferredChildren;
+	}
+	if (generated.forwardsAttributes || (preserveExistingChildren && existing.forwardsAttributes)) {
+		merged.forwardsAttributes = true;
+	} else {
+		delete merged.forwardsAttributes;
 	}
 	return merged;
 }

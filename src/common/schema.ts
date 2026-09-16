@@ -19,6 +19,12 @@ export interface GuideNhTagSchema {
 	 * any block tag here and completion offers these first.
 	 */
 	preferredChildren?: string[];
+	/**
+	 * Set when the tag accepts any attribute, so one that is not in `attributes` is legal rather than a
+	 * mistake. A `<Template>` call is the case this exists for: every attribute except the first `name`
+	 * becomes an argument. Declared attributes stay typed and are still checked.
+	 */
+	forwardsAttributes?: boolean;
 	snippets: string[];
 }
 

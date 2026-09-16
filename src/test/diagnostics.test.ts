@@ -198,6 +198,32 @@ suite('GuideNH diagnostics', () => {
 		});
 	});
 
+	test('accepts arbitrary arguments on a template call', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		// Every attribute other than the first name is an argument, so the set cannot be enumerated.
+		const source = [
+			'<Template name="InfoBox" icon="minecraft:gold_ingot" />',
+			'<Template name="InfoBox" name="Gold Ingot" tier="mv" />',
+			'<Template name="CraftCost" tier="mv" note="crafted" />'
+		].join('\n');
+		const diagnostics = createGuideNhDiagnostics(source, schema);
+		assert.deepStrictEqual(
+			diagnostics.filter((item: Diagnostic) => item.message.includes('unknown attribute')).map((item: Diagnostic) => item.message),
+			[]
+		);
+	});
+
+	test('keeps the string-function attributes after the loop declaration is read', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		// GuideNH declares these in a for loop over the tag names, which the schema reader has to expand.
+		const source = '<Len value="abc" />\n<Replace value="a-b" from="-" to="+" />\n<PadLeft value="7" width="3" pad="0" />\n';
+		const diagnostics = createGuideNhDiagnostics(source, schema);
+		assert.deepStrictEqual(
+			diagnostics.filter((item: Diagnostic) => item.message.includes('unknown attribute')).map((item: Diagnostic) => item.message),
+			[]
+		);
+	});
+
 	test('reports unknown top-level frontmatter keys', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		const diagnostics = createGuideNhDiagnostics('---\nunknown_key: true\nnavigation:\n  title: Intro\n---\n', schema);
