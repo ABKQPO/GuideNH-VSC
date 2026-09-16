@@ -1,6 +1,7 @@
 import * as path from 'path';
 import { createGuideNhDocumentModel, GuideNhDocumentModel } from '../parser/documentModel';
 import { extractIndexedFrontmatterValues } from '../parser/frontmatterIndexing';
+import { extractTemplateParameterNames } from '../schema/templateParameters';
 import { resolveRuntimeAttributeSource } from '../runtime/runtimeAttributeSources';
 import { normalizeGuideNhLocale, normalizeGuideNhReferencePath, resolveGuideNhDocumentLocation } from './guideNhPaths';
 
@@ -18,11 +19,18 @@ export interface GuideNhIndexedPage {
 	itemLinks: string[];
 	oreLinks: string[];
 	anchors: string[];
+	/** The named arguments this page declares when it is a template, read from its body. */
+	templateParameters: string[];
 }
 
 export interface GuideNhPageReference {
 	page: GuideNhIndexedPage;
 	value: string;
+}
+
+/** True for a page that lives under a `templates/` folder, which is where GuideNH looks for templates. */
+export function isTemplateRelativePath(relativePath: string): boolean {
+	return /(^|\/)templates\/[^/]+\.md$/i.test(relativePath.replace(/\\/g, '/'));
 }
 
 export class GuideNhWorkspaceIndex {
@@ -60,6 +68,9 @@ export class GuideNhWorkspaceIndex {
 		const resourceLinks = extractResourceLinks(model);
 		const itemLinks = extractSemanticLinks(model, 'items');
 		const oreLinks = extractSemanticLinks(model, 'ores');
+		// Only a template page declares parameters, so the scan is limited to those paths.
+		const templateParameters = isTemplateRelativePath(location.relativePath) ? extractTemplateParameterNames(text)
+			: [];
 		this.pages.set(uri, {
 			uri,
 			relativePath: location.relativePath,
@@ -73,7 +84,8 @@ export class GuideNhWorkspaceIndex {
 			resourceLinks,
 			itemLinks,
 			oreLinks,
-			anchors
+			anchors,
+			templateParameters
 		});
 		this.addNamespace(location.namespace);
 		const pageUris = this.pageUrisByRelativePath.get(location.relativePath) ?? new Set<string>();

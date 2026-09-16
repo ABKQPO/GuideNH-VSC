@@ -5,6 +5,7 @@ import { GuideNhWorkspaceIndex } from '../index/workspaceIndex';
 import { GuideNhParsedTag, maskIgnoredMarkdownRanges, parseGuideNhDocument } from '../parser/documentParser';
 import { findAttributeSchema, findTagSchema, listTagSchemas, matchesTagName } from '../schema/schemaLookup';
 import { findOpenTagAttributeValue, findOpenTagContext, normalizeResourceReference } from '../parser/documentModel';
+import { resolveTemplateRelativePath } from '../schema/templateParameters';
 import { extractFrontmatter, FrontmatterBlock } from '../parser/frontmatter';
 import { SemanticCache } from '../runtime/semanticCache';
 import {
@@ -208,7 +209,7 @@ export function createGuideNhCompletionResult(
 	const attributeNameContext = findAttributeNameContext(maskedText, offset);
 	if (attributeNameContext) {
 		return {
-			items: createAttributeNameCompletions(text, offset, schema, attributeNameContext)
+			items: createAttributeNameCompletions(text, offset, schema, attributeNameContext, index)
 		};
 	}
 
@@ -249,14 +250,24 @@ export function createGuideNhCompletionResult(
 		};
 	}
 	return {
-		items: Object.entries(tagSchema.attributes).map(([name, attribute]) => ({
-			label: name,
-			kind: CompletionItemKind.Property,
-			detail: attribute.type,
-			documentation: attribute.description,
-			insertText: createAttributeSnippet(name, attribute),
-			insertTextFormat: InsertTextFormat.Snippet
-		}))
+		items: mergeCompletionItems([
+			...Object.entries(tagSchema.attributes).map(([name, attribute]) => ({
+				label: name,
+				kind: CompletionItemKind.Property,
+				detail: attribute.type,
+				documentation: attribute.description,
+				insertText: createAttributeSnippet(name, attribute),
+				insertTextFormat: InsertTextFormat.Snippet
+			})),
+			...createTemplateArgumentCompletions(
+				text,
+				offset,
+				offset,
+				{ tagName: openTag.name, prefix: '' },
+				schema,
+				index
+			)
+		])
 	};
 }
 
@@ -412,26 +423,76 @@ function createAttributeNameCompletions(
 	text: string,
 	offset: number,
 	schema: GuideNhSchemaBundle,
-	context: AttributeNameContext
+	context: AttributeNameContext,
+	index?: GuideNhWorkspaceIndex
 ): CompletionItem[] {
 	const tagSchema = findTagSchema(schema, context.tagName);
 	if (!tagSchema) {
 		return [];
 	}
 	const start = offset - context.prefix.length;
-	return Object.entries(tagSchema.attributes)
-		.filter(([name]) => name.toLowerCase().startsWith(context.prefix.toLowerCase()))
-		.map(([name, attribute]) => ({
+	const declared = Object.entries(tagSchema.attributes).filter(([name]) =>
+		name.toLowerCase().startsWith(context.prefix.toLowerCase())
+	);
+	const items: CompletionItem[] = declared.map(([name, attribute]) => ({
+		label: name,
+		kind: CompletionItemKind.Property,
+		detail: attribute.type,
+		documentation: attribute.description,
+		insertText: createAttributeSnippet(name, attribute),
+		insertTextFormat: InsertTextFormat.Snippet,
+		textEdit: TextEdit.replace({
+			start: offsetToPosition(text, start),
+			end: offsetToPosition(text, offset)
+		}, createAttributeSnippet(name, attribute))
+	}));
+	return mergeCompletionItems([
+		...items,
+		...createTemplateArgumentCompletions(text, offset, start, context, schema, index)
+	]);
+}
+
+/**
+ * The arguments a named template declares, offered as attributes inside its call. GuideNH resolves these
+ * from the template's own body, so the editor reads the same page the mod indexes.
+ */
+function createTemplateArgumentCompletions(
+	text: string,
+	offset: number,
+	start: number,
+	context: AttributeNameContext,
+	schema: GuideNhSchemaBundle,
+	index?: GuideNhWorkspaceIndex
+): CompletionItem[] {
+	if (!index || !matchesTagName(context.tagName, 'Template')) {
+		return [];
+	}
+	const templateName = findOpenTagAttributeValue(text, offset, 'name');
+	if (!templateName) {
+		return [];
+	}
+	const relativePath = resolveTemplateRelativePath(templateName);
+	const page = relativePath ? index.findPageByRelativePath(relativePath) : undefined;
+	if (!page) {
+		return [];
+	}
+	const declaredAttributeNames = new Set(
+		Object.keys(findTagSchema(schema, context.tagName)?.attributes ?? {}).map((name) => name.toLowerCase())
+	);
+	return page.templateParameters
+		.filter((name) => name.toLowerCase().startsWith(context.prefix.toLowerCase()))
+		.filter((name) => !declaredAttributeNames.has(name.toLowerCase()))
+		.map((name) => ({
 			label: name,
 			kind: CompletionItemKind.Property,
-			detail: attribute.type,
-			documentation: attribute.description,
-			insertText: createAttributeSnippet(name, attribute),
+			detail: `arg \u00b7 ${templateName.toLowerCase()}`,
+			documentation: `Argument declared by the ${templateName} template.`,
+			insertText: `${name}="\${1:}"`,
 			insertTextFormat: InsertTextFormat.Snippet,
 			textEdit: TextEdit.replace({
 				start: offsetToPosition(text, start),
 				end: offsetToPosition(text, offset)
-			}, createAttributeSnippet(name, attribute))
+			}, `${name}="\${1:}"`)
 		}));
 }
 

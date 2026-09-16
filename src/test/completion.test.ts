@@ -13,6 +13,8 @@ import {
 import { SemanticCache } from '../server/runtime/semanticCache';
 import { findTagSchema } from '../server/schema/schemaLookup';
 import { loadGuideNhSchema } from '../server/schema/schemaLoader';
+import { extractTemplateParameterNames } from '../server/schema/templateParameters';
+import { pathToFileURL } from 'url';
 
 suite('GuideNH completion provider', () => {
 	test('declares trigger characters for GuideNH syntax families', () => {
@@ -312,6 +314,33 @@ suite('GuideNH completion provider', () => {
 		const preferred = items.findIndex((item: CompletionItem) => item.label === 'BoxAnnotation');
 		const blockImage = items.findIndex((item: CompletionItem) => item.label === 'BlockImage');
 		assert.ok(preferred >= 0 && preferred < blockImage, 'annotation tags should be offered before block tags');
+	});
+
+	test('offers the named template arguments once the call names its template', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const parameters = extractTemplateParameterNames(
+			'**<Param name="name" default="Untitled" />**\n\n<ItemImage id={<Param name="icon" />} />\n\n<If test="note"><Param name="note" /><Else /></If>\n'
+		);
+		assert.deepStrictEqual(parameters, ['name', 'icon', 'note']);
+
+		const index = new GuideNhWorkspaceIndex();
+		// The page path has to look like a guide pack page, because that is what makes it a template.
+		const templateUri = pathToFileURL(
+			path.join(__dirname, 'pack', 'assets', 'guidenh', 'guidenh', '_en_us', 'templates', 'InfoBox.md')
+		).toString();
+		index.updatePage(
+			templateUri,
+			'<Param name="name" /> <Param name="icon" /> <Param name="note" />'
+		);
+		assert.ok(index.findPageByRelativePath('templates/InfoBox.md'), 'the template page must be indexed');
+
+		const text = '<Template name="InfoBox" i';
+		const items = createGuideNhCompletions(text, text.length, schema, 'Template', undefined, index);
+		const rendered = items.map((item: CompletionItem) => `${item.label}:${item.detail}`).join(', ');
+		assert.ok(
+			items.some((item: CompletionItem) => item.label === 'icon' && String(item.detail).startsWith('arg')),
+			`icon should be offered as a template argument, got ${rendered}`
+		);
 	});
 
 	test('keeps block tags available inside a template while ranking its own tags first', async () => {
