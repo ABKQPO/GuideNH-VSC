@@ -6,13 +6,25 @@
  * text rather than from the schema, which only describes the tag.
  */
 
-/** Where a template's page lives, for a name written on a call. */
-export function resolveTemplateRelativePath(templateName: string): string | undefined {
-	const trimmed = templateName.trim();
-	if (trimmed.length === 0) {
+/**
+ * GuideNH's MediaWiki-compatible template name normalization. The first character is folded to
+ * upper case and underscores/whitespace are treated as a single space. The path below
+ * `templates/` (including nested folders) is otherwise kept intact.
+ */
+export function normalizeTemplateName(templateName: string): string {
+	const normalized = templateName.replace(/_/g, ' ').trim().replace(/\s+/g, ' ');
+	return normalized.length === 0 ? '' : normalized[0].toUpperCase() + normalized.slice(1);
+}
+
+/** Extracts the logical template name from an indexed page path. */
+export function templateNameFromRelativePath(relativePath: string): string | undefined {
+	const normalized = relativePath.replace(/\\/g, '/');
+	const marker = normalized.lastIndexOf('templates/');
+	if (marker < 0 || !normalized.toLowerCase().endsWith('.md')) {
 		return undefined;
 	}
-	return `templates/${trimmed.replace(/\.md$/i, '')}.md`;
+	const name = normalized.slice(marker + 'templates/'.length, -'.md'.length);
+	return name.length > 0 ? name : undefined;
 }
 
 /**

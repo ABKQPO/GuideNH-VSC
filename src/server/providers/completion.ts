@@ -5,7 +5,6 @@ import { GuideNhWorkspaceIndex } from '../index/workspaceIndex';
 import { GuideNhParsedTag, maskIgnoredMarkdownRanges, parseGuideNhDocument } from '../parser/documentParser';
 import { findAttributeSchema, findTagSchema, listTagSchemas, matchesTagName } from '../schema/schemaLookup';
 import { findOpenTagAttributeValue, findOpenTagContext, normalizeResourceReference } from '../parser/documentModel';
-import { resolveTemplateRelativePath } from '../schema/templateParameters';
 import { extractFrontmatter, FrontmatterBlock } from '../parser/frontmatter';
 import { SemanticCache } from '../runtime/semanticCache';
 import {
@@ -471,8 +470,7 @@ function createTemplateArgumentCompletions(
 	if (!templateName) {
 		return [];
 	}
-	const relativePath = resolveTemplateRelativePath(templateName);
-	const page = relativePath ? index.findPageByRelativePath(relativePath) : undefined;
+	const page = index.findTemplateByName(templateName);
 	if (!page) {
 		return [];
 	}

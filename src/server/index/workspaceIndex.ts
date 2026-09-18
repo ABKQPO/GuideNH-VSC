@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { createGuideNhDocumentModel, GuideNhDocumentModel } from '../parser/documentModel';
 import { extractIndexedFrontmatterValues } from '../parser/frontmatterIndexing';
-import { extractTemplateParameterNames } from '../schema/templateParameters';
+import { extractTemplateParameterNames, normalizeTemplateName, templateNameFromRelativePath } from '../schema/templateParameters';
 import { resolveRuntimeAttributeSource } from '../runtime/runtimeAttributeSources';
 import { normalizeGuideNhLocale, normalizeGuideNhReferencePath, resolveGuideNhDocumentLocation } from './guideNhPaths';
 
@@ -30,7 +30,7 @@ export interface GuideNhPageReference {
 
 /** True for a page that lives under a `templates/` folder, which is where GuideNH looks for templates. */
 export function isTemplateRelativePath(relativePath: string): boolean {
-	return /(^|\/)templates\/[^/]+\.md$/i.test(relativePath.replace(/\\/g, '/'));
+	return templateNameFromRelativePath(relativePath) !== undefined;
 }
 
 export class GuideNhWorkspaceIndex {
@@ -179,6 +179,23 @@ export class GuideNhWorkspaceIndex {
 			return undefined;
 		}
 		return this.selectPreferredPage(Array.from(relativeUris), preferredLocale);
+	}
+
+	/**
+	 * Finds a template using the same name rules as GuideNH. This is deliberately separate from normal
+	 * page lookup: template names normalize the first character and underscores, while ordinary page
+	 * paths remain resource-location paths.
+	 */
+	findTemplateByName(templateName: string, preferredLocale?: string): GuideNhIndexedPage | undefined {
+		const normalizedName = normalizeTemplateName(templateName);
+		if (!normalizedName) {
+			return undefined;
+		}
+		const candidates = Array.from(this.pages.values()).filter((page) => {
+			const pageTemplateName = templateNameFromRelativePath(page.relativePath);
+			return pageTemplateName !== undefined && normalizeTemplateName(pageTemplateName) === normalizedName;
+		});
+		return this.selectPreferredPage(candidates.map((page) => page.uri), preferredLocale);
 	}
 
 	findItemReference(itemId: string): GuideNhIndexedPage | undefined {

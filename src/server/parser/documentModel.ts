@@ -61,7 +61,10 @@ export interface GuideNhDocumentModel {
 }
 
 const GuideNhTagStartPattern = /<\/?([A-Za-z][A-Za-z0-9]*)/;
-const GuideNhOpenTagPattern = /<([A-Za-z][A-Za-z0-9]*)?\s*[^<>/]*$/;
+// A slash is valid inside quoted attribute values (for example, a nested template name such as
+// `nav/Row`). Only angle brackets terminate the incomplete tag; self-closing `/>` is handled by the
+// parsed tag source rather than by this completion-context probe.
+const GuideNhOpenTagPattern = /<([A-Za-z][A-Za-z0-9]*)?\s*[^<>]*$/;
 const GuideNhAttributePattern = /([A-Za-z_][\w.-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|\{([^}]*)\}|([^\s"'=<>`]+)))?/g;
 
 export function createGuideNhDocumentModel(text: string, uri?: string): GuideNhDocumentModel {

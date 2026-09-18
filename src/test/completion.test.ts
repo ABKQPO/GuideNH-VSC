@@ -343,6 +343,20 @@ suite('GuideNH completion provider', () => {
 		);
 	});
 
+	test('indexes nested templates and applies GuideNH template-name normalization', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const index = new GuideNhWorkspaceIndex();
+		const templateUri = pathToFileURL(
+			path.join(__dirname, 'pack', 'assets', 'guidenh', 'guidenh', '_en_us', 'templates', 'nav', 'Row.md')
+		).toString();
+		index.updatePage(templateUri, '<Param name="title" /> <Param name="icon" />');
+
+		assert.strictEqual(index.findTemplateByName('nav/Row')?.uri, templateUri);
+		const text = '<Template name="nav/Row" i';
+		const items = createGuideNhCompletions(text, text.length, schema, 'Template', undefined, index);
+		assert.ok(items.some((item: CompletionItem) => item.label === 'icon'));
+	});
+
 	test('keeps block tags available inside a template while ranking its own tags first', async () => {
 		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
 		// A template body emits ordinary block content, so Row and Arg must both stay available.
