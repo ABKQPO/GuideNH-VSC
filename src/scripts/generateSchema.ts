@@ -61,6 +61,7 @@ export function enhanceGeneratedTagsFromJavaSources(
 	applyStructureLibOptionTagEnhancements(enhanced, sources);
 	applyRecipeEnhancements(enhanced);
 	applyContributorEnhancements(enhanced, sources);
+	applyStructureLibLockEnhancements(enhanced);
 	applyReferenceEnhancements(enhanced);
 	return enhanced;
 }
@@ -661,7 +662,8 @@ function applyStructureLibOptionTagEnhancements(tags: Record<string, GuideNhTagS
 			attributes: {
 				expr: { type: 'number', valueStyle: 'string' },
 				tier: { type: 'number', valueStyle: 'string' },
-				value: { type: 'number', valueStyle: 'string' }
+				value: { type: 'number', valueStyle: 'string' },
+				locked: { type: 'boolean', valueStyle: 'expression' }
 			},
 			children: [],
 			snippets: []
@@ -674,7 +676,8 @@ function applyStructureLibOptionTagEnhancements(tags: Record<string, GuideNhTagS
 				id: { type: 'string', valueStyle: 'string' },
 				name: { type: 'string', valueStyle: 'string' },
 				tier: { type: 'number', valueStyle: 'string' },
-				value: { type: 'number', valueStyle: 'string' }
+				value: { type: 'number', valueStyle: 'string' },
+				locked: { type: 'boolean', valueStyle: 'expression' }
 			},
 			children: [],
 			snippets: []
@@ -698,6 +701,17 @@ function applyStructureLibOptionTagEnhancements(tags: Record<string, GuideNhTagS
 		children.push(name);
 	}
 	setChildren(tags.ImportStructureLib, children);
+}
+
+function applyStructureLibLockEnhancements(tags: Record<string, GuideNhTagSchema>): void {
+	const locked: GuideNhAttributeSchema = {
+		type: 'boolean',
+		valueStyle: 'expression',
+		description: 'Locks the explicitly supplied tier or channel value during interactive preview.'
+	};
+	for (const tagName of ['ImportStructureLib', 'Tier', 'Channel']) {
+		mergeAttributes(tags[tagName], { locked });
+	}
 }
 
 function createStructureLibTextOptionDefinition(option: string): Omit<GuideNhTagSchema, 'name'> {
