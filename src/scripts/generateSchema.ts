@@ -62,6 +62,7 @@ export function enhanceGeneratedTagsFromJavaSources(
 	applyRecipeEnhancements(enhanced);
 	applyContributorEnhancements(enhanced, sources);
 	applyStructureLibLockEnhancements(enhanced);
+	applyAmountEnhancements(enhanced);
 	applyReferenceEnhancements(enhanced);
 	return enhanced;
 }
@@ -913,6 +914,22 @@ function applyRecipeEnhancements(tags: Record<string, GuideNhTagSchema>): void {
 		mergeAttributes(tags[name], recipeFilterAttributes);
 		mergeAttributes(tags[name], blockLayoutAttributes);
 	}
+}
+
+function applyAmountEnhancements(tags: Record<string, GuideNhTagSchema>): void {
+	tags.Amount = {
+		name: 'Amount',
+		kind: 'inline',
+		description: 'Formats a number with an optional registered unit. An omitted unit and item unit add no suffix; fluid uses the GTNHLib fluid preference.',
+		attributes: {
+			value: { type: 'number', valueStyle: 'expression' },
+			unit: { type: 'enum', valueStyle: 'string', values: ['none', 'item', 'fluid'] },
+			format: { type: 'enum', valueStyle: 'string', values: ['default', 'plain', 'compact', 'scientific'] },
+			decimals: { type: 'number', valueStyle: 'expression' }
+		},
+		children: [],
+		snippets: ['<Amount value="${1:250}" unit="${2:fluid}" />']
+	};
 }
 
 function applyReferenceEnhancements(tags: Record<string, GuideNhTagSchema>): void {
@@ -1899,6 +1916,7 @@ function applyGeneratedTagFixups(
 ): void {
 	overwriteGeneratedTag(mergedTags, generatedTags, existingTags, 'ContentTabs');
 	overwriteGeneratedTag(mergedTags, generatedTags, existingTags, 'Tab');
+	overwriteGeneratedTag(mergedTags, generatedTags, existingTags, 'Amount');
 	// FunctionGraph curves use label exclusively. The general schema merge retains historical
 	// fields unless they are explicitly removed after that merge.
 	delete mergedTags.Plot?.attributes.name;

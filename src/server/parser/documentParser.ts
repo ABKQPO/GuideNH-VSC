@@ -53,7 +53,7 @@ function collectRegexRanges(text: string, pattern: RegExp): MaskRange[] {
 
 function collectFencedCodeRanges(text: string): MaskRange[] {
 	const ranges: MaskRange[] = [];
-	const fencePattern = /^([`~]{3,})[^\r\n]*(?:\r?\n[\s\S]*?^\1[ \t]*$|[\s\S]*$)/gm;
+	const fencePattern = /^[ \t]*([`~]{3,})[^\r\n]*(?:\r?\n[\s\S]*?^[ \t]*\1[ \t]*$|[\s\S]*$)/gm;
 	let match: RegExpExecArray | null;
 	while ((match = fencePattern.exec(text)) !== null) {
 		ranges.push({ start: match.index, end: match.index + match[0].length });
