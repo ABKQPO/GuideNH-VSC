@@ -63,6 +63,7 @@ export function enhanceGeneratedTagsFromJavaSources(
 	applyContributorEnhancements(enhanced, sources);
 	applyStructureLibLockEnhancements(enhanced);
 	applyAmountEnhancements(enhanced);
+	applyTableEnhancements(enhanced);
 	applyReferenceEnhancements(enhanced);
 	return enhanced;
 }
@@ -930,6 +931,38 @@ function applyAmountEnhancements(tags: Record<string, GuideNhTagSchema>): void {
 		children: [],
 		snippets: ['<Amount value="${1:250}" unit="${2:fluid}" />']
 	};
+}
+
+function applyTableEnhancements(tags: Record<string, GuideNhTagSchema>): void {
+	const string = { type: 'string' as const, valueStyle: 'string' as const };
+	const number = { type: 'number' as const, valueStyle: 'string' as const };
+	const align = { type: 'enum' as const, valueStyle: 'string' as const, values: ['left', 'center', 'right'] };
+	const valign = { type: 'enum' as const, valueStyle: 'string' as const, values: ['top', 'middle', 'bottom', 'baseline'] };
+	const sectionAttributes = { align, valign, char: string, charoff: string, bgcolor: string };
+	const cells = ['th', 'td'];
+	tags.table = {
+		name: 'table', kind: 'block', description: 'HTML table with column width hints and merged cells.',
+		attributes: {
+			widths: string, align: string, width: string, border: number, cellpadding: number, cellspacing: number,
+			summary: string, frame: string, rules: string, bordercolor: string, bgcolor: string
+		},
+		children: ['caption', 'colgroup', 'thead', 'tbody', 'tfoot', 'tr'], snippets: []
+	};
+	for (const name of ['caption', 'colgroup', 'thead', 'tbody', 'tfoot', 'tr', ...cells, 'col']) {
+		const isCell = cells.includes(name);
+		tags[name] = {
+			name, kind: name === 'col' ? 'inline' : 'any', description: `HTML table ${name} element.`,
+			attributes: name === 'col' || name === 'colgroup' ? { width: string, span: number, ...sectionAttributes }
+				: name === 'caption' ? { align }
+				: ['thead', 'tbody', 'tfoot'].includes(name) ? sectionAttributes
+				: name === 'tr' ? { ...sectionAttributes }
+				: isCell ? { colspan: number, rowspan: number, align,
+					valign, headers: string, width: string, height: string, axis: string, char: string, charoff: string,
+					bgcolor: string, ...(name === 'th' ? { scope: { type: 'enum' as const, valueStyle: 'string' as const, values: ['col', 'row', 'colgroup', 'rowgroup'] }, abbr: string } : {}) } : {},
+			children: name === 'colgroup' ? ['col'] : name === 'tr' ? cells
+				: ['thead', 'tbody', 'tfoot'].includes(name) ? ['tr'] : [], snippets: []
+		};
+	}
 }
 
 function applyReferenceEnhancements(tags: Record<string, GuideNhTagSchema>): void {
@@ -1917,6 +1950,7 @@ function applyGeneratedTagFixups(
 	overwriteGeneratedTag(mergedTags, generatedTags, existingTags, 'ContentTabs');
 	overwriteGeneratedTag(mergedTags, generatedTags, existingTags, 'Tab');
 	overwriteGeneratedTag(mergedTags, generatedTags, existingTags, 'Amount');
+	applyTableEnhancements(mergedTags);
 	// FunctionGraph curves use label exclusively. The general schema merge retains historical
 	// fields unless they are explicitly removed after that merge.
 	delete mergedTags.Plot?.attributes.name;
