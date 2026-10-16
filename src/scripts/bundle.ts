@@ -17,7 +17,8 @@ const baseOptions: BuildOptions = {
 async function bundle(): Promise<void> {
 	await Promise.all([
 		bundleEntry('out/extension.js', 'out/extension.js'),
-		bundleEntry('out/server/server.js', 'out/server.js')
+		bundleEntry('out/server/server.js', 'out/server.js'),
+		copySchema('src/schema/ponder_schema.json', 'out/schema/ponder_schema.json')
 	]);
 	await writeBundledGuideNhSchema(path.join('src', 'schema'), path.join('out', 'schema'));
 }
@@ -30,6 +31,11 @@ async function bundleEntry(entryPoint: string, outfile: string): Promise<void> {
 		outfile: temporaryOutfile
 	});
 	await fs.rename(temporaryOutfile, outfile);
+}
+
+async function copySchema(source: string, destination: string): Promise<void> {
+	await fs.mkdir(path.dirname(destination), { recursive: true });
+	await fs.copyFile(source, destination);
 }
 
 bundle().catch((error: unknown) => {

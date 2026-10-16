@@ -62,6 +62,16 @@
       "./media/guidenh-markdown-preview.js"
     ],
     "markdown.markdownItPlugins": true,
+    "jsonValidation": [
+      {
+        "fileMatch": [
+          "**/*ponder*.json",
+          "**/ponder/**/*.json",
+          "**/guidenh/assets/**/*.json"
+        ],
+        "url": "./out/schema/ponder_schema.json"
+      }
+    ],
     "configuration": {
       "title": "GuideNH",
       "properties": {

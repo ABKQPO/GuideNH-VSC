@@ -62,3 +62,6 @@ npm run build
 - Runtime bridge connections are local-only by default. Remote hosts require explicit opt-in.
 - Runtime semantic data is paged and cached by capability to avoid oversized synchronization messages.
 - The extension can work without the runtime bridge by using the local schema and workspace index.
+- Ponder JSON files use the bundled offline schema at `out/schema/ponder_schema.json`; files whose names contain
+  `ponder`, or that are under a `guidenh/assets` resource-pack directory, are validated locally without loading a
+  remote URL.
