@@ -943,7 +943,7 @@ function applyTableEnhancements(tags: Record<string, GuideNhTagSchema>): void {
 	tags.table = {
 		name: 'table', kind: 'block', description: 'HTML table with column width hints and merged cells.',
 		attributes: {
-			widths: string, align: string, width: string, border: number, cellpadding: number, cellspacing: number,
+			widths: string, header: { type: 'boolean' as const, valueStyle: 'string' as const }, align: string, width: string, border: number, cellpadding: number, cellspacing: number,
 			summary: string, frame: string, rules: string, bordercolor: string, bgcolor: string
 		},
 		children: ['caption', 'colgroup', 'thead', 'tbody', 'tfoot', 'tr'], snippets: []
@@ -958,7 +958,8 @@ function applyTableEnhancements(tags: Record<string, GuideNhTagSchema>): void {
 				: name === 'tr' ? { ...sectionAttributes }
 				: isCell ? { colspan: number, rowspan: number, align,
 					valign, headers: string, width: string, height: string, axis: string, char: string, charoff: string,
-					bgcolor: string, ...(name === 'th' ? { scope: { type: 'enum' as const, valueStyle: 'string' as const, values: ['col', 'row', 'colgroup', 'rowgroup'] }, abbr: string } : {}) } : {},
+					bgcolor: string, color: string, background: string, style: string,
+					...(name === 'th' ? { scope: { type: 'enum' as const, valueStyle: 'string' as const, values: ['col', 'row', 'colgroup', 'rowgroup'] }, abbr: string } : {}) } : {},
 			children: name === 'colgroup' ? ['col'] : name === 'tr' ? cells
 				: ['thead', 'tbody', 'tfoot'].includes(name) ? ['tr'] : [], snippets: []
 		};

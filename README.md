@@ -18,6 +18,7 @@ GuideVSC is a Visual Studio Code extension for authoring GuideNH Markdown conten
 - Frontmatter support for `item_id` and `item_ids` NEI-style item expressions, including workspace indexing and semantic completion, plus navigation requirements/exclusions and `navigation.keyword`/`keywords` search aliases.
 - Quick fixes for unclosed GuideNH tags, including nested tag stacks.
 - Schema generation from the local GuideNH Java compiler sources.
+- Markdown table preview support for column spans (`||`), row spans (`^^`), multiline rows (`\\`), headerless tables, cell Markdown, and cell IAL styles.
 - Optional runtime semantic cache over a token-protected WebSocket bridge.
 
 ## Runtime Bridge
