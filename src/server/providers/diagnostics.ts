@@ -383,7 +383,7 @@ function validateAttributeValueType(attribute: GuideNhAttributeSchema, value: st
 	if (acceptsBooleanLikeString(attribute, value)) {
 		return undefined;
 	}
-	if (attribute.valueStyle === 'string' && valueStyle === 'expression') {
+	if (attribute.valueStyle === 'string' && valueStyle === 'expression' && attribute.type !== 'number') {
 		return attribute.type;
 	}
 	if (attribute.type === 'number') {

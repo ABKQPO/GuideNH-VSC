@@ -378,6 +378,7 @@ function applyContentTabsEnhancements(tags: Record<string, GuideNhTagSchema>): v
 		kind: 'block',
 		description: 'Generated from GuideNH ContentTabs compiler source.',
 		attributes: sortAttributes({
+			background: { type: 'color', valueStyle: 'string' },
 			color: { type: 'color', valueStyle: 'string' },
 			default: { type: 'string', valueStyle: 'string' },
 			defaultIndex: { type: 'number', valueStyle: 'string' },

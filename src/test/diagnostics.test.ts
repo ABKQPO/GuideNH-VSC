@@ -44,7 +44,7 @@ suite('GuideNH diagnostics', () => {
 			'  <Block id="minecraft:diamond_block" x="-1" y="1" z="-1" />',
 			'</GameScene>'
 		].join('\n');
-		const invalidText = '<GameScene width={256} interactive="maybe" />';
+		const invalidText = '<GameScene width={wide} interactive="maybe" />';
 
 		assert.deepStrictEqual(createGuideNhDiagnostics(validText, schema), []);
 		assert.deepStrictEqual(
@@ -464,6 +464,21 @@ suite('GuideNH diagnostics', () => {
 		].join('\n');
 
 		assert.deepStrictEqual(createGuideNhDiagnostics(text, schema), []);
+	});
+
+	test('accepts number attributes in both quoted and expression forms', async () => {
+		const schema = await loadGuideNhSchema(path.join(__dirname, '..', '..', 'src', 'schema'));
+		const text = [
+			'<GameScene width={256} height="192" />',
+			'Input separation<FloatingImage src="gregtech:textures/gui/overlay_button/input_separation_on.png" wrap="inline" x={0} y={0} w={16} h={16} scaleX={3.0} scaleY={3.0} />'
+		].join('\n');
+
+		assert.deepStrictEqual(
+			createGuideNhDiagnostics(text, schema)
+				.map((item: Diagnostic) => item.message)
+				.filter((message: string) => message.includes('expects')),
+			[]
+		);
 	});
 
 	test('accepts boolean attributes in both quoted and expression forms', async () => {
