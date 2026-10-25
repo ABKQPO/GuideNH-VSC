@@ -26,9 +26,9 @@ interface MaskRange {
 
 const IgnoredHtmlTagNames = new Set([
 	'a', 'abbr', 'area', 'b', 'base', 'code', 'col', 'del', 'em', 'embed', 'hr', 'i', 'img', 'input', 'link', 'mark',
-	'meta', 'param', 's', 'small', 'source', 'span', 'strong', 'sub', 'sup', 'track', 'u', 'wbr'
+	'meta', 'param', 's', 'small', 'source', 'span', 'strong', 'sub', 'sup', 'track', 'u'
 ]);
-const GuideNhVoidTagNames = new Set(['br']);
+const GuideNhVoidTagNames = new Set(['br', 'wbr']);
 
 export function maskIgnoredMarkdownRanges(text: string): string {
 	const ranges = [

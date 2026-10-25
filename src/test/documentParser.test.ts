@@ -68,6 +68,14 @@ navigation:
 		);
 	});
 
+	test('treats wbr as a void GuideNH tag', () => {
+		const parsed = parseGuideNhDocument('<details><summary>Cobble<wbr>stone</summary></details>');
+		assert.deepStrictEqual(
+			parsed.tags.map((tag) => [tag.name, tag.selfClosing]),
+			[['details', false], ['summary', false], ['wbr', true], ['summary', false], ['details', false]]
+		);
+	});
+
 	test('parses details attributes used by runtime content blocks', () => {
 		const parsed = parseGuideNhDocument('<details open width="220" height="150" wrap="square" align="right"></details>');
 		assert.deepStrictEqual(parsed.tags[0].attributes, {
