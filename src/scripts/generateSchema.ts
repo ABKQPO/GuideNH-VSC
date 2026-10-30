@@ -639,6 +639,7 @@ function applyStructureLibConditionEnhancements(tags: Record<string, GuideNhTagS
 		'BoxAnnotation',
 		'DiamondAnnotation',
 		'LineAnnotation',
+		'OutlineAnnotation',
 		'PlaySound',
 		'TextAnnotation'
 	]) {
